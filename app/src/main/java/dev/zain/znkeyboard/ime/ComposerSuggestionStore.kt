@@ -4,6 +4,7 @@ import android.content.Context
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
+import dev.zain.znkeyboard.KeyboardSettings
 import org.json.JSONArray
 import org.json.JSONException
 import org.json.JSONObject
@@ -16,7 +17,9 @@ import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
+/** Encrypted storage of the retired "Save text" feature, kept only to migrate it into snippets. */
 object ComposerSuggestionStore {
+    private const val MIGRATED_TAG = "saved"
     const val MAX_STORED_HISTORY = 1_000
     const val MAX_ENTRY_CHARS = 32_000
     private const val HISTORY_FILE_NAME = "composer_suggestion_history.enc"
@@ -38,35 +41,44 @@ object ComposerSuggestionStore {
         }.getOrElse { emptyList() }
     }
 
+    /**
+     * One-time move of the retired "Save text" history into snippets, which now power both the
+     * snippet panel and as-you-type completions. Entries that do not fit (snippet limit, or longer
+     * than a snippet may be) stay in this encrypted file and are retried on a later launch, so
+     * nothing the user saved is dropped.
+     *
+     * @return number of entries moved.
+     */
     @Synchronized
-    fun recordText(context: Context, text: String, maxItems: Int): RecordResult {
-        if (text.isBlank() || text.length > MAX_ENTRY_CHARS) return RecordResult.Invalid
-        val current = read(context)
-        if (current.any { it.text == text }) return RecordResult.Duplicate
-
-        val entries = buildList {
-            add(Entry(text = text, timestampMillis = System.currentTimeMillis()))
-            addAll(current)
-        }.take(normalizeMaxItems(maxItems))
-        write(context, entries)
-        return RecordResult.Saved
-    }
-
-    @Synchronized
-    fun deleteText(context: Context, text: String): List<Entry> {
-        val entries = read(context).filterNot { it.text == text }
-        writeOrClear(context, entries)
-        return entries
-    }
-
-    @Synchronized
-    fun trimToLimit(context: Context, maxItems: Int): List<Entry> {
-        val current = read(context)
-        val trimmed = current.take(normalizeMaxItems(maxItems))
-        if (trimmed.size != current.size) {
-            writeOrClear(context, trimmed)
+    fun migrateIntoSnippets(context: Context): Int {
+        val entries = read(context)
+        if (entries.isEmpty()) {
+            historyFile(context).delete()
+            return 0
         }
-        return trimmed
+        val snippets = KeyboardSettings.readTextSnippets(context)
+        val existing = snippets.mapTo(mutableSetOf()) { it.text }
+        val capacity = (KeyboardSettings.MAX_TEXT_SNIPPETS - snippets.size).coerceAtLeast(0)
+        val added = mutableListOf<KeyboardSettings.TextSnippet>()
+        val leftovers = mutableListOf<Entry>()
+        // Stored newest-first; append oldest-first so the newest ends up as the most recent snippet.
+        for (entry in entries.asReversed()) {
+            val snippet = KeyboardSettings.textSnippetFromText(entry.text, listOf(MIGRATED_TAG))
+            when {
+                snippet.text.isBlank() || snippet.text in existing -> Unit
+                entry.text.trim().length > KeyboardSettings.MAX_TEXT_SNIPPET_CHARS -> leftovers += entry
+                added.size < capacity -> {
+                    added += snippet
+                    existing += snippet.text
+                }
+                else -> leftovers += entry
+            }
+        }
+        if (added.isNotEmpty()) {
+            KeyboardSettings.saveTextSnippets(context, snippets + added)
+        }
+        writeOrClear(context, leftovers.asReversed())
+        return added.size
     }
 
     private fun historyFile(context: Context): File =
@@ -176,15 +188,6 @@ object ComposerSuggestionStore {
             .setRandomizedEncryptionRequired(true)
             .build())
         return keyGenerator.generateKey()
-    }
-
-    private fun normalizeMaxItems(maxItems: Int): Int =
-        maxItems.coerceIn(1, MAX_STORED_HISTORY)
-
-    enum class RecordResult {
-        Saved,
-        Duplicate,
-        Invalid,
     }
 
     data class Entry(

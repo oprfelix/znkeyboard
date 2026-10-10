@@ -15,6 +15,7 @@ import android.os.SystemClock
 import android.util.AttributeSet
 import android.util.SparseArray
 import android.util.TypedValue
+import android.view.HapticFeedbackConstants
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
@@ -22,11 +23,15 @@ import android.view.ViewConfiguration
 import dev.zain.znkeyboard.KeyboardSettings
 import dev.zain.znkeyboard.constants.ImeColors
 import dev.zain.znkeyboard.constants.ImeDimensions
+import dev.zain.znkeyboard.typing.AdaptiveTypingEngine
+import dev.zain.znkeyboard.typing.CharLanguageModel
+import dev.zain.znkeyboard.typing.TypingLearner
 import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
+import kotlin.math.hypot
 import kotlin.math.sin
 
 class ZnKeyboardView @JvmOverloads constructor(
@@ -47,18 +52,24 @@ class ZnKeyboardView @JvmOverloads constructor(
         fun onSnippetPanelRequested()
         fun onEmojiKeySuggestionSelected(emoji: String)
         fun onAgentRewriteRequested()
-        fun onSaveComposerTextRequested()
+        fun onSaveSnippetRequested()
         fun onComposerSuggestionSelected(text: String)
     }
 
     var callback: Callback? = null
 
     private val keyPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val letterTypeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, 400, false)
+    private val labelTypeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, 500, false)
     private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = PALETTE.text
         textAlign = Paint.Align.CENTER
-        typeface = android.graphics.Typeface.create(android.graphics.Typeface.SANS_SERIF, android.graphics.Typeface.NORMAL)
+        typeface = letterTypeface
     }
+    private val previewPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.FILL
+    }
+    private val previewBounds = RectF()
     private val iconPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
         strokeCap = Paint.Cap.ROUND
@@ -105,6 +116,22 @@ class ZnKeyboardView @JvmOverloads constructor(
     private var shortcutRowState = ShortcutRowState(secondRowVisible = true)
     private var emojiKeySuggestion: String? = null
     private var composerSuggestion: String? = null
+    private var keyHapticsEnabled = true
+    private var keyPreviewEnabled = true
+    private var autoShiftActive = false
+    private var lastShiftTapAt = 0L
+
+    /** Personal touch decoder + learner; null means plain geometric hit-testing. */
+    var typingEngine: AdaptiveTypingEngine? = null
+
+    // Letter geometry of the current layout, in dp, for the adaptive decoder. Fresh arrays per layout
+    // so learning samples keep the geometry they were captured with.
+    private var letterHits = arrayOfNulls<KeyHit>(26)
+    private var letterCentersXDp = FloatArray(26)
+    private var letterCentersYDp = FloatArray(26)
+    private var letterPitchXDp = 0f
+    private var letterPitchYDp = 0f
+    private var letterGeometryValid = false
     // The system can draw close-keyboard and IME-switch controls inside the IME window.
     private val bottomSystemControlGapPx by lazy(LazyThreadSafetyMode.NONE) {
         ImeLayout.bottomSystemControlGapPx(context)
@@ -125,7 +152,7 @@ class ZnKeyboardView @JvmOverloads constructor(
     private var backspaceRepeatCount = 0
 
     init {
-        isHapticFeedbackEnabled = false
+        isHapticFeedbackEnabled = true
         isSoundEffectsEnabled = false
         isClickable = true
         importantForAutofill = IMPORTANT_FOR_AUTOFILL_NO
@@ -144,6 +171,35 @@ class ZnKeyboardView @JvmOverloads constructor(
         if (bottomPaddingDp != normalizedPaddingDp) {
             bottomPaddingDp = normalizedPaddingDp
             requestLayout()
+            refreshHitTargets()
+            invalidate()
+        }
+    }
+
+    fun setKeyHapticsEnabled(enabled: Boolean) {
+        keyHapticsEnabled = enabled
+    }
+
+    fun setKeyPreviewEnabled(enabled: Boolean) {
+        keyPreviewEnabled = enabled
+    }
+
+    /**
+     * Sentence-start capitalization requested by the editor's caps mode. Only drives Shift while the
+     * user has not chosen a shift state themselves; caps lock is never overridden.
+     */
+    fun setAutoShift(enabled: Boolean) {
+        if (layoutMode != LayoutMode.Letters) return
+        val next = when {
+            shiftState == ShiftState.Locked -> return
+            enabled && shiftState == ShiftState.Off -> ShiftState.OneShot
+            !enabled && shiftState == ShiftState.OneShot && autoShiftActive -> ShiftState.Off
+            else -> shiftState
+        }
+        val nextAuto = enabled && next == ShiftState.OneShot && (autoShiftActive || shiftState == ShiftState.Off)
+        if (next != shiftState || nextAuto != autoShiftActive) {
+            shiftState = next
+            autoShiftActive = nextAuto
             refreshHitTargets()
             invalidate()
         }
@@ -292,6 +348,9 @@ class ZnKeyboardView @JvmOverloads constructor(
         hitTargets.forEach { hit ->
             drawKey(canvas, hit)
         }
+        if (keyPreviewEnabled) {
+            drawKeyPreviews(canvas)
+        }
         if (shortcutRowState.loading) {
             postInvalidateOnAnimation()
         }
@@ -299,6 +358,9 @@ class ZnKeyboardView @JvmOverloads constructor(
 
     override fun onSizeChanged(width: Int, height: Int, oldWidth: Int, oldHeight: Int) {
         super.onSizeChanged(width, height, oldWidth, oldHeight)
+        typingEngine?.setLandscape(
+            resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE,
+        )
         refreshHitTargets()
     }
 
@@ -357,10 +419,17 @@ class ZnKeyboardView @JvmOverloads constructor(
 
     private fun handlePointerDown(event: MotionEvent, pointerIndex: Int) {
         val pointerId = event.getPointerId(pointerIndex)
-        val hit = findHit(event.getX(pointerIndex), event.getY(pointerIndex))
-        val key = hit?.key?.takeIf { it.enabled }
-        val touch = ActiveTouch(key)
+        val downX = event.getX(pointerIndex)
+        val downY = event.getY(pointerIndex)
+        val hit = findHit(downX, downY)
+        val touch = ActiveTouch(null, downX = downX, downY = downY)
+        // Resolve the key at touch-down, where the user aimed, not where the finger rolls to on lift.
+        val key = resolveDownKey(hit, downX, downY, touch)
+        touch.currentKey = key
         activeTouches.put(pointerId, touch)
+        if (key != null && keyHapticsEnabled) {
+            performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+        }
         pointerQueue.remove(pointerId)
         pointerQueue.add(pointerId)
         when (key?.id) {
@@ -387,7 +456,7 @@ class ZnKeyboardView @JvmOverloads constructor(
                 key = key,
                 startX = event.getX(pointerIndex),
                 startY = event.getY(pointerIndex),
-                stepPx = max(dp(SPACE_CURSOR_DRAG_STEP_DP), hit.visualBounds.width() / SPACE_CURSOR_DRAG_VISIBLE_STEPS),
+                stepPx = max(dp(SPACE_CURSOR_DRAG_STEP_DP), (hit?.visualBounds?.width() ?: 0f) / SPACE_CURSOR_DRAG_VISIBLE_STEPS),
             )
         }
         key?.takeIf(::isBackspaceKey)?.let { key ->
@@ -395,7 +464,7 @@ class ZnKeyboardView @JvmOverloads constructor(
                 key = key,
                 startX = event.getX(pointerIndex),
                 startY = event.getY(pointerIndex),
-                wordStepPx = max(dp(GESTURE_DELETE_WORD_STEP_DP), hit.visualBounds.width() * 0.72f),
+                wordStepPx = max(dp(GESTURE_DELETE_WORD_STEP_DP), (hit?.visualBounds?.width() ?: 0f) * 0.72f),
             )
             scheduleBackspaceRepeat(pointerId, key)
         }
@@ -417,6 +486,12 @@ class ZnKeyboardView @JvmOverloads constructor(
                 continue
             }
 
+            if (!touch.slid) {
+                // Contact centroids drift while a finger rolls through a tap. Keep the touch-down key
+                // until the finger has clearly travelled, then allow deliberate slide-to-correct.
+                if (hypot(x - touch.downX, y - touch.downY) < slideHysteresisPx()) continue
+                touch.slid = true
+            }
             val key = findHit(x, y)?.key?.takeIf { it.enabled }
             if (touch.currentKey?.id != key?.id) {
                 touch.currentKey = key
@@ -466,6 +541,7 @@ class ZnKeyboardView @JvmOverloads constructor(
             touch.currentKey = gesture.key
             if (callback?.onBackspaceGestureDeleteStarted() == true) {
                 gesture.active = true
+                typingEngine?.learner?.discardPending()
             } else {
                 gesture.consumedWithoutGesture = true
                 touch.currentKey = null
@@ -476,6 +552,7 @@ class ZnKeyboardView @JvmOverloads constructor(
         val wordCount = backspaceGestureWordCount(gesture, activationDistance, x)
         if (wordCount != gesture.lastWordCount) {
             gesture.lastWordCount = wordCount
+            if (keyHapticsEnabled) performHapticFeedback(HapticFeedbackConstants.TEXT_HANDLE_MOVE)
             callback?.onBackspaceGestureDeleteChanged(wordCount)
         }
         return true
@@ -505,6 +582,7 @@ class ZnKeyboardView @JvmOverloads constructor(
             touch.currentKey = gesture.key
             if (callback?.onSpaceCursorDragStarted() == true) {
                 gesture.active = true
+                typingEngine?.learner?.onContextChanged(null)
                 clearLatchedModifiers()
             } else {
                 gesture.consumedWithoutGesture = true
@@ -516,6 +594,7 @@ class ZnKeyboardView @JvmOverloads constructor(
         val characterDelta = spaceCursorDragCharacterDelta(gesture, x)
         if (characterDelta != gesture.lastCharacterDelta) {
             gesture.lastCharacterDelta = characterDelta
+            if (keyHapticsEnabled) performHapticFeedback(HapticFeedbackConstants.TEXT_HANDLE_MOVE)
             callback?.onSpaceCursorDragChanged(characterDelta)
         }
         return true
@@ -550,7 +629,7 @@ class ZnKeyboardView @JvmOverloads constructor(
                 touch?.repeatConsumed != true &&
                 touch?.cursorDragConsumed != true
             ) {
-                touch?.currentKey?.let(::handleKey)
+                touch?.currentKey?.let { key -> handleKey(key, touch.learningSample(key)) }
             }
             if (nextPointerId == pointerId) {
                 return
@@ -700,29 +779,40 @@ class ZnKeyboardView @JvmOverloads constructor(
         val rewriteLoading = key.intent == KeyIntent.AgentRewrite && shortcutRowState.loading
         val pressed = isKeyPressed(key.id)
         val selected = key.active && !rewriteLoading
+        val toolbar = hit.rowStyle == RowStyle.Toolbar || hit.rowStyle == RowStyle.Suggestion
         val keyAlpha = if (key.enabled || key.emphasizedWhenDisabled) 255 else DISABLED_KEY_ALPHA
-        val radius = dp(ImeLayout.KEY_RADIUS_DP.toFloat())
-        val drawBackground = key.role != KeyRole.Function ||
-            functionKeyBackgroundsEnabled ||
-            pressed ||
-            selected ||
-            rewriteLoading
+        val radius = keyRadius(bounds, toolbar)
+        val isActionKey = key.role == KeyRole.Action && key.id == "enter"
+        // Space is typed as often as letters; it shares their surface rather than looking like a modifier.
+        val isSpace = key.id == "space" || key.id == "phone_space"
+        val drawBackground = when {
+            pressed || selected || rewriteLoading || isSpace -> true
+            // Shortcut rows read as a quiet toolbar: content only, with a pill on press / latch.
+            toolbar -> hit.rowStyle == RowStyle.Suggestion || key.intent == KeyIntent.AgentRewrite
+            key.role == KeyRole.Function -> functionKeyBackgroundsEnabled
+            else -> true
+        }
         val containerColor = when {
             rewriteLoading -> PALETTE.aiLoadingSurface
             selected -> PALETTE.selected
-            key.role == KeyRole.Action -> PALETTE.action
-            key.role == KeyRole.Function -> PALETTE.function
+            toolbar -> PALETTE.function
+            isActionKey -> PALETTE.action
+            isSpace -> PALETTE.key
+            key.role == KeyRole.Function || key.role == KeyRole.Action -> PALETTE.function
+            hit.rowStyle == RowStyle.Numbers -> PALETTE.keyQuiet
             else -> PALETTE.key
         }
         val contentColor = when {
             rewriteLoading -> PALETTE.text
+            selected -> PALETTE.onSelected
+            isActionKey -> PALETTE.onAction
             key.role == KeyRole.Character -> PALETTE.text
             else -> PALETTE.mutedText
         }
 
         keyPaint.style = Paint.Style.FILL
         keyPaint.color = if (pressed) {
-            ImePressFeedback.stateLayerColor(containerColor, contentColor)
+            ImePressFeedback.contentStateLayer(containerColor, contentColor, PRESSED_LAYER_OPACITY)
         } else {
             containerColor
         }
@@ -749,19 +839,63 @@ class ZnKeyboardView @JvmOverloads constructor(
                     SubLabelStyle.Equal -> drawEqualStackedLabel(canvas, key.label, key.subLabel, bounds, contentColor, contentAlpha)
                 }
             } else {
-                val textSize = fitTextSize(key.label, bounds, key.role)
+                val role = if (toolbar && key.role == KeyRole.Character && key.label.length > 1) KeyRole.Function else key.role
+                val textSize = fitTextSize(key.label, bounds, role, hit.rowStyle)
+                textPaint.typeface = if (role == KeyRole.Character) letterTypeface else labelTypeface
                 textPaint.textSize = textSize
                 textPaint.color = contentColor
                 textPaint.alpha = contentAlpha
                 val metrics = textPaint.fontMetrics
                 val baseline = bounds.centerY() - (metrics.ascent + metrics.descent) / 2f
                 canvas.drawText(key.label, bounds.centerX(), baseline, textPaint)
+                textPaint.typeface = letterTypeface
             }
         }
         drawLongPressHint(canvas, key.longPressHint, bounds, contentColor, contentAlpha)
 
         if (key.id == "shift" && shiftState == ShiftState.Locked) {
             drawShiftLockIndicator(canvas, bounds, contentColor)
+        }
+    }
+
+    private fun keyRadius(bounds: RectF, toolbar: Boolean): Float {
+        val preferred = dp(ImeLayout.KEY_RADIUS_DP.toFloat())
+        val cap = bounds.height() * if (toolbar) 0.5f else 0.3f
+        return min(if (toolbar) bounds.height() / 2f else preferred, cap)
+    }
+
+    /**
+     * Character preview above the finger. The finger occludes the very key it is pressing, so a
+     * visible, offset confirmation is what lets users trust a tap without looking for the result.
+     */
+    private fun drawKeyPreviews(canvas: Canvas) {
+        for (index in 0 until activeTouches.size()) {
+            val touch = activeTouches.valueAt(index)
+            val key = touch.currentKey ?: continue
+            if (key.role != KeyRole.Character || key.icon != null || key.label.length > 2) continue
+            val hit = hitTargets.firstOrNull { it.key.id == key.id } ?: continue
+            if (hit.rowStyle == RowStyle.Toolbar || hit.rowStyle == RowStyle.Suggestion) continue
+            val bounds = hit.visualBounds
+            val bubbleWidth = max(bounds.width() * PREVIEW_WIDTH_FACTOR, dp(PREVIEW_MIN_WIDTH_DP))
+            val bubbleHeight = bounds.height() * PREVIEW_HEIGHT_FACTOR
+            var left = bounds.centerX() - bubbleWidth / 2f
+            left = left.coerceIn(dp(2f), width - bubbleWidth - dp(2f))
+            var top = bounds.top - bubbleHeight - dp(PREVIEW_GAP_DP)
+            if (top < 0f) top = 0f
+            previewBounds.set(left, top, left + bubbleWidth, top + bubbleHeight)
+            val radius = min(dp(ImeLayout.KEY_RADIUS_DP.toFloat() + 4f), bubbleHeight * 0.3f)
+            previewPaint.color = PALETTE.preview
+            previewPaint.setShadowLayer(dp(6f), 0f, dp(2f), PREVIEW_SHADOW_COLOR)
+            canvas.drawRoundRect(previewBounds, radius, radius, previewPaint)
+            previewPaint.clearShadowLayer()
+
+            textPaint.typeface = letterTypeface
+            textPaint.color = PALETTE.text
+            textPaint.alpha = 255
+            textPaint.textSize = min(sp(PREVIEW_TEXT_SIZE_SP), bubbleHeight * 0.62f)
+            val metrics = textPaint.fontMetrics
+            val baseline = previewBounds.centerY() - (metrics.ascent + metrics.descent) / 2f
+            canvas.drawText(key.label, previewBounds.centerX(), baseline, textPaint)
         }
     }
 
@@ -876,7 +1010,7 @@ class ZnKeyboardView @JvmOverloads constructor(
         color: Int,
         alpha: Int,
     ) {
-        val textSize = fitTextSize(label, bounds, KeyRole.Action)
+        val textSize = fitTextSize(label, bounds, KeyRole.Function)
         textPaint.textSize = textSize
         textPaint.color = color
         textPaint.alpha = alpha
@@ -1136,11 +1270,13 @@ class ZnKeyboardView @JvmOverloads constructor(
         return hitTargets.firstOrNull { it.hitBounds.contains(x, y) }
     }
 
-    private fun fitTextSize(label: String, bounds: RectF, role: KeyRole): Float {
-        val base = when (role) {
-            KeyRole.Character -> sp(ImeDimensions.KEY_LABEL_CHARACTER_TEXT_SIZE_SP)
-            KeyRole.Function -> sp(ImeDimensions.KEY_LABEL_FUNCTION_TEXT_SIZE_SP)
-            KeyRole.Action -> sp(ImeDimensions.KEY_LABEL_ACTION_TEXT_SIZE_SP)
+    private fun fitTextSize(label: String, bounds: RectF, role: KeyRole, rowStyle: RowStyle = RowStyle.Standard): Float {
+        val base = when {
+            role == KeyRole.Character && rowStyle == RowStyle.Numbers -> sp(ImeDimensions.KEY_LABEL_NUMBER_TEXT_SIZE_SP)
+            role == KeyRole.Character && rowStyle == RowStyle.Toolbar -> sp(ImeDimensions.KEY_LABEL_TOOLBAR_SYMBOL_TEXT_SIZE_SP)
+            role == KeyRole.Character -> sp(ImeDimensions.KEY_LABEL_CHARACTER_TEXT_SIZE_SP)
+            role == KeyRole.Function -> sp(ImeDimensions.KEY_LABEL_FUNCTION_TEXT_SIZE_SP)
+            else -> sp(ImeDimensions.KEY_LABEL_ACTION_TEXT_SIZE_SP)
         }
         var size = base.coerceAtMost(bounds.height() * ImeDimensions.KEY_LABEL_MAX_HEIGHT_FRACTION)
         val min = sp(ImeDimensions.KEY_LABEL_MIN_TEXT_SIZE_SP)
@@ -1154,12 +1290,23 @@ class ZnKeyboardView @JvmOverloads constructor(
         return size
     }
 
-    private fun handleKey(key: KeySpec) {
+    private fun handleKey(key: KeySpec, sample: TypingLearner.Sample? = null) {
         when (val intent = key.intent) {
-            KeyIntent.Shift -> shiftState = when (shiftState) {
-                ShiftState.Off -> ShiftState.OneShot
-                ShiftState.OneShot -> ShiftState.Locked
-                ShiftState.Locked -> ShiftState.Off
+            KeyIntent.Shift -> {
+                // Tap toggles one-shot Shift; a quick double tap locks caps (Gboard / iOS convention).
+                // The old Off → OneShot → Locked cycle trapped users in caps lock when cancelling Shift.
+                val now = SystemClock.uptimeMillis()
+                val doubleTap = now - lastShiftTapAt <= ViewConfiguration.getDoubleTapTimeout()
+                shiftState = when {
+                    shiftState == ShiftState.Locked -> ShiftState.Off
+                    doubleTap && shiftState == ShiftState.Off && !autoShiftActive -> ShiftState.Locked
+                    doubleTap && shiftState == ShiftState.OneShot && !autoShiftActive -> ShiftState.Locked
+                    shiftState == ShiftState.OneShot && autoShiftActive && doubleTap -> ShiftState.Locked
+                    shiftState == ShiftState.OneShot -> ShiftState.Off
+                    else -> ShiftState.OneShot
+                }
+                autoShiftActive = false
+                lastShiftTapAt = if (shiftState == ShiftState.Locked) 0L else now
             }
             KeyIntent.SwitchMode -> {
                 layoutMode = when (layoutMode) {
@@ -1187,13 +1334,15 @@ class ZnKeyboardView @JvmOverloads constructor(
             KeyIntent.ToggleCtrl -> ctrl = !ctrl
             KeyIntent.OpenEmojiPanel -> callback?.onEmojiPanelRequested()
             KeyIntent.AgentRewrite -> callback?.onAgentRewriteRequested()
-            KeyIntent.SaveComposerText -> callback?.onSaveComposerTextRequested()
+            KeyIntent.SaveSnippet -> callback?.onSaveSnippetRequested()
             is KeyIntent.AcceptComposerSuggestion -> callback?.onComposerSuggestionSelected(intent.text)
             is KeyIntent.Dispatch -> {
-                callback?.onKeyboardAction(intent.action, ModifierState(ctrl = ctrl, alt = alt))
+                notifyLearner(intent.action, sample)
                 if (shiftState == ShiftState.OneShot && key.consumesOneShotShift) {
                     shiftState = ShiftState.Off
+                    autoShiftActive = false
                 }
+                callback?.onKeyboardAction(intent.action, ModifierState(ctrl = ctrl, alt = alt))
                 if (ctrl || alt) {
                     ctrl = false
                     alt = false
@@ -1203,9 +1352,116 @@ class ZnKeyboardView @JvmOverloads constructor(
         refreshHitTargets()
     }
 
+    private fun notifyLearner(action: KeyboardAction, sample: TypingLearner.Sample?) {
+        val learner = typingEngine?.learner ?: return
+        if (ctrl || alt) {
+            learner.onContextChanged(null)
+            return
+        }
+        when (action) {
+            is KeyboardAction.Text -> if (action.value.length == 1) {
+                learner.onCommitted(action.value[0], sample)
+            } else {
+                action.value.forEach { learner.onCommitted(it, null) }
+            }
+            KeyboardAction.Backspace -> learner.onBackspace()
+            KeyboardAction.Enter -> learner.onCommitted('\n', null)
+            is KeyboardAction.KeyCode,
+            is KeyboardAction.Chord,
+            is KeyboardAction.Sequence -> learner.onContextChanged(null)
+        }
+    }
+
+    private fun resolveDownKey(hit: KeyHit?, x: Float, y: Float, touch: ActiveTouch): KeySpec? {
+        val key = hit?.key?.takeIf { it.enabled } ?: return null
+        val engine = typingEngine ?: return key
+        val geometricLetter = letterIndexOf(key)
+        if (!engine.adaptiveEnabled || geometricLetter < 0 || !letterGeometryValid || layoutMode != LayoutMode.Letters) {
+            return key
+        }
+        var previous2 = engine.learner.previous2()
+        var previous1 = engine.learner.previous1()
+        // Rollover typing: letters still held by other fingers precede this one.
+        for (pointerId in pointerQueue) {
+            val pendingChar = (activeTouches.get(pointerId)?.currentKey?.intent as? KeyIntent.Dispatch)
+                ?.let { (it.action as? KeyboardAction.Text)?.value?.singleOrNull() } ?: continue
+            previous2 = previous1
+            previous1 = CharLanguageModel.normalize(pendingChar)
+        }
+        val density = resources.displayMetrics.density
+        val xDp = x / density
+        val yDp = y / density
+        val letter = engine.decoder.decode(
+            xDp = xDp,
+            yDp = yDp,
+            geometricLetter = geometricLetter,
+            centersXDp = letterCentersXDp,
+            centersYDp = letterCentersYDp,
+            pitchXDp = letterPitchXDp,
+            pitchYDp = letterPitchYDp,
+            previous2 = previous2,
+            previous1 = previous1,
+            useLanguageModel = engine.personalizationAllowed,
+        )
+        touch.sample = TypingLearner.Sample(
+            letter = letter,
+            xDp = xDp,
+            yDp = yDp,
+            centersXDp = letterCentersXDp,
+            centersYDp = letterCentersYDp,
+            pitchXDp = letterPitchXDp,
+            pitchYDp = letterPitchYDp,
+        )
+        return letterHits[letter]?.key ?: key
+    }
+
+    private fun ActiveTouch.learningSample(key: KeySpec): TypingLearner.Sample? {
+        val captured = sample ?: return null
+        return captured.takeIf { !slid && it.letter == letterIndexOf(key) }
+    }
+
+    private fun letterIndexOf(key: KeySpec): Int {
+        val id = key.id
+        if (id.length != 6 || !id.startsWith("char_")) return -1
+        val char = id[5]
+        return if (char in 'a'..'z') char - 'a' else -1
+    }
+
+    private fun slideHysteresisPx(): Float {
+        val pitchPx = letterPitchXDp * resources.displayMetrics.density
+        return max(touchSlopPx, pitchPx * SLIDE_HYSTERESIS_PITCH_FRACTION)
+    }
+
+    private fun updateLetterGeometry(hits: List<KeyHit>) {
+        val nextHits = arrayOfNulls<KeyHit>(26)
+        val centersX = FloatArray(26)
+        val centersY = FloatArray(26)
+        val density = resources.displayMetrics.density
+        var found = 0
+        hits.forEach { hit ->
+            val letter = letterIndexOf(hit.key)
+            if (letter >= 0 && hit.key.enabled) {
+                nextHits[letter] = hit
+                centersX[letter] = hit.visualBounds.centerX() / density
+                centersY[letter] = hit.visualBounds.centerY() / density
+                found++
+            }
+        }
+        letterHits = nextHits
+        letterCentersXDp = centersX
+        letterCentersYDp = centersY
+        letterGeometryValid = found == 26
+        if (letterGeometryValid) {
+            letterPitchXDp = centersX['w' - 'a'] - centersX['q' - 'a']
+            letterPitchYDp = centersY['a' - 'a'] - centersY['q' - 'a']
+            letterGeometryValid = letterPitchXDp > 0f && letterPitchYDp > 0f
+        }
+    }
+
     private fun refreshHitTargets() {
         if (width > 0 && height > 0) {
             hitTargets = layoutKeys(width.toFloat(), height.toFloat())
+            updateLetterGeometry(hitTargets)
         }
     }
 
@@ -1236,7 +1492,7 @@ class ZnKeyboardView @JvmOverloads constructor(
             keys.forEach { key ->
                 val keyWidth = usableWidth * (key.weight / layoutWeightSum)
                 val bounds = RectF(left, top, left + keyWidth, top + rowHeight)
-                visualKeys += VisualKey(key, bounds)
+                visualKeys += VisualKey(key, bounds, row.style)
                 left += keyWidth + keyGap
             }
             visualRows += visualKeys
@@ -1275,6 +1531,7 @@ class ZnKeyboardView @JvmOverloads constructor(
                     key = visualKey.key,
                     hitBounds = RectF(hitLeft, rowTop, hitRight, rowBottom),
                     visualBounds = visualKey.visualBounds,
+                    rowStyle = visualKey.rowStyle,
                 )
             }
         }
@@ -1327,6 +1584,7 @@ class ZnKeyboardView @JvmOverloads constructor(
                 ),
             ),
             heightWeight = ImeLayout.COMPACT_ROW_WEIGHT,
+            style = RowStyle.Suggestion,
         )
     }
 
@@ -1337,7 +1595,7 @@ class ZnKeyboardView @JvmOverloads constructor(
     }
 
     private fun numberRow(): RowSpec {
-        return RowSpec(chars("1234567890"), ImeLayout.STANDARD_ROW_WEIGHT)
+        return RowSpec(chars("1234567890"), ImeLayout.STANDARD_ROW_WEIGHT, style = RowStyle.Numbers)
     }
 
     private fun terminalRow(): RowSpec? {
@@ -1350,7 +1608,7 @@ class ZnKeyboardView @JvmOverloads constructor(
                 enabled = true,
             )
         }
-        return keys.takeIf { it.isNotEmpty() }?.let { RowSpec(it, heightWeight = ImeLayout.COMPACT_ROW_WEIGHT) }
+        return keys.takeIf { it.isNotEmpty() }?.let { RowSpec(it, heightWeight = ImeLayout.COMPACT_ROW_WEIGHT, style = RowStyle.Toolbar) }
     }
 
     private fun secondRow(): RowSpec? {
@@ -1364,7 +1622,7 @@ class ZnKeyboardView @JvmOverloads constructor(
                 enabled = true,
             )
         }
-        return keys.takeIf { it.isNotEmpty() }?.let { RowSpec(it, heightWeight = ImeLayout.COMPACT_ROW_WEIGHT) }
+        return keys.takeIf { it.isNotEmpty() }?.let { RowSpec(it, heightWeight = ImeLayout.COMPACT_ROW_WEIGHT, style = RowStyle.Toolbar) }
     }
 
     private fun hasVisibleSecondRow(): Boolean {
@@ -1400,8 +1658,8 @@ class ZnKeyboardView @JvmOverloads constructor(
             )
             "save_text" -> KeySpec(
                 id = id,
-                label = "Save",
-                intent = KeyIntent.SaveComposerText,
+                label = "Save snippet",
+                intent = KeyIntent.SaveSnippet,
                 weight = weight,
                 role = KeyRole.Function,
                 enabled = enabled,
@@ -1517,7 +1775,9 @@ class ZnKeyboardView @JvmOverloads constructor(
             KeyRole.Function,
             icon = KeyIcon.Delete,
         )
-        return RowSpec(keys, ImeLayout.STANDARD_ROW_WEIGHT)
+        // 7 letters + two 1.5-unit side keys = the same 10-unit grid as the top row, so z..m keep the
+        // exact width (and touch statistics) of every other letter key.
+        return RowSpec(keys, ImeLayout.STANDARD_ROW_WEIGHT, layoutKeyCount = 10)
     }
 
     private fun symbolBottomRow(): RowSpec {
@@ -1701,7 +1961,7 @@ class ZnKeyboardView @JvmOverloads constructor(
                 KeyIntent.Dispatch(KeyboardAction.Text(" ")),
                 4.7f,
                 KeyRole.Function,
-                longPressHint = "Saved",
+                longPressHint = "snippets",
             )
         }
         keys += KeySpec(
@@ -1743,7 +2003,7 @@ class ZnKeyboardView @JvmOverloads constructor(
                 KeyIntent.Dispatch(KeyboardAction.Text(" ")),
                 ImeDimensions.SPACE_KEY_WEIGHT,
                 KeyRole.Function,
-                longPressHint = "Saved",
+                longPressHint = "snippets",
             )
             keys += KeySpec(
                 "numeric_layout_toggle",
@@ -1761,7 +2021,7 @@ class ZnKeyboardView @JvmOverloads constructor(
                 KeyIntent.Dispatch(KeyboardAction.Text(" ")),
                 ImeDimensions.SPACE_KEY_WEIGHT,
                 KeyRole.Function,
-                longPressHint = "Saved",
+                longPressHint = "snippets",
             )
         }
         keys += KeySpec(
@@ -1888,10 +2148,18 @@ class ZnKeyboardView @JvmOverloads constructor(
         Right,
     }
 
+    private enum class RowStyle {
+        Standard,
+        Numbers,
+        Toolbar,
+        Suggestion,
+    }
+
     private data class RowSpec(
         val keys: List<KeySpec>,
         val heightWeight: Float,
         val layoutKeyCount: Int? = null,
+        val style: RowStyle = RowStyle.Standard,
     )
 
     private data class KeySpec(
@@ -1914,15 +2182,21 @@ class ZnKeyboardView @JvmOverloads constructor(
         val key: KeySpec,
         val hitBounds: RectF,
         val visualBounds: RectF,
+        val rowStyle: RowStyle,
     )
 
     private data class VisualKey(
         val key: KeySpec,
         val visualBounds: RectF,
+        val rowStyle: RowStyle,
     )
 
-    private data class ActiveTouch(
+    private class ActiveTouch(
         var currentKey: KeySpec?,
+        val downX: Float = 0f,
+        val downY: Float = 0f,
+        var slid: Boolean = false,
+        var sample: TypingLearner.Sample? = null,
         var longPressConsumed: Boolean = false,
         var repeatConsumed: Boolean = false,
         var cursorDragConsumed: Boolean = false,
@@ -1959,20 +2233,24 @@ class ZnKeyboardView @JvmOverloads constructor(
         data object ToggleCtrl : KeyIntent()
         data object OpenEmojiPanel : KeyIntent()
         data object AgentRewrite : KeyIntent()
-        data object SaveComposerText : KeyIntent()
+        data object SaveSnippet : KeyIntent()
         data class AcceptComposerSuggestion(val text: String) : KeyIntent()
         data class Dispatch(val action: KeyboardAction) : KeyIntent()
     }
 
     private object PALETTE {
-        val background = ImeColors.BACKGROUND
-        val key = ImeColors.KEY
-        val function = ImeColors.FUNCTION
-        val action = ImeColors.ACTION
-        val selected = ImeColors.SELECTED
-        val aiLoadingSurface = ImeColors.AI_LOADING_SURFACE
-        const val text = ImeColors.TEXT
-        val mutedText = ImeColors.MUTED_TEXT
+        val background get() = ImeColors.BACKGROUND
+        val key get() = ImeColors.KEY
+        val keyQuiet get() = ImeColors.KEY_DARK
+        val function get() = ImeColors.FUNCTION
+        val action get() = ImeColors.ACTION
+        val onAction get() = ImeColors.ON_ACTION
+        val selected get() = ImeColors.SELECTED
+        val onSelected get() = ImeColors.ON_SELECTED
+        val preview get() = ImeColors.PREVIEW
+        val aiLoadingSurface get() = ImeColors.AI_LOADING_SURFACE
+        val text get() = ImeColors.TEXT
+        val mutedText get() = ImeColors.MUTED_TEXT
     }
 
     data class ShortcutRowState(
@@ -1999,6 +2277,14 @@ class ZnKeyboardView @JvmOverloads constructor(
         const val PHONE_PAD_LABEL_GAP_DP = 1f
         const val PHONE_PAD_SUB_LABEL_ALPHA_FRACTION = 0.78f
         const val MAX_SUGGESTION_LABEL_CHARS = 48
+        const val SLIDE_HYSTERESIS_PITCH_FRACTION = 0.55f
+        const val PRESSED_LAYER_OPACITY = 0.2f
+        const val PREVIEW_WIDTH_FACTOR = 1.28f
+        const val PREVIEW_HEIGHT_FACTOR = 1.18f
+        const val PREVIEW_MIN_WIDTH_DP = 44f
+        const val PREVIEW_GAP_DP = 6f
+        const val PREVIEW_TEXT_SIZE_SP = 30f
+        val PREVIEW_SHADOW_COLOR = Color.argb(70, 0, 0, 0)
         const val NUMERIC_TOGGLE_STACKED_TEXT_SIZE_SP = 12f
         const val NUMERIC_TOGGLE_STACKED_MAX_HEIGHT_FRACTION = 0.28f
         const val NUMERIC_TOGGLE_STACKED_GAP_DP = 1f

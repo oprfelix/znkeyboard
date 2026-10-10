@@ -31,6 +31,8 @@ import dev.zain.znkeyboard.EmojiSkinTone
 import dev.zain.znkeyboard.KeyboardSettings
 import dev.zain.znkeyboard.R
 import dev.zain.znkeyboard.constants.AgentDefaults
+import dev.zain.znkeyboard.constants.ImeColors
+import dev.zain.znkeyboard.typing.AdaptiveTypingEngine
 import org.json.JSONArray
 import org.json.JSONException
 import org.json.JSONObject
@@ -65,12 +67,21 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     private var emojiSuggestionTags: List<EmojiSuggestionTag> = emptyList()
     private var emojiKeySuggestion: String? = null
     private var pendingEmojiSuggestionRefresh: Runnable? = null
-    private var composerSuggestionHistory: List<ComposerSuggestionStore.Entry> = emptyList()
+    private var snippetCompletionSources: List<String> = emptyList()
     private var activeComposerSuggestion: String? = null
     private var pendingComposerSuggestionRefresh: Runnable? = null
-    private var composerSuggestionGeneration = 0
     private val mainHandler = Handler(Looper.getMainLooper())
-    private val composerSuggestionStoreExecutor = Executors.newSingleThreadExecutor()
+    private val backgroundExecutor = Executors.newSingleThreadExecutor()
+    private var snippetChangeListener: android.content.SharedPreferences.OnSharedPreferenceChangeListener? = null
+    private lateinit var typingEngine: AdaptiveTypingEngine
+    private var appliedThemeSignature: String? = null
+    private var autoCapitalizeEnabled = true
+    private var doubleSpacePeriodEnabled = true
+    private var lastSpaceCommitAt = 0L
+    // Edits we issued whose onUpdateSelection callbacks have not arrived yet. Any other selection
+    // update means the caret moved underneath us and typing context must be resynced.
+    private var pendingOwnSelectionUpdates = 0
+    private var lastOwnEditAt = 0L
     private var activeSurface = KeyboardSurface.Keyboard
     private var activeRequestTarget: AgentEditTarget? = null
     private var activeReview: AgentReview? = null
@@ -91,16 +102,29 @@ class ZnKeyboardInputMethodService : InputMethodService(),
 
     override fun onCreate() {
         super.onCreate()
+        typingEngine = AdaptiveTypingEngine(this).also { engine ->
+            engine.load(KeyboardSettings.readTypingModelGeneration(this))
+        }
         ClipboardHistoryStore.deleteLegacyRewriteHistory(this)
         ClipboardLinkPreviewRepository.loadPersistedPreviews(this)
         registerClipboardListener()
         capturePrimaryClipboardText()
-        loadComposerSuggestionHistory()
+        migrateLegacySavedText()
+        loadSnippetCompletionSources()
+        snippetChangeListener = KeyboardSettings.registerTextSnippetsChangeListener(this) {
+            loadSnippetCompletionSources()
+        }
     }
 
     override fun onCreateInputView(): View {
+        appliedThemeSignature = ImeColors.apply(this, KeyboardSettings.readKeyboardTheme(this))
         gifSearchView?.dispose()
         gifSearchView = null
+        // Cached panels hold colors from the previous theme; rebuild them lazily.
+        emojiPanelView = null
+        snippetPanelView = null
+        agentReviewView = null
+        activeSurface = KeyboardSurface.Keyboard
         recentEmojis = KeyboardSettings.readRecentEmojis(this)
         recentEmojiRows = KeyboardSettings.readRecentEmojiRows(this)
         defaultEmojiSkinTone = KeyboardSettings.readEmojiSkinTone(this)
@@ -109,6 +133,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         val keyboard = ZnKeyboardView(this).also { view ->
             keyboardView = view
             view.callback = this
+            view.typingEngine = typingEngine
             view.setEmojiKeySuggestion(emojiKeySuggestion)
             view.setComposerSuggestion(activeComposerSuggestion)
             view.setPhonePadMode(shouldUsePhonePadMode(currentEditorInfo))
@@ -180,12 +205,19 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         resetAgentState(returnToKeyboard = true)
         applyKeyboardSettings()
         scheduleEmojiSuggestionRefresh(delayMillis = 0L)
-        loadComposerSuggestionHistory()
     }
 
     override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {
         super.onStartInputView(info, restarting)
         currentEditorInfo = info
+        val themeSignature = ImeColors.apply(this, KeyboardSettings.readKeyboardTheme(this))
+        if (appliedThemeSignature != null && themeSignature != appliedThemeSignature) {
+            setInputView(onCreateInputView())
+        }
+        typingEngine.resetIfGenerationChanged(KeyboardSettings.readTypingModelGeneration(this))
+        typingEngine.personalizationAllowed = isPersonalizationAllowed(info)
+        pendingOwnSelectionUpdates = 0
+        typingEngine.learner.onContextChanged(currentInputConnection?.getTextBeforeCursor(TYPING_CONTEXT_CHARS, 0))
         keyboardView?.setPhonePadMode(shouldUsePhonePadMode(info))
         resetAgentState(returnToKeyboard = true)
         applyKeyboardSettings()
@@ -194,9 +226,11 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         capturePrimaryClipboardText()
         scheduleEmojiSuggestionRefresh(delayMillis = 0L)
         scheduleComposerSuggestionRefresh(delayMillis = 0L)
+        updateAutoShift()
     }
 
     override fun onFinishInputView(finishingInput: Boolean) {
+        typingEngine.save()
         keyboardView?.clearLatchedModifiers()
         keyboardView?.resetToLetters()
         cancelEmojiSuggestionRefresh()
@@ -213,7 +247,10 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         unregisterClipboardListener()
         cancelEmojiSuggestionRefresh()
         cancelComposerSuggestionRefresh()
-        composerSuggestionStoreExecutor.shutdownNow()
+        snippetChangeListener?.let { KeyboardSettings.unregisterTextSnippetsChangeListener(this, it) }
+        snippetChangeListener = null
+        backgroundExecutor.shutdown()
+        typingEngine.shutdown()
         gifSearchView?.dispose()
         gifSearchView = null
         super.onDestroy()
@@ -228,6 +265,16 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         candidatesEnd: Int,
     ) {
         super.onUpdateSelection(oldSelStart, oldSelEnd, newSelStart, newSelEnd, candidatesStart, candidatesEnd)
+        if (SystemClock.uptimeMillis() - lastOwnEditAt > OWN_EDIT_SETTLE_MS) pendingOwnSelectionUpdates = 0
+        if (pendingOwnSelectionUpdates > 0) {
+            pendingOwnSelectionUpdates--
+        } else if (!isRawKeyEventEditor(currentEditorInfo) && (oldSelStart != newSelStart || oldSelEnd != newSelEnd)) {
+            // The user tapped elsewhere in the text, or the app edited it: accept and resync.
+            typingEngine.learner.onContextChanged(
+                if (newSelStart == newSelEnd) currentInputConnection?.getTextBeforeCursor(TYPING_CONTEXT_CHARS, 0) else null,
+            )
+            updateAutoShift()
+        }
         if (oldSelStart != newSelStart || oldSelEnd != newSelEnd) {
             scheduleEmojiSuggestionRefresh()
             scheduleComposerSuggestionRefresh()
@@ -376,22 +423,23 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         persistRecentEmojis(EmojiCatalog.promoteRecentEmoji(emoji, recentEmojis))
     }
 
-    override fun onSaveComposerTextRequested() {
-        saveCurrentInputForSuggestions()
+    override fun onSaveSnippetRequested() {
+        saveCurrentInputAsSnippet()
     }
 
     override fun onComposerSuggestionSelected(text: String) {
         if (isSensitiveEditor(currentEditorInfo)) return
-        val snapshot = captureEditorSnapshot(ComposerSuggestionStore.MAX_ENTRY_CHARS + 1) ?: return
-        if (snapshot.textStartOffset != 0 || snapshot.text.length > ComposerSuggestionStore.MAX_ENTRY_CHARS) return
+        val snapshot = captureEditorSnapshot(KeyboardSettings.MAX_TEXT_SNIPPET_CHARS + 1) ?: return
+        if (snapshot.textStartOffset != 0 || snapshot.text.length > KeyboardSettings.MAX_TEXT_SNIPPET_CHARS) return
         val currentText = snapshot.text
         val cursorAtEnd = snapshot.selectionStart == snapshot.text.length &&
             snapshot.selectionEnd == snapshot.text.length
-        if (!cursorAtEnd || !text.startsWith(currentText) || text == currentText) {
+        if (!cursorAtEnd || !text.startsWith(currentText, ignoreCase = true) || text.length <= currentText.length) {
             setComposerSuggestion(null)
             return
         }
         handleText(text.substring(currentText.length), ModifierState(ctrl = false, alt = false))
+        setComposerSuggestion(null)
     }
 
     override fun onSnippetSelected(snippet: String) {
@@ -458,6 +506,9 @@ class ZnKeyboardInputMethodService : InputMethodService(),
 
     private fun applyKeyboardSettings() {
         val heightScale = KeyboardSettings.readHeightScale(this)
+        typingEngine.adaptiveEnabled = KeyboardSettings.readAdaptiveTouchEnabled(this)
+        autoCapitalizeEnabled = KeyboardSettings.readAutoCapitalizeEnabled(this)
+        doubleSpacePeriodEnabled = KeyboardSettings.readDoubleSpacePeriodEnabled(this)
         val bottomPaddingDp = KeyboardSettings.readBottomPaddingDp(this)
         recentEmojiRows = KeyboardSettings.readRecentEmojiRows(this)
         val updatedDefaultEmojiSkinTone = KeyboardSettings.readEmojiSkinTone(this)
@@ -474,6 +525,8 @@ class ZnKeyboardInputMethodService : InputMethodService(),
             view.setHeightScale(heightScale)
             view.setBottomPaddingDp(bottomPaddingDp)
             view.setFunctionKeyBackgroundsEnabled(KeyboardSettings.readFunctionKeyBackgroundsEnabled(this))
+            view.setKeyHapticsEnabled(KeyboardSettings.readKeyHapticsEnabled(this))
+            view.setKeyPreviewEnabled(KeyboardSettings.readKeyPreviewEnabled(this))
             view.setUpperRowKeyIds(KeyboardSettings.readUpperRowKeyIds(this))
             view.setSecondRowButtonIds(KeyboardSettings.readSecondRowButtonIds(this))
             view.setKeyboardRowOrder(KeyboardSettings.readKeyboardRowOrder(this))
@@ -651,7 +704,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         KeyboardSettings.saveTextSnippets(this, updatedSnippets)
         snippetPanelView?.setSnippets(updatedSnippets)
         savedTextSearchView?.setSnippets(updatedSnippets)
-        Toast.makeText(this, "Snippet saved.", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, "Saved to snippets. It will now autocomplete as you type.", Toast.LENGTH_SHORT).show()
     }
 
     private fun showKeyboardPanel() {
@@ -666,6 +719,8 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         keyboard.setEnterLabel(resolveEnterLabel(currentEditorInfo))
         swapKeyboardSurface(keyboard)
         renderSecondRow()
+        typingEngine.learner.onContextChanged(currentInputConnection?.getTextBeforeCursor(TYPING_CONTEXT_CHARS, 0))
+        updateAutoShift()
     }
 
     private fun showAgentReviewPanel(review: AgentReview) {
@@ -940,15 +995,63 @@ class ZnKeyboardInputMethodService : InputMethodService(),
                 return
             }
         }
+        noteOwnEdit()
         if (wrapSelectedText(inputConnection, value)) {
             scheduleEmojiSuggestionRefresh()
             scheduleComposerSuggestionRefresh()
+            updateAutoShift()
+            return
+        }
+        if (value == " " && applyDoubleSpacePeriod(inputConnection)) {
+            scheduleEmojiSuggestionRefresh()
+            scheduleComposerSuggestionRefresh()
+            updateAutoShift()
             return
         }
         if (inputConnection.commitText(value, 1)) {
+            lastSpaceCommitAt = if (value == " ") SystemClock.uptimeMillis() else 0L
             scheduleEmojiSuggestionRefresh()
             scheduleComposerSuggestionRefresh()
+            updateAutoShift()
         }
+    }
+
+    /** "word␣" + quick second space → "word.␣", like Gboard and iOS. */
+    private fun applyDoubleSpacePeriod(inputConnection: InputConnection): Boolean {
+        if (!doubleSpacePeriodEnabled || isRawKeyEventEditor(currentEditorInfo)) return false
+        if (SystemClock.uptimeMillis() - lastSpaceCommitAt > DOUBLE_SPACE_PERIOD_WINDOW_MS) return false
+        val before = inputConnection.getTextBeforeCursor(3, 0) ?: return false
+        if (before.length < 2 || before[before.length - 1] != ' ' || !before[before.length - 2].isLetterOrDigit()) {
+            return false
+        }
+        if (!inputConnection.getSelectedText(0).isNullOrEmpty()) return false
+        inputConnection.beginBatchEdit()
+        inputConnection.deleteSurroundingText(1, 0)
+        inputConnection.commitText(". ", 1)
+        inputConnection.endBatchEdit()
+        lastSpaceCommitAt = 0L
+        typingEngine.learner.onContextChanged(inputConnection.getTextBeforeCursor(TYPING_CONTEXT_CHARS, 0))
+        return true
+    }
+
+    private fun noteOwnEdit() {
+        if (isRawKeyEventEditor(currentEditorInfo)) return
+        pendingOwnSelectionUpdates++
+        lastOwnEditAt = SystemClock.uptimeMillis()
+    }
+
+    /** Sentence-start capitalization, honoring the editor's own TYPE_TEXT_FLAG_CAP_* request. */
+    private fun updateAutoShift() {
+        val view = keyboardView ?: return
+        val info = currentEditorInfo
+        if (!autoCapitalizeEnabled || info == null || isRawKeyEventEditor(info) || isSensitiveEditor(info) ||
+            activeSurface != KeyboardSurface.Keyboard
+        ) {
+            view.setAutoShift(false)
+            return
+        }
+        val capsMode = currentInputConnection?.getCursorCapsMode(info.inputType) ?: 0
+        view.setAutoShift(capsMode != 0)
     }
 
     private fun wrapSelectedText(inputConnection: InputConnection, value: String): Boolean {
@@ -962,6 +1065,8 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     private fun handleBackspace(modifiers: ModifierState) {
         val inputConnection = currentInputConnection ?: return
         cancelActiveAgentForEditorChange()
+        lastSpaceCommitAt = 0L
+        noteOwnEdit()
         // TYPE_NULL editors such as terminals expect raw key events, not surrounding-text edits.
         if (isRawKeyEventEditor(currentEditorInfo)) {
             sendKey(KeyEvent.KEYCODE_DEL, modifiers)
@@ -981,6 +1086,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         }
         scheduleEmojiSuggestionRefresh()
         scheduleComposerSuggestionRefresh()
+        updateAutoShift()
     }
 
     private fun startBackspaceGestureDelete(): Boolean {
@@ -1560,68 +1666,23 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         clipboardManager.setPrimaryClip(clip)
     }
 
-    private fun loadComposerSuggestionHistory() {
-        val generation = ++composerSuggestionGeneration
-        val maxItems = KeyboardSettings.readComposerSuggestionMaxItems(this)
-        composerSuggestionStoreExecutor.execute {
-            val history = ComposerSuggestionStore.trimToLimit(applicationContext, maxItems)
-            mainHandler.post {
-                if (generation != composerSuggestionGeneration) return@post
-                composerSuggestionHistory = history
-                scheduleComposerSuggestionRefresh(delayMillis = 0L)
-            }
+    private fun migrateLegacySavedText() {
+        backgroundExecutor.execute {
+            runCatching { ComposerSuggestionStore.migrateIntoSnippets(applicationContext) }
         }
     }
 
-    private fun saveCurrentInputForSuggestions() {
-        if (isSensitiveEditor(currentEditorInfo)) {
-            Toast.makeText(this, "Save text is disabled in password fields.", Toast.LENGTH_SHORT).show()
-            return
-        }
-
-        val snapshot = captureEditorSnapshot(ComposerSuggestionStore.MAX_ENTRY_CHARS + 1) ?: run {
-            Toast.makeText(this, "Couldn't read the current field.", Toast.LENGTH_SHORT).show()
-            return
-        }
-        if (snapshot.textStartOffset != 0) {
-            Toast.makeText(this, "Couldn't read the full field.", Toast.LENGTH_SHORT).show()
-            return
-        }
-        val text = snapshot.text
-        if (text.isBlank()) {
-            Toast.makeText(this, "No text to save.", Toast.LENGTH_SHORT).show()
-            return
-        }
-        if (text.length > ComposerSuggestionStore.MAX_ENTRY_CHARS) {
-            Toast.makeText(this, "Text is too long to save.", Toast.LENGTH_SHORT).show()
-            return
-        }
-
-        setComposerSuggestion(null)
-        val generation = ++composerSuggestionGeneration
-        val maxItems = KeyboardSettings.readComposerSuggestionMaxItems(this)
-        composerSuggestionStoreExecutor.execute {
-            val result = ComposerSuggestionStore.recordText(applicationContext, text, maxItems)
-            val persisted = ComposerSuggestionStore.trimToLimit(applicationContext, maxItems)
-            mainHandler.post {
-                if (generation != composerSuggestionGeneration) return@post
-                composerSuggestionHistory = persisted
-                scheduleComposerSuggestionRefresh(delayMillis = 0L)
-                val message = when (result) {
-                    ComposerSuggestionStore.RecordResult.Saved -> "Text saved for suggestions."
-                    ComposerSuggestionStore.RecordResult.Duplicate -> "That text is already saved."
-                    ComposerSuggestionStore.RecordResult.Invalid -> "Text could not be saved."
-                }
-                Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
-            }
-        }
+    /** Snippets double as as-you-type completions; newest first wins when several match. */
+    private fun loadSnippetCompletionSources() {
+        snippetCompletionSources = KeyboardSettings.readTextSnippets(this).asReversed().map { it.text }
+        scheduleComposerSuggestionRefresh(delayMillis = 0L)
     }
 
     private fun scheduleComposerSuggestionRefresh(
         delayMillis: Long = COMPOSER_SUGGESTION_REFRESH_DELAY_MS,
     ) {
         cancelComposerSuggestionRefresh()
-        if (isSensitiveEditor(currentEditorInfo) || composerSuggestionHistory.isEmpty()) {
+        if (isSensitiveEditor(currentEditorInfo) || snippetCompletionSources.isEmpty()) {
             setComposerSuggestion(null)
             return
         }
@@ -1643,15 +1704,15 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     }
 
     private fun refreshComposerSuggestion() {
-        if (isSensitiveEditor(currentEditorInfo) || composerSuggestionHistory.isEmpty()) {
+        if (isSensitiveEditor(currentEditorInfo) || snippetCompletionSources.isEmpty()) {
             setComposerSuggestion(null)
             return
         }
-        val snapshot = captureEditorSnapshot(ComposerSuggestionStore.MAX_ENTRY_CHARS + 1) ?: run {
+        val snapshot = captureEditorSnapshot(KeyboardSettings.MAX_TEXT_SNIPPET_CHARS + 1) ?: run {
             setComposerSuggestion(null)
             return
         }
-        if (snapshot.textStartOffset != 0 || snapshot.text.length > ComposerSuggestionStore.MAX_ENTRY_CHARS) {
+        if (snapshot.textStartOffset != 0 || snapshot.text.length > KeyboardSettings.MAX_TEXT_SNIPPET_CHARS) {
             setComposerSuggestion(null)
             return
         }
@@ -1666,9 +1727,9 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         val suggestion = currentText
             .takeIf { it.isNotEmpty() }
             ?.let { prefix ->
-                composerSuggestionHistory
-                    .firstOrNull { entry -> entry.text != prefix && entry.text.startsWith(prefix) }
-                    ?.text
+                snippetCompletionSources.firstOrNull { snippet ->
+                    snippet.length > prefix.length && snippet.startsWith(prefix, ignoreCase = true)
+                }
             }
         setComposerSuggestion(suggestion)
     }
@@ -2272,6 +2333,13 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         }
     }
 
+    /** Never learn from passwords or from fields that ask IMEs not to (e.g. incognito browsing). */
+    private fun isPersonalizationAllowed(info: EditorInfo?): Boolean {
+        if (isSensitiveEditor(info)) return false
+        val imeOptions = info?.imeOptions ?: return true
+        return imeOptions and EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING == 0
+    }
+
     private fun isSensitiveEditor(info: EditorInfo?): Boolean {
         val inputType = info?.inputType ?: return false
         val inputClass = inputType and InputType.TYPE_MASK_CLASS
@@ -2456,6 +2524,9 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         const val EMOJI_SUGGESTION_CONTEXT_CHARS = 180
         const val EMOJI_SUGGESTION_REFRESH_DELAY_MS = 120L
         const val COMPOSER_SUGGESTION_REFRESH_DELAY_MS = 80L
+        const val TYPING_CONTEXT_CHARS = 16
+        const val OWN_EDIT_SETTLE_MS = 1_000L
+        const val DOUBLE_SPACE_PERIOD_WINDOW_MS = 700L
         const val REQUEST_TIMEOUT_MS = AgentDefaults.REQUEST_TIMEOUT_MS
         const val MIN_REWRITE_LLM_TOKENS = AgentDefaults.MIN_REWRITE_LLM_TOKENS
         const val MAX_REWRITE_LLM_TOKENS = AgentDefaults.MAX_REWRITE_LLM_TOKENS

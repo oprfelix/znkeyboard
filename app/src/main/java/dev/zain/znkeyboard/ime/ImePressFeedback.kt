@@ -76,6 +76,17 @@ internal object ImePressFeedback {
         return compositeColors(layerColor, containerColor)
     }
 
+    /** Material state layer: the content color laid over the container (lightens in dark, darkens in light). */
+    fun contentStateLayer(containerColor: Int, contentColor: Int, opacity: Float): Int {
+        val layer = Color.argb(
+            (255 * opacity).roundToInt().coerceIn(0, 255),
+            Color.red(contentColor),
+            Color.green(contentColor),
+            Color.blue(contentColor),
+        )
+        return compositeColors(layer, containerColor)
+    }
+
     private fun compositeColors(foreground: Int, background: Int): Int {
         val foregroundAlpha = Color.alpha(foreground)
         val backgroundAlpha = Color.alpha(background)

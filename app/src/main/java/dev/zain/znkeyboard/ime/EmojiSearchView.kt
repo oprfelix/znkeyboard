@@ -234,11 +234,11 @@ class EmojiSearchView @JvmOverloads constructor(
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).roundToInt()
 
     private object PALETTE {
-        const val background = ImeColors.BACKGROUND
-        val function = ImeColors.KEY
-        const val text = ImeColors.TEXT
-        val mutedText = ImeColors.MUTED_TEXT
-        val placeholderText = ImeColors.SECONDARY_TEXT
+        val background get() = ImeColors.BACKGROUND
+        val function get() = ImeColors.KEY
+        val text get() = ImeColors.TEXT
+        val mutedText get() = ImeColors.MUTED_TEXT
+        val placeholderText get() = ImeColors.SECONDARY_TEXT
     }
 
     private companion object {

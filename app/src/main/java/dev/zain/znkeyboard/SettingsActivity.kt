@@ -70,7 +70,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -91,6 +91,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -110,7 +111,6 @@ import dev.zain.znkeyboard.constants.SettingsBackupDefaults
 import dev.zain.znkeyboard.constants.SettingsUiDimensions
 import dev.zain.znkeyboard.constants.SettingsUiTimings
 import dev.zain.znkeyboard.ime.ClipboardHistoryStore
-import dev.zain.znkeyboard.ime.ComposerSuggestionStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -162,28 +162,15 @@ private fun SettingsScreen() {
     var activeAgentProfileId by remember { mutableStateOf(KeyboardSettings.readActiveAgentProfileId(context)) }
     var textSnippets by remember { mutableStateOf(KeyboardSettings.readTextSnippets(context)) }
     var clipboardHistoryCount by remember { mutableStateOf(ClipboardHistoryStore.read(context).size) }
-    var composerSuggestionEntries by remember {
-        mutableStateOf<List<ComposerSuggestionStore.Entry>>(emptyList())
-    }
-    var composerSuggestionMaxItems by remember {
-        mutableStateOf(KeyboardSettings.readComposerSuggestionMaxItems(context))
-    }
     var backupPasswordDialogMode by remember { mutableStateOf<BackupPasswordDialogMode?>(null) }
     var pendingExportPassword by remember { mutableStateOf<String?>(null) }
     var pendingImportUri by remember { mutableStateOf<Uri?>(null) }
-    var selectedDestinationId by rememberSaveable { mutableStateOf(SettingsDestination.Keyboard.id) }
+    var selectedDestinationId by rememberSaveable { mutableStateOf(SettingsDestination.Typing.id) }
     val selectedDestination = SettingsDestination.entries.firstOrNull { it.id == selectedDestinationId }
-        ?: SettingsDestination.Keyboard
+        ?: SettingsDestination.Typing
+    val topBarScrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     val destinationScrollState = remember(selectedDestinationId) { ScrollState(0) }
     val scope = rememberCoroutineScope()
-
-    fun refreshComposerSuggestionHistory(maxItems: Int = composerSuggestionMaxItems) {
-        scope.launch {
-            composerSuggestionEntries = withContext(Dispatchers.IO) {
-                ComposerSuggestionStore.trimToLimit(context, maxItems)
-            }
-        }
-    }
 
     fun refreshSettingsFromStorage() {
         val nextProviderType = KeyboardSettings.readAgentProviderType(context)
@@ -212,15 +199,8 @@ private fun SettingsScreen() {
         activeAgentProfileId = KeyboardSettings.readActiveAgentProfileId(context)
         textSnippets = KeyboardSettings.readTextSnippets(context)
         clipboardHistoryCount = ClipboardHistoryStore.read(context).size
-        composerSuggestionMaxItems = KeyboardSettings.readComposerSuggestionMaxItems(context)
-        refreshComposerSuggestionHistory(composerSuggestionMaxItems)
     }
 
-    LaunchedEffect(Unit) {
-        composerSuggestionEntries = withContext(Dispatchers.IO) {
-            ComposerSuggestionStore.trimToLimit(context, composerSuggestionMaxItems)
-        }
-    }
     val exportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument(SettingsBackupDefaults.MIME_TYPE),
     ) { uri ->
@@ -344,23 +324,20 @@ private fun SettingsScreen() {
     Scaffold(
         modifier = Modifier
             .fillMaxSize()
-            .background(ZnKeyboardColors.Background),
+            .nestedScroll(topBarScrollBehavior.nestedScrollConnection),
         containerColor = ZnKeyboardColors.Background,
         topBar = {
-            TopAppBar(
-                title = { Text("ZnKeyboard") },
+            LargeTopAppBar(
+                title = { Text(selectedDestination.title) },
+                scrollBehavior = topBarScrollBehavior,
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = ZnKeyboardColors.Background,
-                    titleContentColor = ZnKeyboardColors.OnSurface,
+                    scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer,
                 ),
-                modifier = Modifier.statusBarsPadding(),
             )
         },
         bottomBar = {
-            NavigationBar(
-                containerColor = ZnKeyboardColors.Surface,
-                contentColor = ZnKeyboardColors.OnSurface,
-            ) {
+            NavigationBar {
                 SettingsDestination.entries.forEach { destination ->
                     NavigationBarItem(
                         selected = selectedDestination == destination,
@@ -375,13 +352,6 @@ private fun SettingsScreen() {
                             )
                         },
                         label = { Text(destination.label) },
-                        colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = ZnKeyboardColors.OnSurface,
-                            selectedTextColor = ZnKeyboardColors.OnSurface,
-                            indicatorColor = ZnKeyboardColors.FunctionKey,
-                            unselectedIconColor = ZnKeyboardColors.Muted,
-                            unselectedTextColor = ZnKeyboardColors.Muted,
-                        ),
                     )
                 }
             }
@@ -395,41 +365,56 @@ private fun SettingsScreen() {
                 .pointerInput(focusManager) {
                     detectTapGestures(onTap = { focusManager.clearFocus() })
                 }
-                .padding(horizontal = 20.dp, vertical = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(22.dp),
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             when (selectedDestination) {
-                SettingsDestination.Keyboard -> {
-                    SystemSetupActions()
+                SettingsDestination.Typing -> {
+                    SetupStatusCard()
+                    TryTypingField()
+                    AdaptiveTouchSection()
+                    TypingFeelSection()
+                }
 
-                    SettingsSectionCard {
+                SettingsDestination.Keyboard -> {
+                    SettingsSectionCard(verticalSpacing = 18.dp) {
                         SettingsSectionHeader(
-                            title = "Keyboard layout",
-                            iconResId = R.drawable.ic_tune_24,
-                            trailingText = "Height ${(heightScale * 100f).roundToInt()}%",
+                            title = "Look & size",
+                            iconResId = R.drawable.ic_palette_24,
                         )
 
-                        Slider(
+                        KeyboardThemeSelector()
+
+                        LabeledSlider(
+                            title = "Keyboard height",
+                            valueLabel = "${(heightScale * 100f).roundToInt()}%",
                             value = heightScale,
+                            valueRange = KeyboardSettings.MIN_HEIGHT_SCALE..KeyboardSettings.MAX_HEIGHT_SCALE,
+                            steps = 6,
                             onValueChange = {
                                 heightScale = it
                                 KeyboardSettings.saveHeightScale(context, it)
                             },
-                            valueRange = KeyboardSettings.MIN_HEIGHT_SCALE..KeyboardSettings.MAX_HEIGHT_SCALE,
-                            steps = 6,
                         )
 
-                        KeyboardBottomPaddingField(
-                            bottomPaddingDp = bottomPaddingDp,
-                            onBottomPaddingChange = {
-                                bottomPaddingDp = it
-                                KeyboardSettings.saveBottomPaddingDp(context, it)
+                        LabeledSlider(
+                            title = "Space below keys",
+                            valueLabel = "$bottomPaddingDp dp",
+                            value = bottomPaddingDp.toFloat(),
+                            valueRange = KeyboardSettings.MIN_BOTTOM_PADDING_DP.toFloat()..KeyboardSettings.MAX_BOTTOM_PADDING_DP.toFloat(),
+                            steps = (KeyboardSettings.MAX_BOTTOM_PADDING_DP - KeyboardSettings.MIN_BOTTOM_PADDING_DP) / 4 - 1,
+                            onValueChange = {
+                                val value = KeyboardSettings.normalizeBottomPaddingDp((it / 4f).roundToInt() * 4)
+                                bottomPaddingDp = value
+                                KeyboardSettings.saveBottomPaddingDp(context, value)
                             },
                         )
 
-                        FunctionKeyBackgroundsSwitch(
-                            enabled = functionKeyBackgroundsEnabled,
-                            onEnabledChange = {
+                        SettingsSwitchRow(
+                            title = "Modifier key backgrounds",
+                            description = "Fill Shift, Delete, 123 and emoji keys. Turn off for a lighter look.",
+                            checked = functionKeyBackgroundsEnabled,
+                            onCheckedChange = {
                                 functionKeyBackgroundsEnabled = it
                                 KeyboardSettings.saveFunctionKeyBackgroundsEnabled(context, it)
                             },
@@ -437,7 +422,7 @@ private fun SettingsScreen() {
                     }
 
                     RowButtonsSection(
-                        title = "Shortcut row B keys",
+                        title = "Shortcut row B",
                         keyIds = secondRowButtonIds,
                         maxKeys = KeyboardSettings.MAX_SECOND_ROW_BUTTONS,
                         defaultKeyIds = KeyboardSettings.DEFAULT_SECOND_ROW_BUTTON_IDS,
@@ -447,7 +432,7 @@ private fun SettingsScreen() {
                     )
 
                     RowButtonsSection(
-                        title = "Shortcut row A keys",
+                        title = "Shortcut row A",
                         keyIds = upperRowKeyIds,
                         maxKeys = KeyboardSettings.MAX_UPPER_ROW_KEYS,
                         defaultKeyIds = KeyboardSettings.DEFAULT_UPPER_ROW_KEY_IDS,
@@ -582,25 +567,6 @@ private fun SettingsScreen() {
                         onSnippetsChange = ::updateTextSnippets,
                     )
 
-                    ComposerSuggestionSettingsSection(
-                        entries = composerSuggestionEntries,
-                        maxItems = composerSuggestionMaxItems,
-                        onMaxItemsChange = { newMaxItems ->
-                            val normalized = KeyboardSettings.normalizeComposerSuggestionMaxItems(newMaxItems)
-                            composerSuggestionMaxItems = normalized
-                            KeyboardSettings.saveComposerSuggestionMaxItems(context, normalized)
-                            refreshComposerSuggestionHistory(normalized)
-                        },
-                        onDeleteEntry = { entry ->
-                            scope.launch {
-                                composerSuggestionEntries = withContext(Dispatchers.IO) {
-                                    ComposerSuggestionStore.deleteText(context, entry.text)
-                                }
-                                Toast.makeText(context, "Saved text deleted", Toast.LENGTH_SHORT).show()
-                            }
-                        },
-                    )
-
                     ClipboardHistorySettingsSection(
                         entryCount = clipboardHistoryCount,
                         onClearConfirmed = {
@@ -620,231 +586,6 @@ private fun SettingsScreen() {
             }
         }
     }
-}
-
-@Composable
-private fun ComposerSuggestionSettingsSection(
-    entries: List<ComposerSuggestionStore.Entry>,
-    maxItems: Int,
-    onMaxItemsChange: (Int) -> Unit,
-    onDeleteEntry: (ComposerSuggestionStore.Entry) -> Unit,
-) {
-    SettingsSectionCard {
-        SettingsSectionHeader(
-            title = "Composer suggestions",
-            iconResId = R.drawable.ic_history_24,
-            trailingText = "${entries.size}/$maxItems",
-        )
-
-        Text(
-            text = "Texts saved with the keyboard's Save button are encrypted locally. Duplicate saves are ignored and the oldest item is dropped when this limit is exceeded.",
-            color = ZnKeyboardColors.Muted,
-            style = MaterialTheme.typography.bodySmall,
-        )
-
-        ComposerSuggestionMaxItemsField(
-            maxItems = maxItems,
-            onMaxItemsChange = onMaxItemsChange,
-        )
-
-        if (entries.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(44.dp)
-                    .clip(RoundedCornerShape(COMPACT_ITEM_CORNER_RADIUS))
-                    .background(ZnKeyboardColors.Key),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text = "No saved suggestion texts",
-                    color = ZnKeyboardColors.Muted,
-                    style = MaterialTheme.typography.labelLarge,
-                )
-            }
-        } else {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = 360.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                items(entries) { entry ->
-                    Surface(
-                        color = ZnKeyboardColors.Key,
-                        shape = RoundedCornerShape(COMPACT_ITEM_CORNER_RADIUS),
-                        tonalElevation = 0.dp,
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(start = 12.dp, top = 8.dp, end = 4.dp, bottom = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(
-                                text = entry.text,
-                                color = ZnKeyboardColors.OnSurface,
-                                style = MaterialTheme.typography.bodyMedium,
-                                maxLines = 3,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(1f),
-                            )
-                            IconButton(onClick = { onDeleteEntry(entry) }) {
-                                Icon(
-                                    painter = painterResource(R.drawable.ic_delete_24),
-                                    contentDescription = "Delete saved suggestion text",
-                                    tint = ZnKeyboardColors.DeleteContent,
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun ComposerSuggestionMaxItemsField(
-    maxItems: Int,
-    onMaxItemsChange: (Int) -> Unit,
-) {
-    val focusManager = LocalFocusManager.current
-    var draft by remember { mutableStateOf(maxItems.toString()) }
-
-    LaunchedEffect(maxItems) {
-        draft = maxItems.toString()
-    }
-
-    fun commitDraft() {
-        val parsed = draft.toIntOrNull()
-        if (parsed == null) {
-            draft = maxItems.toString()
-            return
-        }
-        val normalized = KeyboardSettings.normalizeComposerSuggestionMaxItems(parsed)
-        draft = normalized.toString()
-        if (normalized != maxItems) {
-            onMaxItemsChange(normalized)
-        }
-    }
-
-    OutlinedTextField(
-        value = draft,
-        onValueChange = { input ->
-            draft = input.filter { it.isDigit() }.take(4)
-        },
-        label = { Text("Max saved items") },
-        singleLine = true,
-        keyboardOptions = KeyboardOptions(
-            keyboardType = KeyboardType.Number,
-            imeAction = ImeAction.Done,
-        ),
-        keyboardActions = KeyboardActions(
-            onDone = {
-                commitDraft()
-                focusManager.clearFocus()
-            },
-        ),
-        supportingText = {
-            Text(
-                text = "${KeyboardSettings.MIN_COMPOSER_SUGGESTION_MAX_ITEMS}-${KeyboardSettings.MAX_COMPOSER_SUGGESTION_MAX_ITEMS}. Default: ${KeyboardSettings.DEFAULT_COMPOSER_SUGGESTION_MAX_ITEMS}.",
-                color = ZnKeyboardColors.Muted,
-                style = MaterialTheme.typography.bodySmall,
-            )
-        },
-        modifier = Modifier
-            .fillMaxWidth()
-            .onFocusChanged { focusState ->
-                if (!focusState.isFocused) {
-                    commitDraft()
-                }
-            },
-    )
-}
-
-@Composable
-private fun FunctionKeyBackgroundsSwitch(
-    enabled: Boolean,
-    onEnabledChange: (Boolean) -> Unit,
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = "Function key backgrounds",
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.SemiBold,
-            )
-            Text(
-                text = "Show filled backgrounds behind utility keys.",
-                color = ZnKeyboardColors.Muted,
-                style = MaterialTheme.typography.bodySmall,
-            )
-        }
-        Switch(
-            checked = enabled,
-            onCheckedChange = onEnabledChange,
-        )
-    }
-}
-
-@Composable
-private fun KeyboardBottomPaddingField(
-    bottomPaddingDp: Int,
-    onBottomPaddingChange: (Int) -> Unit,
-) {
-    val focusManager = LocalFocusManager.current
-    var draft by remember { mutableStateOf(bottomPaddingDp.toString()) }
-
-    LaunchedEffect(bottomPaddingDp) {
-        draft = bottomPaddingDp.toString()
-    }
-
-    OutlinedTextField(
-        value = draft,
-        onValueChange = { input ->
-            val digits = input.filter { it.isDigit() }.take(3)
-            draft = digits
-            digits.toIntOrNull()?.let { value ->
-                val normalizedValue = KeyboardSettings.normalizeBottomPaddingDp(value)
-                onBottomPaddingChange(normalizedValue)
-                if (normalizedValue != value) {
-                    draft = normalizedValue.toString()
-                }
-            }
-        },
-        label = { Text("Bottom padding (dp)") },
-        singleLine = true,
-        keyboardOptions = KeyboardOptions(
-            keyboardType = KeyboardType.Number,
-            imeAction = ImeAction.Done,
-        ),
-        keyboardActions = KeyboardActions(
-            onDone = {
-                if (draft.isBlank()) {
-                    draft = bottomPaddingDp.toString()
-                }
-                focusManager.clearFocus()
-            },
-        ),
-        supportingText = {
-            Text(
-                text = "${KeyboardSettings.MIN_BOTTOM_PADDING_DP}-${KeyboardSettings.MAX_BOTTOM_PADDING_DP} dp. Default: ${KeyboardSettings.DEFAULT_BOTTOM_PADDING_DP}",
-                color = ZnKeyboardColors.Muted,
-                style = MaterialTheme.typography.bodySmall,
-            )
-        },
-        modifier = Modifier
-            .fillMaxWidth()
-            .onFocusChanged { focusState ->
-                if (!focusState.isFocused && draft.isBlank()) {
-                    draft = bottomPaddingDp.toString()
-                }
-            },
-    )
 }
 
 @Composable
@@ -884,6 +625,7 @@ private fun TextSnippetsSection(
     SettingsSectionCard {
         SettingsSectionHeader(
             title = "Text snippets",
+            subtitle = "Long-press space or use a Save snippet key. Snippets also autocomplete as you type.",
             trailingText = "${snippets.size}/${KeyboardSettings.MAX_TEXT_SNIPPETS}",
         )
 
@@ -1478,12 +1220,14 @@ private fun BackupRestoreSection(
 private enum class SettingsDestination(
     val id: String,
     val label: String,
+    val title: String,
     val iconResId: Int,
 ) {
-    Keyboard("keyboard", "Keyboard", R.drawable.ic_keyboard_24),
-    Tools("tools", "Tools", R.drawable.ic_tune_24),
-    Saved("saved", "Saved", R.drawable.ic_save_24),
-    Backup("backup", "Backup", R.drawable.ic_download_24),
+    Typing("typing", "Typing", "Typing", R.drawable.ic_touch_24),
+    Keyboard("keyboard", "Layout", "Layout & rows", R.drawable.ic_keyboard_24),
+    Tools("tools", "Tools", "Tools", R.drawable.ic_tune_24),
+    Saved("saved", "Snippets", "Snippets & clipboard", R.drawable.ic_save_24),
+    Backup("backup", "Backup", "Backup", R.drawable.ic_download_24),
 }
 
 private enum class BackupPasswordDialogMode {
@@ -3139,36 +2883,6 @@ private fun ReorderDropShadow(
                 style = MaterialTheme.typography.bodyMedium,
                 modifier = Modifier.weight(1f),
             )
-        }
-    }
-}
-
-@Composable
-private fun SystemSetupActions() {
-    val context = LocalContext.current
-
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        OutlinedButton(
-            onClick = {
-                context.startActivity(Intent(Settings.ACTION_INPUT_METHOD_SETTINGS))
-            },
-            modifier = Modifier.weight(1f),
-            colors = ButtonDefaults.outlinedButtonColors(contentColor = ZnKeyboardColors.OnSurface),
-        ) {
-            SettingsIconTextButtonContent(R.drawable.ic_keyboard_24, "Enable")
-        }
-
-        Button(
-            onClick = {
-                val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-                imm.showInputMethodPicker()
-            },
-            modifier = Modifier.weight(1f),
-        ) {
-            SettingsIconTextButtonContent(R.drawable.ic_keyboard_24, "Choose")
         }
     }
 }

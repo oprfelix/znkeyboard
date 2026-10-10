@@ -652,16 +652,16 @@ internal class ClipboardHistoryListView @JvmOverloads constructor(
     }
 
     private object PALETTE {
-        val background = ImeColors.BACKGROUND
-        val key = ImeColors.KEY
-        val function = ImeColors.FUNCTION_DARK
-        val selected = ImeColors.SELECTED
-        val cardStroke = ImeColors.DIVIDER
-        const val text = ImeColors.TEXT
-        val mutedText = ImeColors.SECONDARY_TEXT
-        val previewButtonText = Color.rgb(198, 207, 220)
-        val previewCard = Color.rgb(34, 38, 45)
-        val deleteBackground = Color.rgb(58, 36, 36)
-        val deleteContent = Color.rgb(224, 168, 168)
+        val background get() = ImeColors.BACKGROUND
+        val key get() = ImeColors.KEY
+        val function get() = ImeColors.FUNCTION_DARK
+        val selected get() = ImeColors.SELECTED
+        val cardStroke get() = ImeColors.DIVIDER
+        val text get() = ImeColors.TEXT
+        val mutedText get() = ImeColors.SECONDARY_TEXT
+        val previewButtonText get() = ImeColors.SECONDARY_TEXT
+        val previewCard get() = ImeColors.KEY_DARK
+        val deleteBackground get() = if (ImeColors.IS_DARK) Color.rgb(58, 36, 36) else Color.rgb(255, 218, 214)
+        val deleteContent get() = ImeColors.ERROR_TEXT
     }
 }

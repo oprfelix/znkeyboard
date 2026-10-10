@@ -850,15 +850,15 @@ class GifSearchView @JvmOverloads constructor(
     }
 
     private object PALETTE {
-        const val background = ImeColors.BACKGROUND
-        val key = ImeColors.KEY
-        val function = ImeColors.FUNCTION
-        val selected = ImeColors.SELECTED
-        const val text = ImeColors.TEXT
-        val mutedText = ImeColors.MUTED_TEXT
-        val disabledText = ImeColors.DISABLED_TEXT
-        val placeholderText = ImeColors.PLACEHOLDER_TEXT
-        val sectionText = ImeColors.SECTION_TEXT
+        val background get() = ImeColors.BACKGROUND
+        val key get() = ImeColors.KEY
+        val function get() = ImeColors.FUNCTION
+        val selected get() = ImeColors.SELECTED
+        val text get() = ImeColors.TEXT
+        val mutedText get() = ImeColors.MUTED_TEXT
+        val disabledText get() = ImeColors.DISABLED_TEXT
+        val placeholderText get() = ImeColors.PLACEHOLDER_TEXT
+        val sectionText get() = ImeColors.SECTION_TEXT
     }
 
     private companion object {

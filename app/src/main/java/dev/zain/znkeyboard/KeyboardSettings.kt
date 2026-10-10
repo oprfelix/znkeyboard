@@ -7,6 +7,7 @@ import android.security.keystore.KeyProperties
 import android.util.Base64
 import dev.zain.znkeyboard.constants.AgentDefaults
 import dev.zain.znkeyboard.constants.GifDefaults
+import dev.zain.znkeyboard.constants.ImeColors
 import dev.zain.znkeyboard.constants.KeyboardDefaults
 import dev.zain.znkeyboard.ime.ClipboardHistoryStore
 import org.json.JSONArray
@@ -44,7 +45,7 @@ object KeyboardSettings {
     const val MAX_AGENT_PROFILE_NAME_CHARS = 30
 
     private const val BACKUP_FORMAT = "dev.zain.znkeyboard.settings-backup"
-    private const val BACKUP_SCHEMA_VERSION = 3
+    private const val BACKUP_SCHEMA_VERSION = 4
     private const val BACKUP_JSON_INDENT = 2
     private const val PREFS_NAME = "keyboard_settings"
     private const val SECRET_PREFS_NAME = "keyboard_agent_secrets"
@@ -57,7 +58,13 @@ object KeyboardSettings {
     private const val KEY_KEYBOARD_ROW_ORDER = "keyboard_row_order"
     private const val KEY_SAVED_TEXT_PANEL_TAB = "saved_text_panel_tab"
     private const val KEY_TEXT_SNIPPETS = "text_snippets"
-    private const val KEY_COMPOSER_SUGGESTION_MAX_ITEMS = "composer_suggestion_max_items"
+    private const val KEY_ADAPTIVE_TOUCH_ENABLED = "adaptive_touch_enabled"
+    private const val KEY_KEY_HAPTICS_ENABLED = "key_haptics_enabled"
+    private const val KEY_KEY_PREVIEW_ENABLED = "key_preview_enabled"
+    private const val KEY_AUTO_CAPITALIZE_ENABLED = "auto_capitalize_enabled"
+    private const val KEY_DOUBLE_SPACE_PERIOD_ENABLED = "double_space_period_enabled"
+    private const val KEY_KEYBOARD_THEME = "keyboard_theme"
+    private const val KEY_TYPING_MODEL_GENERATION = "typing_model_generation"
     private const val KEY_RECENT_EMOJIS = "recent_emojis"
     private const val KEY_RECENT_EMOJI_ROWS = "recent_emoji_rows"
     private const val KEY_EMOJI_SKIN_TONE = "emoji_skin_tone"
@@ -87,9 +94,6 @@ object KeyboardSettings {
     val DEFAULT_UPPER_ROW_KEY_IDS = KeyboardDefaults.DEFAULT_UPPER_ROW_KEY_IDS
     val DEFAULT_SECOND_ROW_BUTTON_IDS = KeyboardDefaults.DEFAULT_SECOND_ROW_BUTTON_IDS
     val DEFAULT_KEYBOARD_ROW_ORDER = KeyboardDefaults.DEFAULT_KEYBOARD_ROW_ORDER
-    const val DEFAULT_COMPOSER_SUGGESTION_MAX_ITEMS = 100
-    const val MIN_COMPOSER_SUGGESTION_MAX_ITEMS = 1
-    const val MAX_COMPOSER_SUGGESTION_MAX_ITEMS = 1_000
 
     private val FUNCTION_KEY_OPTIONS = listOf(
         UpperRowKeyOption("ctrl", "Ctrl"),
@@ -138,7 +142,7 @@ object KeyboardSettings {
 
     val SHORTCUT_ROW_KEY_OPTIONS = listOf(
         UpperRowKeyOption("rewrite", "Rewrite"),
-        UpperRowKeyOption("save_text", "Save text"),
+        UpperRowKeyOption("save_text", "Save snippet"),
     ) + FUNCTION_KEY_OPTIONS
     val UPPER_ROW_KEY_OPTIONS = SHORTCUT_ROW_KEY_OPTIONS
     val SECOND_ROW_BUTTON_OPTIONS = SHORTCUT_ROW_KEY_OPTIONS
@@ -177,22 +181,41 @@ object KeyboardSettings {
         return paddingDp.coerceIn(MIN_BOTTOM_PADDING_DP, MAX_BOTTOM_PADDING_DP)
     }
 
-    fun readComposerSuggestionMaxItems(context: Context): Int {
-        return normalizeComposerSuggestionMaxItems(
-            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-                .getInt(KEY_COMPOSER_SUGGESTION_MAX_ITEMS, DEFAULT_COMPOSER_SUGGESTION_MAX_ITEMS),
-        )
+    private fun readFlag(context: Context, key: String, default: Boolean): Boolean =
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).getBoolean(key, default)
+
+    private fun saveFlag(context: Context, key: String, enabled: Boolean) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit().putBoolean(key, enabled).apply()
     }
 
-    fun saveComposerSuggestionMaxItems(context: Context, maxItems: Int) {
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .edit()
-            .putInt(KEY_COMPOSER_SUGGESTION_MAX_ITEMS, normalizeComposerSuggestionMaxItems(maxItems))
-            .apply()
+    /** Personal touch model + letter prior decoding. */
+    fun readAdaptiveTouchEnabled(context: Context) = readFlag(context, KEY_ADAPTIVE_TOUCH_ENABLED, true)
+    fun saveAdaptiveTouchEnabled(context: Context, enabled: Boolean) = saveFlag(context, KEY_ADAPTIVE_TOUCH_ENABLED, enabled)
+    fun readKeyHapticsEnabled(context: Context) = readFlag(context, KEY_KEY_HAPTICS_ENABLED, true)
+    fun saveKeyHapticsEnabled(context: Context, enabled: Boolean) = saveFlag(context, KEY_KEY_HAPTICS_ENABLED, enabled)
+    fun readKeyPreviewEnabled(context: Context) = readFlag(context, KEY_KEY_PREVIEW_ENABLED, true)
+    fun saveKeyPreviewEnabled(context: Context, enabled: Boolean) = saveFlag(context, KEY_KEY_PREVIEW_ENABLED, enabled)
+    fun readAutoCapitalizeEnabled(context: Context) = readFlag(context, KEY_AUTO_CAPITALIZE_ENABLED, true)
+    fun saveAutoCapitalizeEnabled(context: Context, enabled: Boolean) = saveFlag(context, KEY_AUTO_CAPITALIZE_ENABLED, enabled)
+    fun readDoubleSpacePeriodEnabled(context: Context) = readFlag(context, KEY_DOUBLE_SPACE_PERIOD_ENABLED, true)
+    fun saveDoubleSpacePeriodEnabled(context: Context, enabled: Boolean) =
+        saveFlag(context, KEY_DOUBLE_SPACE_PERIOD_ENABLED, enabled)
+
+    fun readKeyboardTheme(context: Context): ImeColors.Style = ImeColors.Style.fromId(
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).getString(KEY_KEYBOARD_THEME, null),
+    )
+
+    fun saveKeyboardTheme(context: Context, style: ImeColors.Style) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit().putString(KEY_KEYBOARD_THEME, style.id).apply()
     }
 
-    fun normalizeComposerSuggestionMaxItems(maxItems: Int): Int {
-        return maxItems.coerceIn(MIN_COMPOSER_SUGGESTION_MAX_ITEMS, MAX_COMPOSER_SUGGESTION_MAX_ITEMS)
+    /** Bumped when the user resets learned typing data; the running keyboard drops its in-memory copy. */
+    fun readTypingModelGeneration(context: Context): Int =
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).getInt(KEY_TYPING_MODEL_GENERATION, 0)
+
+    fun bumpTypingModelGeneration(context: Context) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putInt(KEY_TYPING_MODEL_GENERATION, prefs.getInt(KEY_TYPING_MODEL_GENERATION, 0) + 1).commit()
     }
 
     fun readFunctionKeyBackgroundsEnabled(context: Context): Boolean {
@@ -954,7 +977,12 @@ object KeyboardSettings {
                         JSONObject()
                             .put("heightScale", readHeightScale(context))
                             .put("bottomPaddingDp", readBottomPaddingDp(context))
-                            .put("composerSuggestionMaxItems", readComposerSuggestionMaxItems(context))
+                            .put("theme", readKeyboardTheme(context).id)
+                            .put("adaptiveTouch", readAdaptiveTouchEnabled(context))
+                            .put("keyHaptics", readKeyHapticsEnabled(context))
+                            .put("keyPreview", readKeyPreviewEnabled(context))
+                            .put("autoCapitalize", readAutoCapitalizeEnabled(context))
+                            .put("doubleSpacePeriod", readDoubleSpacePeriodEnabled(context))
                             .put("functionKeyBackgroundsEnabled", readFunctionKeyBackgroundsEnabled(context))
                             .put("shortcutRowAKeys", stringArrayJson(readUpperRowKeyIds(context)))
                             .put("shortcutRowBKeys", stringArrayJson(readSecondRowButtonIds(context)))
@@ -1037,9 +1065,12 @@ object KeyboardSettings {
         val bottomPaddingDp = normalizeBottomPaddingDp(
             keyboard.optInt("bottomPaddingDp", readBottomPaddingDp(context)),
         )
-        val composerSuggestionMaxItems = normalizeComposerSuggestionMaxItems(
-            keyboard.optInt("composerSuggestionMaxItems", readComposerSuggestionMaxItems(context)),
-        )
+        val theme = ImeColors.Style.fromId(keyboard.optString("theme", readKeyboardTheme(context).id))
+        val adaptiveTouch = keyboard.optBoolean("adaptiveTouch", readAdaptiveTouchEnabled(context))
+        val keyHaptics = keyboard.optBoolean("keyHaptics", readKeyHapticsEnabled(context))
+        val keyPreview = keyboard.optBoolean("keyPreview", readKeyPreviewEnabled(context))
+        val autoCapitalize = keyboard.optBoolean("autoCapitalize", readAutoCapitalizeEnabled(context))
+        val doubleSpacePeriod = keyboard.optBoolean("doubleSpacePeriod", readDoubleSpacePeriodEnabled(context))
         val functionKeyBackgroundsEnabled = keyboard.optBoolean(
             "functionKeyBackgroundsEnabled",
             readFunctionKeyBackgroundsEnabled(context),
@@ -1143,7 +1174,12 @@ object KeyboardSettings {
 
         saveHeightScale(context, heightScale)
         saveBottomPaddingDp(context, bottomPaddingDp)
-        saveComposerSuggestionMaxItems(context, composerSuggestionMaxItems)
+        saveKeyboardTheme(context, theme)
+        saveAdaptiveTouchEnabled(context, adaptiveTouch)
+        saveKeyHapticsEnabled(context, keyHaptics)
+        saveKeyPreviewEnabled(context, keyPreview)
+        saveAutoCapitalizeEnabled(context, autoCapitalize)
+        saveDoubleSpacePeriodEnabled(context, doubleSpacePeriod)
         saveFunctionKeyBackgroundsEnabled(context, functionKeyBackgroundsEnabled)
         saveUpperRowKeyIds(context, upperRowKeys)
         saveSecondRowButtonIds(context, secondRowButtons)

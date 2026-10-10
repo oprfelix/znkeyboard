@@ -7,9 +7,9 @@ object ImeDimensions {
     const val HORIZONTAL_PADDING_DP = 6
     const val TOP_PADDING_DP = 6
     const val BASE_BOTTOM_PADDING_DP = 8
-    const val KEY_GAP_DP = 5
-    const val ROW_GAP_DP = 10
-    const val KEY_RADIUS_DP = 8
+    const val KEY_GAP_DP = 6
+    const val ROW_GAP_DP = 8
+    const val KEY_RADIUS_DP = 10
 
     const val MIN_BOTTOM_SYSTEM_CONTROL_GAP_DP = 16
     const val BOTTOM_SYSTEM_CONTROL_GAP_MULTIPLIER = 2.0f
@@ -25,7 +25,9 @@ object ImeDimensions {
         STANDARD_ROW_WEIGHT +
         BOTTOM_ROW_WEIGHT
 
-    const val KEY_LABEL_CHARACTER_TEXT_SIZE_SP = 24f
+    const val KEY_LABEL_CHARACTER_TEXT_SIZE_SP = 23f
+    const val KEY_LABEL_NUMBER_TEXT_SIZE_SP = 19f
+    const val KEY_LABEL_TOOLBAR_SYMBOL_TEXT_SIZE_SP = 18f
     const val KEY_LABEL_FUNCTION_TEXT_SIZE_SP = 14f
     const val KEY_LABEL_ACTION_TEXT_SIZE_SP = 14f
     const val KEY_LABEL_MIN_TEXT_SIZE_SP = 9f
@@ -37,7 +39,7 @@ object ImeDimensions {
 
     const val DEFAULT_KEY_WEIGHT = 1f
     const val EDGE_UPPER_ROW_KEY_WEIGHT = 1.4f
-    const val SIDE_FUNCTION_KEY_WEIGHT = 1.35f
+    const val SIDE_FUNCTION_KEY_WEIGHT = 1.5f
     const val MODE_SWITCH_KEY_WEIGHT = 1.25f
     const val SPACE_KEY_WEIGHT = 5.1f
     const val ENTER_KEY_WEIGHT = 1.55f
