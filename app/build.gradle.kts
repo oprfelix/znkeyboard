@@ -13,10 +13,10 @@ android {
 
     defaultConfig {
         applicationId = "dev.zain.znkeyboard"
-        minSdk = 33
+        minSdk = 36
         targetSdk = 36
-        versionCode = 11
-        versionName = "1.0.2"
+        versionCode = 12
+        versionName = "1.1.0"
     }
 
     buildTypes {

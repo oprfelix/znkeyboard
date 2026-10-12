@@ -457,14 +457,14 @@ class SnippetPanelView @JvmOverloads constructor(
     }
 
     private object PALETTE {
-        val background = ImeColors.BACKGROUND
-        val key = ImeColors.KEY_DARK
-        val function = ImeColors.FUNCTION_DARK
-        val selected = ImeColors.SELECTED
-        val border = ImeColors.BORDER
-        const val text = ImeColors.TEXT
-        val tagText = ImeColors.TAG_TEXT
-        val mutedText = ImeColors.MUTED_TEXT
+        val background get() = ImeColors.BACKGROUND
+        val key get() = ImeColors.KEY_DARK
+        val function get() = ImeColors.FUNCTION_DARK
+        val selected get() = ImeColors.SELECTED
+        val border get() = ImeColors.BORDER
+        val text get() = ImeColors.TEXT
+        val tagText get() = ImeColors.TAG_TEXT
+        val mutedText get() = ImeColors.MUTED_TEXT
     }
 
     private companion object {

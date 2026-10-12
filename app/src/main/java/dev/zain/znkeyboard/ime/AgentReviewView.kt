@@ -172,14 +172,14 @@ class AgentReviewView @JvmOverloads constructor(
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).roundToInt()
 
     private object PALETTE {
-        val background = ImeColors.BACKGROUND
-        val field = ImeColors.KEY_DARK
-        val border = ImeColors.BORDER
-        val function = ImeColors.FUNCTION_DARK
-        val action = ImeColors.FUNCTION
-        const val text = ImeColors.TEXT
-        val mutedText = ImeColors.MUTED_TEXT
-        val errorText = ImeColors.ERROR_TEXT
+        val background get() = ImeColors.BACKGROUND
+        val field get() = ImeColors.KEY_DARK
+        val border get() = ImeColors.BORDER
+        val function get() = ImeColors.FUNCTION_DARK
+        val action get() = ImeColors.FUNCTION
+        val text get() = ImeColors.TEXT
+        val mutedText get() = ImeColors.MUTED_TEXT
+        val errorText get() = ImeColors.ERROR_TEXT
     }
 
 }

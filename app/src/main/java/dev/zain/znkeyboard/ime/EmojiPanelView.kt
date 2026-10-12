@@ -646,14 +646,14 @@ class EmojiPanelView @JvmOverloads constructor(
     }
 
     private object PALETTE {
-        const val background = ImeColors.BACKGROUND
+        val background get() = ImeColors.BACKGROUND
         const val key = Color.TRANSPARENT
-        val function = ImeColors.KEY
-        val selected = ImeColors.SELECTED
-        const val text = ImeColors.TEXT
-        val mutedText = ImeColors.MUTED_TEXT
-        val disabledText = ImeColors.DISABLED_TEXT
-        val sectionText = ImeColors.SECTION_TEXT
+        val function get() = ImeColors.KEY
+        val selected get() = ImeColors.SELECTED
+        val text get() = ImeColors.TEXT
+        val mutedText get() = ImeColors.MUTED_TEXT
+        val disabledText get() = ImeColors.DISABLED_TEXT
+        val sectionText get() = ImeColors.SECTION_TEXT
     }
 
     private companion object {

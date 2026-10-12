@@ -1,52 +1,56 @@
 package dev.zain.znkeyboard
 
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
-import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.dynamicDarkColorScheme
+import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import dev.zain.znkeyboard.constants.SettingsThemeColors
 
 internal val ZainAppShapes = Shapes(
-    extraSmall = RoundedCornerShape(4.dp),
-    small = RoundedCornerShape(8.dp),
-    medium = RoundedCornerShape(12.dp),
-    large = RoundedCornerShape(16.dp),
-    extraLarge = RoundedCornerShape(24.dp),
+    extraSmall = RoundedCornerShape(6.dp),
+    small = RoundedCornerShape(10.dp),
+    medium = RoundedCornerShape(16.dp),
+    large = RoundedCornerShape(20.dp),
+    extraLarge = RoundedCornerShape(28.dp),
 )
 
+/** Material You: the settings app follows the wallpaper palette and system light/dark, like the keyboard. */
 @Composable
 internal fun ZnKeyboardTheme(content: @Composable () -> Unit) {
+    val context = LocalContext.current
+    val colorScheme = if (isSystemInDarkTheme()) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
     MaterialTheme(
-        colorScheme = darkColorScheme(
-            primary = ZnKeyboardColors.Accent,
-            onPrimary = Color.White,
-            background = ZnKeyboardColors.Background,
-            onBackground = ZnKeyboardColors.OnSurface,
-            surface = ZnKeyboardColors.Surface,
-            onSurface = ZnKeyboardColors.OnSurface,
-            onSurfaceVariant = ZnKeyboardColors.Muted,
-            secondary = ZnKeyboardColors.FunctionKey,
-            onSecondary = ZnKeyboardColors.OnSurface,
-            // Selected nav pills, chips, etc. — keep content light on a dark container.
-            secondaryContainer = ZnKeyboardColors.FunctionKey,
-            onSecondaryContainer = ZnKeyboardColors.OnSurface,
-        ),
+        colorScheme = colorScheme,
         shapes = ZainAppShapes,
         content = content,
     )
 }
 
+/** Semantic aliases over the Material color scheme, kept so existing screens restyle in one place. */
 internal object ZnKeyboardColors {
-    val Background = SettingsThemeColors.Background
-    val Surface = SettingsThemeColors.Surface
-    val Key = SettingsThemeColors.Key
-    val FunctionKey = SettingsThemeColors.FunctionKey
-    val Accent = SettingsThemeColors.Accent
-    val OnSurface = SettingsThemeColors.OnSurface
-    val Muted = SettingsThemeColors.Muted
-    val DeleteBackground = Color(0xFF3A2424)
-    val DeleteContent = Color(0xFFE0A8A8)
+    val Background: Color
+        @Composable @ReadOnlyComposable get() = MaterialTheme.colorScheme.surface
+    val Surface: Color
+        @Composable @ReadOnlyComposable get() = MaterialTheme.colorScheme.surfaceContainer
+    val Key: Color
+        @Composable @ReadOnlyComposable get() = MaterialTheme.colorScheme.surfaceContainerHigh
+    val FunctionKey: Color
+        @Composable @ReadOnlyComposable get() = MaterialTheme.colorScheme.surfaceContainerHighest
+    val Accent: Color
+        @Composable @ReadOnlyComposable get() = MaterialTheme.colorScheme.primary
+    val OnSurface: Color
+        @Composable @ReadOnlyComposable get() = MaterialTheme.colorScheme.onSurface
+    val Muted: Color
+        @Composable @ReadOnlyComposable get() = MaterialTheme.colorScheme.onSurfaceVariant
+    val DeleteBackground: Color
+        @Composable @ReadOnlyComposable get() = MaterialTheme.colorScheme.errorContainer
+    val DeleteContent: Color
+        @Composable @ReadOnlyComposable get() = MaterialTheme.colorScheme.onErrorContainer
 }
+

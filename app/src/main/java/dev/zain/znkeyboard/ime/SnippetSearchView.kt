@@ -285,13 +285,13 @@ class SavedTextSearchView @JvmOverloads constructor(
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).roundToInt()
 
     private object PALETTE {
-        val background = ImeColors.BACKGROUND
-        val key = ImeColors.KEY_DARK
-        val function = ImeColors.FUNCTION_DARK
-        const val text = ImeColors.TEXT
-        val tagText = ImeColors.TAG_TEXT
-        val mutedText = ImeColors.MUTED_TEXT
-        val placeholderText = ImeColors.PLACEHOLDER_TEXT
+        val background get() = ImeColors.BACKGROUND
+        val key get() = ImeColors.KEY_DARK
+        val function get() = ImeColors.FUNCTION_DARK
+        val text get() = ImeColors.TEXT
+        val tagText get() = ImeColors.TAG_TEXT
+        val mutedText get() = ImeColors.MUTED_TEXT
+        val placeholderText get() = ImeColors.PLACEHOLDER_TEXT
     }
 
     private companion object {

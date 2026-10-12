@@ -4,7 +4,7 @@ A modern, privacy-respecting custom keyboard (input method editor) for Android, 
 
 > Status: actively developed. Built and maintained in the open.
 
-![Platform](https://img.shields.io/badge/platform-Android%2013%2B-3DDC84?logo=android&logoColor=white)
+![Platform](https://img.shields.io/badge/platform-Android%2016%2B-3DDC84?logo=android&logoColor=white)
 ![Language](https://img.shields.io/badge/kotlin-2.3-7F52FF?logo=kotlin&logoColor=white)
 ![UI](https://img.shields.io/badge/Jetpack%20Compose-Material%203-4285F4)
 ![License](https://img.shields.io/badge/license-GPL--3.0-blue)
@@ -26,6 +26,15 @@ Most "AI keyboards" send your keystrokes to a vendor's cloud. ZnKeyboard takes t
 
 ## Features
 
+### 🎯 Adaptive touch: fewer missed keys
+ZnKeyboard learns how *your* thumbs actually hit each key and decodes every tap with that, instead of plain rectangles. The full research and numbers are in [docs/typing-accuracy.md](docs/typing-accuracy.md).
+- **Key decided at touch-down** with roll hysteresis, so finger drift on lift no longer types the neighbouring key.
+- **A personal touch model for each key** (per orientation), with hierarchical shrinkage so rare keys learn from their neighbours.
+- **Learns from your corrections:** backspacing a letter and typing its neighbour teaches the model where that tap really belonged. There is no calibration step.
+- **Anchored letter prior:** context only settles taps that fall *between* keys. A tap on the centre of a key always types that key. The prior adapts to how you write, Hinglish included.
+- **Haptics and a key popup** so you can feel and see each keystroke. Shift tap/double-tap caps lock, auto-capitalisation, and double-space period.
+- In simulation, letter errors drop from about 8% to about 1.3%. Learning stays on the device, is never backed up, and is skipped in password and incognito fields.
+
 ### ✍️ AI rewrite assistant ("agent mode")
 - Rewrite, polish, or restructure the text in the current field with one tap, then review the result before it replaces anything.
 - **Use your own provider:** OpenAI by default (`api.openai.com/v1`), or any OpenAI‑compatible endpoint such as **OpenRouter**, with a configurable model (default `gpt-4o-mini`).
@@ -39,7 +48,7 @@ Turn the keyboard into *your* keyboard. Add and arrange extra shortcut rows from
 - **Modifiers & control:** `Ctrl`, `Alt`, `Tab`, `Esc` (latched only for the dispatched action).
 - **tmux chords:** one-tap `C-b` (prefix), `C-b n` (next window), `C-b p` (previous window).
 - **Symbols you actually type:** `|`, `/`, `\`, `-`, `=`, and more.
-- **Panel shortcuts:** jump straight to emoji, GIF, clipboard, or snippets.
+- **Panel shortcuts:** jump straight to emoji, GIF, clipboard, or snippets, or **Save snippet** to store the current field in one tap.
 - **Reorderable rows** and adjustable keyboard height so the layout fits your thumbs and your workflow (great for coding and terminal apps on mobile).
 
 ### 🏷️ Tag‑based emoji suggestions
@@ -52,12 +61,14 @@ Turn the keyboard into *your* keyboard. Add and arrange extra shortcut rows from
 - On‑device only.
 
 ### ✂️ Text snippets
-- Save reusable phrases, templates, and boilerplate.
+- Save reusable phrases, templates, and boilerplate from settings, the snippet panel, or a **Save snippet** shortcut key.
+- **Snippets autocomplete as you type:** start typing a saved snippet and tap the suggestion to finish it.
 - **Tag and search** snippets so the right one is instantly findable — ideal for canned replies, email sign‑offs, addresses, or code stubs.
 
 ### ⌨️ A real keyboard, done right
 - Custom high‑performance typing `View` (not a WebView, not Compose on the hot path) with press feedback tuned to feel like a stock key.
-- Gboard‑style **spacebar cursor dragging** for precise caret movement.
+- Gboard‑style **spacebar cursor dragging** for precise caret movement, with a haptic tick per character.
+- **Material You theme** that follows your wallpaper and light/dark mode, or a true-black "Classic" theme.
 - Selection‑aware deletion and correct editor‑action handling (`Done`, `Go`, `Next`, `Search`, `Send`, etc.).
 - **GIF picker** powered by [KLIPY](https://klipy.com), with on‑device caching and content filtering.
 - **Password-encrypted backup & restore** for settings, clipboard history, and configured API credentials.
@@ -83,7 +94,7 @@ Hot paths (`onDraw`, `onTouchEvent`, input dispatch) deliberately avoid allocati
 Requirements:
 - Android Studio (recent stable) or the Android SDK command‑line tools
 - JDK 17
-- Android SDK with API 36; `minSdk` is 33 (Android 13)
+- Android SDK with API 36; `minSdk` is 36 (Android 16)
 
 ```sh
 # Point Gradle at your SDK
@@ -92,8 +103,9 @@ echo "sdk.dir=$HOME/Library/Android/sdk" > local.properties
 # Build a debug APK
 ./gradlew :app:assembleDebug
 
-# Run unit tests
-./gradlew :app:testDebugUnitTest
+# Verify the adaptive typing engine (unit checks + simulated-typist comparison)
+curl -sSLO https://norvig.com/ngrams/count_1w.txt
+tools/typing/verify_engine.sh count_1w.txt
 ```
 
 Install on a connected device/emulator with `./gradlew :app:installDebug` (or `adb install`).
@@ -118,6 +130,7 @@ You are billed directly by your chosen provider for your own usage; ZnKeyboard n
 - No analytics, no telemetry, no third‑party SDKs for tracking.
 - AI requests go straight from your device to the endpoint you configured, using your key.
 - GIF search talks to KLIPY only while the GIF panel is open.
+- Adaptive-touch learning stores only aggregate statistics (per-key touch offsets, letter-trigram counts) in no-backup storage, never in password or incognito fields, and can be reset from Settings → Typing.
 - Settings and secrets stay on-device; secrets are encrypted at rest. User-created backups are encrypted with a password that is never saved by the app.
 
 ## Contributing
