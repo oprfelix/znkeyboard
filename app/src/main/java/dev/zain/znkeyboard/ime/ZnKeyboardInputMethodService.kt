@@ -420,6 +420,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     }
 
     override fun onEmojiKeySuggestionSelected(emoji: String) {
+        replaceAdjacentSuggestionText(emoji)
         handleText(emoji, ModifierState(ctrl = false, alt = false))
         persistRecentEmojis(EmojiCatalog.promoteRecentEmoji(emoji, recentEmojis))
     }
@@ -870,7 +871,21 @@ class ZnKeyboardInputMethodService : InputMethodService(),
             ?.getTextBeforeCursor(EMOJI_SUGGESTION_CONTEXT_CHARS, 0)
             ?.toString()
             .orEmpty()
-        setEmojiKeySuggestion(findEmojiSuggestionForContext(beforeCursor))
+        setEmojiKeySuggestion(findEmojiSuggestionForContext(beforeCursor)?.emoji)
+    }
+
+    /** "Done|" + ✅ → "✅"; "Done |" + ✅ → "Done ✅". */
+    private fun replaceAdjacentSuggestionText(emoji: String) {
+        val inputConnection = currentInputConnection ?: return
+        if (isSensitiveEditor(currentEditorInfo)) return
+        if (!inputConnection.getSelectedText(0).isNullOrEmpty()) return
+        val beforeCursor = inputConnection
+            .getTextBeforeCursor(EMOJI_SUGGESTION_CONTEXT_CHARS, 0)
+            ?.toString()
+            ?: return
+        val match = findEmojiSuggestionForContext(beforeCursor) ?: return
+        if (match.emoji != emoji || !match.endsAtContextEnd) return
+        inputConnection.deleteSurroundingText(beforeCursor.length - match.charStart, 0)
     }
 
     private fun setEmojiKeySuggestion(emoji: String?) {
@@ -879,8 +894,9 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         keyboardView?.setEmojiKeySuggestion(emoji)
     }
 
-    private fun findEmojiSuggestionForContext(context: String): String? {
-        val contextTokens = tokenizeEmojiSuggestionText(context)
+    private fun findEmojiSuggestionForContext(context: String): EmojiSuggestionMatch? {
+        val tokenMatches = EMOJI_SUGGESTION_TOKEN_REGEX.findAll(context).toList()
+        val contextTokens = tokenMatches.map { it.value.lowercase(Locale.US) }
         if (contextTokens.isEmpty()) return null
 
         var bestMatch: EmojiSuggestionMatch? = null
@@ -888,10 +904,13 @@ class ZnKeyboardInputMethodService : InputMethodService(),
             val startIndex = contextTokens.lastIndexOfSequence(suggestion.tokens)
             if (startIndex < 0) return@forEach
 
+            val endIndex = startIndex + suggestion.tokens.lastIndex
             val match = EmojiSuggestionMatch(
                 emoji = suggestion.emoji,
                 startIndex = startIndex,
-                endIndex = startIndex + suggestion.tokens.lastIndex,
+                endIndex = endIndex,
+                charStart = tokenMatches[startIndex].range.first,
+                endsAtContextEnd = tokenMatches[endIndex].range.last == context.lastIndex,
             )
             val currentBest = bestMatch
             if (
@@ -902,7 +921,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
                 bestMatch = match
             }
         }
-        return bestMatch?.emoji
+        return bestMatch
     }
 
     private fun tokenizeEmojiSuggestionText(value: String): List<String> {
@@ -2414,6 +2433,8 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         val emoji: String,
         val startIndex: Int,
         val endIndex: Int,
+        val charStart: Int,
+        val endsAtContextEnd: Boolean,
     )
 
     private data class AgentEditTarget(
@@ -2549,6 +2570,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
             "`" to SelectionWrapPair("`", "`"),
         )
         val EMOJI_SUGGESTION_TOKEN_SPLIT_REGEX = Regex("[^\\p{L}\\p{N}]+")
+        val EMOJI_SUGGESTION_TOKEN_REGEX = Regex("[\\p{L}\\p{N}]+")
         val THINK_BLOCK_REGEX = Regex("(?is)<think>.*?</think>")
         val REASONING_BLOCK_REGEX = Regex("(?is)<reasoning>.*?</reasoning>")
         val FALLBACK_REWRITE_PROMPT = """
