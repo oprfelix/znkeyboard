@@ -81,6 +81,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -665,23 +666,25 @@ private fun TextSnippetsSection(
         } else {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 snippets.forEachIndexed { index, snippet ->
-                    TextSnippetEditorRow(
-                        snippet = snippet,
-                        onTagsChange = { tags ->
-                            onSnippetsChange(
-                                snippets.toMutableList().apply {
-                                    this[index] = snippet.copy(tags = tags)
-                                },
-                            )
-                        },
-                        onRemove = {
-                            onSnippetsChange(
-                                snippets.toMutableList().apply {
-                                    removeAt(index)
-                                },
-                            )
-                        },
-                    )
+                    key(snippet.text) {
+                        TextSnippetEditorRow(
+                            snippet = snippet,
+                            onTagsChange = { tags ->
+                                onSnippetsChange(
+                                    snippets.toMutableList().apply {
+                                        this[index] = snippet.copy(tags = tags)
+                                    },
+                                )
+                            },
+                            onRemove = {
+                                onSnippetsChange(
+                                    snippets.toMutableList().apply {
+                                        removeAt(index)
+                                    },
+                                )
+                            },
+                        )
+                    }
                 }
             }
         }
