@@ -35,20 +35,16 @@ internal object ImeLayout {
         return navigationBarHeightPx.coerceAtLeast(minimumGapPx) * BOTTOM_SYSTEM_CONTROL_GAP_MULTIPLIER
     }
 
-    fun compactAgentRowHeightPx(context: Context, scale: Float): Int {
+    /** Height of a weight-1 key row; depends only on the key height setting, never on which rows are shown. */
+    fun rowUnitHeightPx(context: Context, scale: Float): Float {
         val density = context.resources.displayMetrics.density
         val baseHeightPx = BASE_HEIGHT_DP * scale * density
         val reservedHeightPx = (TOP_PADDING_DP + BASE_BOTTOM_PADDING_DP + ROW_GAP_DP * (ROW_COUNT_WITH_UPPER_ROW - 1)) * density
-        val unitHeight = (baseHeightPx - reservedHeightPx) / ROW_WEIGHT_SUM_WITH_UPPER_ROW
-        return (TOP_PADDING_DP * density + COMPACT_ROW_WEIGHT * unitHeight).roundToInt()
+        return (baseHeightPx - reservedHeightPx) / ROW_WEIGHT_SUM_WITH_UPPER_ROW
     }
 
-    /** Extra height for the permanent number row in letter and symbol layouts. */
-    fun standardRowHeightPx(context: Context, scale: Float): Int {
+    fun compactAgentRowHeightPx(context: Context, scale: Float): Int {
         val density = context.resources.displayMetrics.density
-        val baseHeightPx = BASE_HEIGHT_DP * scale * density
-        val reservedHeightPx = (TOP_PADDING_DP + BASE_BOTTOM_PADDING_DP + ROW_GAP_DP * (ROW_COUNT_WITH_UPPER_ROW - 1)) * density
-        val unitHeight = (baseHeightPx - reservedHeightPx) / ROW_WEIGHT_SUM_WITH_UPPER_ROW
-        return (STANDARD_ROW_WEIGHT * unitHeight + ROW_GAP_DP * density).roundToInt()
+        return (TOP_PADDING_DP * density + COMPACT_ROW_WEIGHT * rowUnitHeightPx(context, scale)).roundToInt()
     }
 }

@@ -73,7 +73,7 @@ Turn the keyboard into *your* keyboard. Add and arrange extra shortcut rows from
 ### ⌨️ A real keyboard, done right
 - Custom high‑performance typing `View` (not a WebView, not Compose on the hot path) with press feedback tuned to feel like a stock key.
 - Gboard‑style **spacebar cursor dragging** for precise caret movement, with a haptic tick per character.
-- **Material You theme** that follows your wallpaper and light/dark mode, or a true-black **Classic black** theme. Adjustable keyboard height, space below the keys, and optional filled modifier keys.
+- **Material You theme** that follows your wallpaper and light/dark mode, or a true-black **Classic black** theme. Adjustable key height (extra rows add to the keyboard instead of shrinking keys), space below the keys, and optional filled modifier keys.
 - Selection‑aware deletion and correct editor‑action handling (`Done`, `Go`, `Next`, `Search`, `Send`, etc.).
 - **GIF picker** powered by [KLIPY](https://klipy.com), with on‑device caching and content filtering.
 - **Password-encrypted backup & restore** for settings, clipboard history, learned typing, and configured API credentials.

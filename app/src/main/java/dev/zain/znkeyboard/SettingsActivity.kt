@@ -388,7 +388,7 @@ private fun SettingsScreen(onOpenShortcuts: () -> Unit) {
                         KeyboardThemeSelector()
 
                         LabeledSlider(
-                            title = "Keyboard height",
+                            title = "Key height",
                             valueLabel = "${(heightScale * 100f).roundToInt()}%",
                             value = heightScale,
                             valueRange = KeyboardSettings.MIN_HEIGHT_SCALE..KeyboardSettings.MAX_HEIGHT_SCALE,

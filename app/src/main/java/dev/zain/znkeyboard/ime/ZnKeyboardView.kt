@@ -220,6 +220,7 @@ class ZnKeyboardView @JvmOverloads constructor(
         val normalizedKeyIds = KeyboardSettings.normalizeUpperRowKeyIds(keyIds)
         if (upperRowKeyIds != normalizedKeyIds) {
             upperRowKeyIds = normalizedKeyIds
+            requestLayout()
             refreshHitTargets()
             invalidate()
         }
@@ -320,32 +321,16 @@ class ZnKeyboardView @JvmOverloads constructor(
     }
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-        val suggestionRowHeight = if (composerSuggestion != null) {
-            ImeLayout.compactAgentRowHeightPx(context, heightScale)
-        } else {
-            0
-        }
-        val secondRowHeight = if (hasVisibleSecondRow()) {
-            ImeLayout.compactAgentRowHeightPx(context, heightScale)
-        } else {
-            0
-        }
-        val numberRowHeight = if (layoutMode != LayoutMode.PhonePad) {
-            ImeLayout.standardRowHeightPx(context, heightScale)
-        } else {
-            0
-        }
-        val bottomPaddingDeltaPx = (bottomPaddingDp - ImeLayout.BASE_BOTTOM_PADDING_DP) *
-            resources.displayMetrics.density
+        // Each visible row adds its own height, so showing or hiding a row never resizes the keys.
+        val rows = layoutRows()
+        val rowWeightSum = rows.fold(0f) { total, row -> total + row.heightWeight }
         val desiredHeight = (
-            ImeLayout.BASE_HEIGHT_DP * heightScale * resources.displayMetrics.density +
-                bottomSystemControlGapPx +
-                bottomPaddingDeltaPx
-            )
-            .roundToInt()
-            .plus(suggestionRowHeight)
-            .plus(secondRowHeight)
-            .plus(numberRowHeight)
+            dp(ImeLayout.TOP_PADDING_DP.toFloat()) +
+                rowWeightSum * ImeLayout.rowUnitHeightPx(context, heightScale) +
+                dp(ImeLayout.ROW_GAP_DP.toFloat()) * (rows.size - 1) +
+                dp(bottomPaddingDp.toFloat()) +
+                bottomSystemControlGapPx
+            ).roundToInt()
         val width = MeasureSpec.getSize(widthMeasureSpec)
         setMeasuredDimension(width, resolveSize(desiredHeight, heightMeasureSpec))
     }
@@ -1477,29 +1462,23 @@ class ZnKeyboardView @JvmOverloads constructor(
         }
     }
 
+    private fun layoutRows(): List<RowSpec> = listOfNotNull(composerSuggestionRow()) + rows()
+
     private fun layoutKeys(totalWidth: Float, totalHeight: Float): List<KeyHit> {
-        val mainRows = rows()
-        val suggestionRow = composerSuggestionRow()
-        // Same pixels onMeasure adds for the suggestion, so the other rows never resize.
-        val suggestionBand = if (suggestionRow != null) {
-            ImeLayout.compactAgentRowHeightPx(context, heightScale).toFloat()
-        } else {
-            0f
-        }
-        val rows = listOfNotNull(suggestionRow) + mainRows
+        val rows = layoutRows()
         val horizontalPadding = dp(ImeLayout.HORIZONTAL_PADDING_DP.toFloat())
         val topPadding = dp(ImeLayout.TOP_PADDING_DP.toFloat())
         val bottomPadding = dp(bottomPaddingDp.toFloat()) + bottomSystemControlGapPx
         val keyGap = dp(ImeLayout.KEY_GAP_DP.toFloat())
         val rowGap = dp(ImeLayout.ROW_GAP_DP.toFloat())
-        val rowWeightSum = mainRows.fold(0f) { total, row -> total + row.heightWeight }
-        val usableHeight = totalHeight - suggestionBand - topPadding - bottomPadding - rowGap * (mainRows.size - 1)
+        val rowWeightSum = rows.fold(0f) { total, row -> total + row.heightWeight }
+        val usableHeight = totalHeight - topPadding - bottomPadding - rowGap * (rows.size - 1)
         val unitHeight = usableHeight / rowWeightSum
 
         val visualRows = mutableListOf<List<VisualKey>>()
         var top = topPadding
         rows.forEach { row ->
-            val rowHeight = if (row === suggestionRow) suggestionBand - rowGap else row.heightWeight * unitHeight
+            val rowHeight = row.heightWeight * unitHeight
             val keys = row.keys
             val keyWeightSum = keys.fold(0f) { total, key -> total + key.weight }
             val layoutKeyCount = row.layoutKeyCount ?: keys.size
