@@ -56,6 +56,7 @@ object KeyboardSettings {
     private const val KEY_AGENT_ROW_KEYS = "agent_row_keys"
     private const val KEY_SECOND_ROW_BUTTONS = "second_row_buttons"
     private const val KEY_KEYBOARD_ROW_ORDER = "keyboard_row_order"
+    private const val KEY_SHORTCUT_MACROS = "shortcut_macros"
     private const val KEY_SAVED_TEXT_PANEL_TAB = "saved_text_panel_tab"
     private const val KEY_TEXT_SNIPPETS = "text_snippets"
     private const val KEY_ADAPTIVE_TOUCH_ENABLED = "adaptive_touch_enabled"
@@ -95,7 +96,12 @@ object KeyboardSettings {
     val DEFAULT_SECOND_ROW_BUTTON_IDS = KeyboardDefaults.DEFAULT_SECOND_ROW_BUTTON_IDS
     val DEFAULT_KEYBOARD_ROW_ORDER = KeyboardDefaults.DEFAULT_KEYBOARD_ROW_ORDER
 
-    private val FUNCTION_KEY_OPTIONS = listOf(
+    val ACTION_KEY_OPTIONS = listOf(
+        UpperRowKeyOption("rewrite", "Rewrite"),
+        UpperRowKeyOption("save_text", "Save snippet"),
+    )
+
+    val CONTROL_KEY_OPTIONS = listOf(
         UpperRowKeyOption("ctrl", "Ctrl"),
         UpperRowKeyOption("alt", "Alt"),
         UpperRowKeyOption("tab", "Tab"),
@@ -109,46 +115,54 @@ object KeyboardSettings {
         UpperRowKeyOption("page_up", "PgUp"),
         UpperRowKeyOption("page_down", "PgDn"),
         UpperRowKeyOption("backspace", "Del"),
-        // One-tap tmux chords (prefix + next/prev window).
-        UpperRowKeyOption("tmux_prefix", "C-b"),
-        UpperRowKeyOption("tmux_next", "C-b n"),
-        UpperRowKeyOption("tmux_prev", "C-b p"),
-        UpperRowKeyOption("pipe", "|"),
-        UpperRowKeyOption("slash", "/"),
-        UpperRowKeyOption("backslash", "\\"),
-        UpperRowKeyOption("minus", "-"),
-        UpperRowKeyOption("equals", "="),
-        UpperRowKeyOption("underscore", "_"),
-        UpperRowKeyOption("plus", "+"),
-        UpperRowKeyOption("colon", ":"),
-        UpperRowKeyOption("semicolon", ";"),
-        UpperRowKeyOption("quote", "\""),
-        UpperRowKeyOption("apostrophe", "'"),
+    )
+
+    /** Every symbol the keyboard can type; the label is also the committed text. */
+    val SYMBOL_KEY_OPTIONS = listOf(
         UpperRowKeyOption("backtick", "`"),
+        UpperRowKeyOption("tilde", "~"),
+        UpperRowKeyOption("bang", "!"),
         UpperRowKeyOption("at", "@"),
         UpperRowKeyOption("hash", "#"),
         UpperRowKeyOption("dollar", "\$"),
+        UpperRowKeyOption("percent", "%"),
+        UpperRowKeyOption("caret", "^"),
         UpperRowKeyOption("ampersand", "&"),
         UpperRowKeyOption("star", "*"),
         UpperRowKeyOption("left_paren", "("),
         UpperRowKeyOption("right_paren", ")"),
+        UpperRowKeyOption("minus", "-"),
+        UpperRowKeyOption("underscore", "_"),
+        UpperRowKeyOption("equals", "="),
+        UpperRowKeyOption("plus", "+"),
         UpperRowKeyOption("left_bracket", "["),
         UpperRowKeyOption("right_bracket", "]"),
         UpperRowKeyOption("left_brace", "{"),
         UpperRowKeyOption("right_brace", "}"),
+        UpperRowKeyOption("backslash", "\\"),
+        UpperRowKeyOption("pipe", "|"),
+        UpperRowKeyOption("semicolon", ";"),
+        UpperRowKeyOption("colon", ":"),
+        UpperRowKeyOption("apostrophe", "'"),
+        UpperRowKeyOption("quote", "\""),
+        UpperRowKeyOption("comma", ","),
+        UpperRowKeyOption("period", "."),
         UpperRowKeyOption("less_than", "<"),
         UpperRowKeyOption("greater_than", ">"),
+        UpperRowKeyOption("slash", "/"),
+        UpperRowKeyOption("question", "?"),
+        UpperRowKeyOption("euro", "€"),
+        UpperRowKeyOption("pound", "£"),
+        UpperRowKeyOption("yen", "¥"),
+        UpperRowKeyOption("bullet", "•"),
     )
 
-    val SHORTCUT_ROW_KEY_OPTIONS = listOf(
-        UpperRowKeyOption("rewrite", "Rewrite"),
-        UpperRowKeyOption("save_text", "Save snippet"),
-    ) + FUNCTION_KEY_OPTIONS
+    val SHORTCUT_ROW_KEY_OPTIONS = ACTION_KEY_OPTIONS + CONTROL_KEY_OPTIONS + SYMBOL_KEY_OPTIONS
     val UPPER_ROW_KEY_OPTIONS = SHORTCUT_ROW_KEY_OPTIONS
     val SECOND_ROW_BUTTON_OPTIONS = SHORTCUT_ROW_KEY_OPTIONS
     private val shortcutRowKeyOptionIds = SHORTCUT_ROW_KEY_OPTIONS.mapTo(mutableSetOf()) { it.id }
     private val upperRowKeyOptionIds = shortcutRowKeyOptionIds
-    private val secondRowButtonOptionIds = shortcutRowKeyOptionIds
+    private val symbolTextByKeyId = SYMBOL_KEY_OPTIONS.associate { it.id to it.label }
     private val keyboardRowIds = KeyboardRow.entries.mapTo(mutableSetOf()) { it.id }
     private val whitespaceRegex = Regex("\\s+")
     private val textSnippetTagSeparatorRegex = Regex("[,\\s]+")
@@ -233,7 +247,7 @@ object KeyboardSettings {
     fun readUpperRowKeyIds(context: Context): List<String> {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val stored = prefs.getString(KEY_UPPER_ROW_KEYS, null) ?: return DEFAULT_UPPER_ROW_KEY_IDS
-        return parseUpperRowKeyIds(stored) ?: DEFAULT_UPPER_ROW_KEY_IDS
+        return dropMissingMacroKeys(context, parseUpperRowKeyIds(stored) ?: DEFAULT_UPPER_ROW_KEY_IDS)
     }
 
     fun saveUpperRowKeyIds(context: Context, keyIds: List<String>) {
@@ -247,8 +261,36 @@ object KeyboardSettings {
 
     fun normalizeUpperRowKeyIds(keyIds: List<String>): List<String> {
         return keyIds
-            .filter { it in upperRowKeyOptionIds }
+            .mapNotNull(::normalizeShortcutRowKeyId)
             .take(MAX_UPPER_ROW_KEYS)
+    }
+
+    private fun normalizeShortcutRowKeyId(keyId: String): String? {
+        val id = ShortcutMacros.LEGACY_KEY_ID_ALIASES[keyId] ?: keyId
+        return id.takeIf { it in shortcutRowKeyOptionIds || ShortcutMacros.isMacroKeyId(it) }
+    }
+
+    private fun dropMissingMacroKeys(context: Context, keyIds: List<String>): List<String> {
+        if (keyIds.none(ShortcutMacros::isMacroKeyId)) return keyIds
+        val existing = readShortcutMacros(context).mapTo(HashSet()) { it.keyId }
+        return keyIds.filter { !ShortcutMacros.isMacroKeyId(it) || it in existing }
+    }
+
+    /** Text typed by a symbol shortcut key, or null when [keyId] is not a symbol. */
+    fun symbolForShortcutRowKey(keyId: String): String? = symbolTextByKeyId[keyId]
+
+    fun readShortcutMacros(context: Context): List<ShortcutMacro> {
+        val stored = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .getString(KEY_SHORTCUT_MACROS, null)
+            ?: return ShortcutMacros.DEFAULT_MACROS
+        return ShortcutMacros.parse(stored) ?: ShortcutMacros.DEFAULT_MACROS
+    }
+
+    fun saveShortcutMacros(context: Context, macros: List<ShortcutMacro>) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .putString(KEY_SHORTCUT_MACROS, ShortcutMacros.toJson(macros).toString())
+            .apply()
     }
 
     fun labelForUpperRowKey(keyId: String): String {
@@ -258,13 +300,13 @@ object KeyboardSettings {
     fun readSecondRowButtonIds(context: Context): List<String> {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         prefs.getString(KEY_SECOND_ROW_BUTTONS, null)?.let { stored ->
-            return parseSecondRowButtonIds(stored) ?: DEFAULT_SECOND_ROW_BUTTON_IDS
+            return dropMissingMacroKeys(context, parseSecondRowButtonIds(stored) ?: DEFAULT_SECOND_ROW_BUTTON_IDS)
         }
 
         val legacyAgentRow = prefs.getString(KEY_AGENT_ROW_KEYS, null)
             ?.let(::parseAgentRowKeyIds)
             ?: return DEFAULT_SECOND_ROW_BUTTON_IDS
-        return normalizeSecondRowButtonIds(listOf("rewrite") + legacyAgentRow)
+        return dropMissingMacroKeys(context, normalizeSecondRowButtonIds(listOf("rewrite") + legacyAgentRow))
     }
 
     fun saveSecondRowButtonIds(context: Context, buttonIds: List<String>) {
@@ -278,7 +320,7 @@ object KeyboardSettings {
 
     fun normalizeSecondRowButtonIds(buttonIds: List<String>): List<String> {
         return buttonIds
-            .filter { it in secondRowButtonOptionIds }
+            .mapNotNull(::normalizeShortcutRowKeyId)
             .distinct()
             .take(MAX_SECOND_ROW_BUTTONS)
     }
@@ -986,7 +1028,8 @@ object KeyboardSettings {
                             .put("functionKeyBackgroundsEnabled", readFunctionKeyBackgroundsEnabled(context))
                             .put("shortcutRowAKeys", stringArrayJson(readUpperRowKeyIds(context)))
                             .put("shortcutRowBKeys", stringArrayJson(readSecondRowButtonIds(context)))
-                            .put("shortcutRowOrder", stringArrayJson(readKeyboardRowOrder(context))),
+                            .put("shortcutRowOrder", stringArrayJson(readKeyboardRowOrder(context)))
+                            .put("shortcutMacros", ShortcutMacros.toJson(readShortcutMacros(context))),
                     )
                     .put("snippets", textSnippetsJson(readTextSnippets(context)))
                     .put(
@@ -1075,6 +1118,7 @@ object KeyboardSettings {
             "functionKeyBackgroundsEnabled",
             readFunctionKeyBackgroundsEnabled(context),
         )
+        val shortcutMacros = keyboard.optJSONArray("shortcutMacros")?.let(ShortcutMacros::fromJson)
         val upperRowKeys = keyboard.optStringList("shortcutRowAKeys")
             ?.let(::normalizeUpperRowKeyIds)
             ?: readUpperRowKeyIds(context)
@@ -1181,6 +1225,7 @@ object KeyboardSettings {
         saveAutoCapitalizeEnabled(context, autoCapitalize)
         saveDoubleSpacePeriodEnabled(context, doubleSpacePeriod)
         saveFunctionKeyBackgroundsEnabled(context, functionKeyBackgroundsEnabled)
+        shortcutMacros?.let { saveShortcutMacros(context, it) }
         saveUpperRowKeyIds(context, upperRowKeys)
         saveSecondRowButtonIds(context, secondRowButtons)
         saveKeyboardRowOrder(context, rowOrder)

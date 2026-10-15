@@ -46,10 +46,10 @@ ZnKeyboard learns how *your* thumbs actually hit each key and decodes every tap 
 Turn the keyboard into *your* keyboard. Add and arrange extra shortcut rows from a deep menu of keys most keyboards never give you:
 - **Cursor & navigation:** arrow keys, `Home`/`End`, `PgUp`/`PgDn`, `Del`.
 - **Modifiers & control:** `Ctrl`, `Alt`, `Tab`, `Esc` (latched only for the dispatched action).
-- **tmux chords:** one-tap `C-b` (prefix), `C-b n` (next window), `C-b p` (previous window).
-- **Symbols you actually type:** `|`, `/`, `\`, `-`, `=`, and more.
+- **Custom macros:** chain any key combos (`Ctrl`/`Alt`/`Shift` + letters, digits, F-keys, arrows…) and typed text into one key, e.g. tmux `C-b n` or Vim `Esc` › `:wq` › `Enter`. tmux `C-b`, `C-b n`, `C-b p` ship as editable starters.
+- **Every symbol:** all ASCII punctuation plus `€`, `£`, `¥`, `•`.
 - **Panel shortcuts:** jump straight to emoji, GIF, clipboard, or snippets, or **Save snippet** to store the current field in one tap.
-- **Reorderable rows** and adjustable keyboard height so the layout fits your thumbs and your workflow (great for coding and terminal apps on mobile).
+- **Dedicated Shortcuts screen** with a live preview of both rows, a categorized key palette, and swappable row order.
 
 ### 🏷️ Tag‑based emoji suggestions
 - Assign your **own tags** to any emoji (e.g. tag 🫡 as "ok", "done", "got it").

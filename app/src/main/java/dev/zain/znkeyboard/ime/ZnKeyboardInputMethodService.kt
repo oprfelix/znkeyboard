@@ -40,7 +40,6 @@ import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.Locale
-import java.util.concurrent.Executors
 
 class ZnKeyboardInputMethodService : InputMethodService(),
     ZnKeyboardView.Callback,
@@ -71,7 +70,6 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     private var activeComposerSuggestion: String? = null
     private var pendingComposerSuggestionRefresh: Runnable? = null
     private val mainHandler = Handler(Looper.getMainLooper())
-    private val backgroundExecutor = Executors.newSingleThreadExecutor()
     private var snippetChangeListener: android.content.SharedPreferences.OnSharedPreferenceChangeListener? = null
     private lateinit var typingEngine: AdaptiveTypingEngine
     private var appliedThemeSignature: String? = null
@@ -109,7 +107,6 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         ClipboardLinkPreviewRepository.loadPersistedPreviews(this)
         registerClipboardListener()
         capturePrimaryClipboardText()
-        migrateLegacySavedText()
         loadSnippetCompletionSources()
         snippetChangeListener = KeyboardSettings.registerTextSnippetsChangeListener(this) {
             loadSnippetCompletionSources()
@@ -249,7 +246,6 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         cancelComposerSuggestionRefresh()
         snippetChangeListener?.let { KeyboardSettings.unregisterTextSnippetsChangeListener(this, it) }
         snippetChangeListener = null
-        backgroundExecutor.shutdown()
         typingEngine.shutdown()
         gifSearchView?.dispose()
         gifSearchView = null
@@ -300,12 +296,17 @@ class ZnKeyboardInputMethodService : InputMethodService(),
             }
             is KeyboardAction.Chord -> {
                 cancelActiveAgentForEditorChange()
-                sendKey(action.keyCode, ModifierState(ctrl = action.ctrl, alt = action.alt))
+                sendKey(action.keyCode, ModifierState(ctrl = action.ctrl, alt = action.alt, shift = action.shift))
             }
             is KeyboardAction.Sequence -> {
                 cancelActiveAgentForEditorChange()
                 for (step in action.steps) {
-                    sendKey(step.keyCode, ModifierState(ctrl = step.ctrl, alt = step.alt))
+                    when (step) {
+                        is KeyboardAction.Chord ->
+                            sendKey(step.keyCode, ModifierState(ctrl = step.ctrl, alt = step.alt, shift = step.shift))
+                        is KeyboardAction.Text -> handleText(step.value, ModifierState(ctrl = false, alt = false))
+                        else -> Unit
+                    }
                 }
             }
             is KeyboardAction.Text -> handleText(action.value, modifiers)
@@ -527,6 +528,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
             view.setFunctionKeyBackgroundsEnabled(KeyboardSettings.readFunctionKeyBackgroundsEnabled(this))
             view.setKeyHapticsEnabled(KeyboardSettings.readKeyHapticsEnabled(this))
             view.setKeyPreviewEnabled(KeyboardSettings.readKeyPreviewEnabled(this))
+            view.setShortcutMacros(KeyboardSettings.readShortcutMacros(this))
             view.setUpperRowKeyIds(KeyboardSettings.readUpperRowKeyIds(this))
             view.setSecondRowButtonIds(KeyboardSettings.readSecondRowButtonIds(this))
             view.setKeyboardRowOrder(KeyboardSettings.readKeyboardRowOrder(this))
@@ -1666,12 +1668,6 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         clipboardManager.setPrimaryClip(clip)
     }
 
-    private fun migrateLegacySavedText() {
-        backgroundExecutor.execute {
-            runCatching { ComposerSuggestionStore.migrateIntoSnippets(applicationContext) }
-        }
-    }
-
     /** Snippets double as as-you-type completions; newest first wins when several match. */
     private fun loadSnippetCompletionSources() {
         snippetCompletionSources = KeyboardSettings.readTextSnippets(this).asReversed().map { it.text }
@@ -2395,6 +2391,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         var state = 0
         if (ctrl) state = state or KeyEvent.META_CTRL_ON or KeyEvent.META_CTRL_LEFT_ON
         if (alt) state = state or KeyEvent.META_ALT_ON or KeyEvent.META_ALT_LEFT_ON
+        if (shift) state = state or KeyEvent.META_SHIFT_ON or KeyEvent.META_SHIFT_LEFT_ON
         return state
     }
 

@@ -21,6 +21,9 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
 import dev.zain.znkeyboard.KeyboardSettings
+import dev.zain.znkeyboard.MacroStep
+import dev.zain.znkeyboard.ShortcutMacro
+import dev.zain.znkeyboard.ShortcutMacros
 import dev.zain.znkeyboard.constants.ImeColors
 import dev.zain.znkeyboard.constants.ImeDimensions
 import dev.zain.znkeyboard.typing.AdaptiveTypingEngine
@@ -113,6 +116,7 @@ class ZnKeyboardView @JvmOverloads constructor(
     private var upperRowKeyIds = KeyboardSettings.DEFAULT_UPPER_ROW_KEY_IDS
     private var secondRowButtonIds = KeyboardSettings.DEFAULT_SECOND_ROW_BUTTON_IDS
     private var keyboardRowOrder = KeyboardSettings.DEFAULT_KEYBOARD_ROW_ORDER
+    private var shortcutMacrosByKeyId: Map<String, ShortcutMacro> = emptyMap()
     private var shortcutRowState = ShortcutRowState(secondRowVisible = true)
     private var emojiKeySuggestion: String? = null
     private var composerSuggestion: String? = null
@@ -235,6 +239,16 @@ class ZnKeyboardView @JvmOverloads constructor(
         val normalizedRowIds = KeyboardSettings.normalizeKeyboardRowOrder(rowIds)
         if (keyboardRowOrder != normalizedRowIds) {
             keyboardRowOrder = normalizedRowIds
+            requestLayout()
+            refreshHitTargets()
+            invalidate()
+        }
+    }
+
+    fun setShortcutMacros(macros: List<ShortcutMacro>) {
+        val byKeyId = macros.associateBy(ShortcutMacro::keyId)
+        if (shortcutMacrosByKeyId != byKeyId) {
+            shortcutMacrosByKeyId = byKeyId
             requestLayout()
             refreshHitTargets()
             invalidate()
@@ -1677,71 +1691,29 @@ class ZnKeyboardView @JvmOverloads constructor(
             "page_up" -> KeySpec(id, "PgUp", KeyIntent.Dispatch(KeyboardAction.KeyCode(KeyEvent.KEYCODE_PAGE_UP)), weight, KeyRole.Function, enabled = enabled)
             "page_down" -> KeySpec(id, "PgDn", KeyIntent.Dispatch(KeyboardAction.KeyCode(KeyEvent.KEYCODE_PAGE_DOWN)), weight, KeyRole.Function, enabled = enabled)
             "backspace" -> KeySpec(id, "Del", KeyIntent.Dispatch(KeyboardAction.Backspace), weight, KeyRole.Function, icon = KeyIcon.Delete, enabled = enabled)
-            "tmux_prefix" -> KeySpec(
-                id,
-                "C-b",
-                KeyIntent.Dispatch(KeyboardAction.Chord(KeyEvent.KEYCODE_B, ctrl = true)),
-                weight,
-                KeyRole.Function,
-                enabled = enabled,
-            )
-            "tmux_next" -> KeySpec(
-                id,
-                "C-b n",
-                KeyIntent.Dispatch(
-                    KeyboardAction.Sequence(
-                        listOf(
-                            KeyboardAction.Chord(KeyEvent.KEYCODE_B, ctrl = true),
-                            KeyboardAction.Chord(KeyEvent.KEYCODE_N),
-                        ),
-                    ),
-                ),
-                weight,
-                KeyRole.Function,
-                enabled = enabled,
-            )
-            "tmux_prev" -> KeySpec(
-                id,
-                "C-b p",
-                KeyIntent.Dispatch(
-                    KeyboardAction.Sequence(
-                        listOf(
-                            KeyboardAction.Chord(KeyEvent.KEYCODE_B, ctrl = true),
-                            KeyboardAction.Chord(KeyEvent.KEYCODE_P),
-                        ),
-                    ),
-                ),
-                weight,
-                KeyRole.Function,
-                enabled = enabled,
-            )
-            "pipe" -> textUpperRowKey(id, "|", weight, enabled)
-            "slash" -> textUpperRowKey(id, "/", weight, enabled)
-            "backslash" -> textUpperRowKey(id, "\\", weight, enabled)
-            "minus" -> textUpperRowKey(id, "-", weight, enabled)
-            "equals" -> textUpperRowKey(id, "=", weight, enabled)
-            "underscore" -> textUpperRowKey(id, "_", weight, enabled)
-            "plus" -> textUpperRowKey(id, "+", weight, enabled)
-            "colon" -> textUpperRowKey(id, ":", weight, enabled)
-            "semicolon" -> textUpperRowKey(id, ";", weight, enabled)
-            "quote" -> textUpperRowKey(id, "\"", weight, enabled)
-            "apostrophe" -> textUpperRowKey(id, "'", weight, enabled)
-            "backtick" -> textUpperRowKey(id, "`", weight, enabled)
-            "at" -> textUpperRowKey(id, "@", weight, enabled)
-            "hash" -> textUpperRowKey(id, "#", weight, enabled)
-            "dollar" -> textUpperRowKey(id, "\$", weight, enabled)
-            "ampersand" -> textUpperRowKey(id, "&", weight, enabled)
-            "star" -> textUpperRowKey(id, "*", weight, enabled)
-            "left_paren" -> textUpperRowKey(id, "(", weight, enabled)
-            "right_paren" -> textUpperRowKey(id, ")", weight, enabled)
-            "left_bracket" -> textUpperRowKey(id, "[", weight, enabled)
-            "right_bracket" -> textUpperRowKey(id, "]", weight, enabled)
-            "left_brace" -> textUpperRowKey(id, "{", weight, enabled)
-            "right_brace" -> textUpperRowKey(id, "}", weight, enabled)
-            "less_than" -> textUpperRowKey(id, "<", weight, enabled)
-            "greater_than" -> textUpperRowKey(id, ">", weight, enabled)
-            else -> null
+            else -> KeyboardSettings.symbolForShortcutRowKey(keyId)?.let { textUpperRowKey(id, it, weight, enabled) }
+                ?: macroKeySpec(id, keyId, weight, enabled)
         }
+    }
+
+    private fun macroKeySpec(id: String, keyId: String, weight: Float, enabled: Boolean): KeySpec? {
+        val macro = shortcutMacrosByKeyId[keyId] ?: return null
+        val steps = macro.steps.mapNotNull { step ->
+            when (step) {
+                is MacroStep.Key -> ShortcutMacros.key(step.keyId)?.let {
+                    KeyboardAction.Chord(it.keyCode, ctrl = step.ctrl, alt = step.alt, shift = step.shift)
+                }
+                is MacroStep.Text -> KeyboardAction.Text(step.text)
+            }
+        }
+        return KeySpec(
+            id,
+            macro.displayLabel,
+            KeyIntent.Dispatch(KeyboardAction.Sequence(steps)),
+            weight,
+            KeyRole.Function,
+            enabled = enabled,
+        )
     }
 
     private fun textUpperRowKey(id: String, value: String, weight: Float, enabled: Boolean): KeySpec {
@@ -2305,6 +2277,7 @@ class ZnKeyboardView @JvmOverloads constructor(
 data class ModifierState(
     val ctrl: Boolean,
     val alt: Boolean,
+    val shift: Boolean = false,
 )
 
 sealed class KeyboardAction {
@@ -2318,11 +2291,12 @@ sealed class KeyboardAction {
         val keyCode: Int,
         val ctrl: Boolean = false,
         val alt: Boolean = false,
+        val shift: Boolean = false,
     ) : KeyboardAction()
     /**
-     * Ordered multi-key shortcut, e.g. tmux next/prev window: Ctrl+B then n/p.
+     * Ordered user macro: [Chord] and [Text] steps played back in order, e.g. Ctrl+B then n.
      */
-    data class Sequence(val steps: List<Chord>) : KeyboardAction()
+    data class Sequence(val steps: List<KeyboardAction>) : KeyboardAction()
     data object Backspace : KeyboardAction()
     data object Enter : KeyboardAction()
 }
