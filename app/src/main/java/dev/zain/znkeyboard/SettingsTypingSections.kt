@@ -20,6 +20,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -431,10 +432,43 @@ internal fun LabeledSlider(
     valueRange: ClosedFloatingPointRange<Float>,
     steps: Int,
     onValueChange: (Float) -> Unit,
+    defaultLabel: String? = null,
+    isDefault: Boolean = true,
+    onReset: (() -> Unit)? = null,
 ) {
+    var confirmingReset by remember { mutableStateOf(false) }
+    if (confirmingReset && onReset != null) {
+        AlertDialog(
+            onDismissRequest = { confirmingReset = false },
+            title = { Text("Reset ${title.lowercase()}?") },
+            text = { Text("Set it back to the default of $defaultLabel.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmingReset = false
+                    onReset()
+                }) { Text("Reset") }
+            },
+            dismissButton = { TextButton(onClick = { confirmingReset = false }) { Text("Cancel") } },
+        )
+    }
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(title, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+            if (onReset != null) {
+                IconButton(
+                    onClick = { confirmingReset = true },
+                    enabled = !isDefault,
+                    modifier = Modifier.size(32.dp),
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_restart_24),
+                        contentDescription = "Reset $title to default",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = if (isDefault) 0.25f else 0.6f),
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
+                Spacer(Modifier.width(4.dp))
+            }
             Text(valueLabel, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
         }
         Slider(value = value, onValueChange = onValueChange, valueRange = valueRange, steps = steps)

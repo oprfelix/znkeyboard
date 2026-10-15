@@ -397,6 +397,12 @@ private fun SettingsScreen(onOpenShortcuts: () -> Unit) {
                                 heightScale = it
                                 KeyboardSettings.saveHeightScale(context, it)
                             },
+                            defaultLabel = "${(KeyboardSettings.DEFAULT_HEIGHT_SCALE * 100f).roundToInt()}%",
+                            isDefault = (heightScale * 100f).roundToInt() == (KeyboardSettings.DEFAULT_HEIGHT_SCALE * 100f).roundToInt(),
+                            onReset = {
+                                heightScale = KeyboardSettings.DEFAULT_HEIGHT_SCALE
+                                KeyboardSettings.saveHeightScale(context, KeyboardSettings.DEFAULT_HEIGHT_SCALE)
+                            },
                         )
 
                         LabeledSlider(
@@ -409,6 +415,12 @@ private fun SettingsScreen(onOpenShortcuts: () -> Unit) {
                                 val value = KeyboardSettings.normalizeBottomPaddingDp((it / 4f).roundToInt() * 4)
                                 bottomPaddingDp = value
                                 KeyboardSettings.saveBottomPaddingDp(context, value)
+                            },
+                            defaultLabel = "${KeyboardSettings.DEFAULT_BOTTOM_PADDING_DP} dp",
+                            isDefault = bottomPaddingDp == KeyboardSettings.DEFAULT_BOTTOM_PADDING_DP,
+                            onReset = {
+                                bottomPaddingDp = KeyboardSettings.DEFAULT_BOTTOM_PADDING_DP
+                                KeyboardSettings.saveBottomPaddingDp(context, KeyboardSettings.DEFAULT_BOTTOM_PADDING_DP)
                             },
                         )
 
