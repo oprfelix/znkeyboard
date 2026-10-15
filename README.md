@@ -10,8 +10,10 @@ A modern, privacy-respecting custom keyboard (input method editor) for Android, 
 ![License](https://img.shields.io/badge/license-GPL--3.0-blue)
 
 <p align="center">
-  <img src="docs/screenshot-keyboard.png" width="280" alt="ZnKeyboard with shortcut rows and the Rewrite key">
-  <img src="docs/screenshot-settings.png" width="280" alt="ZnKeyboard settings for layout and shortcut rows">
+  <img src="docs/screenshot-keyboard.png" width="200" alt="ZnKeyboard with two shortcut rows, macros, and the Rewrite key">
+  <img src="docs/screenshot-shortcuts.png" width="200" alt="Shortcuts screen for arranging shortcut rows and macros">
+  <img src="docs/screenshot-settings.png" width="200" alt="Layout and rows settings with theme, height, and shortcut row preview">
+  <img src="docs/screenshot-typing.png" width="200" alt="Typing settings with the adaptive touch map">
 </p>
 
 ---
@@ -33,6 +35,7 @@ ZnKeyboard learns how *your* thumbs actually hit each key and decodes every tap 
 - **Learns from your corrections:** backspacing a letter and typing its neighbour teaches the model where that tap really belonged. There is no calibration step.
 - **Anchored letter prior:** context only settles taps that fall *between* keys. A tap on the centre of a key always types that key. The prior adapts to how you write, Hinglish included.
 - **Haptics and a key popup** so you can feel and see each keystroke. Shift tap/double-tap caps lock, auto-capitalisation, and double-space period.
+- **See what it learned:** Settings → Typing has a "Try it" field and a per-key touch map showing each key's learned centre and spread.
 - In simulation, letter errors drop from about 8% to about 1.3%. Learning stays on the device, is never backed up, and is skipped in password and incognito fields.
 
 ### ✍️ AI rewrite assistant ("agent mode")
@@ -49,11 +52,13 @@ Turn the keyboard into *your* keyboard. Add and arrange extra shortcut rows from
 - **Custom macros:** chain any key combos (`Ctrl`/`Alt`/`Shift` + letters, digits, F-keys, arrows…) and typed text into one key, e.g. tmux `C-b n` or Vim `Esc` › `:wq` › `Enter`. tmux `C-b`, `C-b n`, `C-b p` ship as editable starters.
 - **Every symbol:** all ASCII punctuation plus `€`, `£`, `¥`, `•`.
 - **Panel shortcuts:** jump straight to emoji, GIF, clipboard, or snippets, or **Save snippet** to store the current field in one tap.
-- **Dedicated Shortcuts screen** with a live preview of both rows, a categorized key palette, and swappable row order.
+- **Dedicated Shortcuts screen** with a live preview of both rows, a categorized key palette (tap to add, tap again to remove), swappable row order, and a confirmation before a row is reset to defaults.
+- Shortcut rows and the snippet suggestion strip never change the height of the letter keys, so your muscle memory stays put.
 
 ### 🏷️ Tag‑based emoji suggestions
 - Assign your **own tags** to any emoji (e.g. tag 🫡 as "ok", "done", "got it").
 - Tagged emojis surface in search *and* as a one‑tap **contextual suggestion right on the keyboard**, so the emojis you actually use are always a tap away — no scrolling.
+- Tap the suggestion right after the word to **swap the word for the emoji** (`done|` → ✅); add a space first to keep both (`done |` → `done ✅`).
 - Plus a full **emoji panel** with search, skin‑tone variants, and recents.
 
 ### 📋 Clipboard history
@@ -68,7 +73,7 @@ Turn the keyboard into *your* keyboard. Add and arrange extra shortcut rows from
 ### ⌨️ A real keyboard, done right
 - Custom high‑performance typing `View` (not a WebView, not Compose on the hot path) with press feedback tuned to feel like a stock key.
 - Gboard‑style **spacebar cursor dragging** for precise caret movement, with a haptic tick per character.
-- **Material You theme** that follows your wallpaper and light/dark mode, or a true-black "Classic" theme.
+- **Material You theme** that follows your wallpaper and light/dark mode, or a true-black **Classic black** theme. Adjustable keyboard height, space below the keys, and optional filled modifier keys.
 - Selection‑aware deletion and correct editor‑action handling (`Done`, `Go`, `Next`, `Search`, `Send`, etc.).
 - **GIF picker** powered by [KLIPY](https://klipy.com), with on‑device caching and content filtering.
 - **Password-encrypted backup & restore** for settings, clipboard history, learned typing, and configured API credentials.
@@ -83,7 +88,9 @@ Single‑module Android app (`:app`), package `dev.zain.znkeyboard`.
 | `ime/ZnKeyboardView` | The custom keyboard surface — drawing, touch handling, gestures. |
 | `ime/AgentReviewView` + prompt assets | AI rewrite UI and the OpenAI request/response flow. |
 | `ime/*PanelView` (emoji, GIF, clipboard, snippet) | The expression and productivity panels. |
-| `SettingsActivity` (Jetpack Compose, Material 3) | Enable the keyboard, configure layout, and manage AI / GIF credentials. |
+| `SettingsActivity` (Jetpack Compose, Material 3) | Settings app with five tabs: Typing, Layout, Tools (AI / GIF), Snippets, and Backup. |
+| `ShortcutsScreen` + `ShortcutMacros` | Shortcut row editor, key palette, and macro definitions/dispatch. |
+| `typing/` | Adaptive touch decoding (`TouchModel`, `CharLanguageModel`, `TouchDecoder`, `TypingLearner`) in pure Kotlin, wired up by `AdaptiveTypingEngine`. |
 | `KeyboardSettings` | Single source of truth for persisted settings and encrypted secrets. |
 | `constants/` | Centralized dimensions, colors, and defaults. |
 
@@ -108,7 +115,9 @@ curl -sSLO https://norvig.com/ngrams/count_1w.txt
 tools/typing/verify_engine.sh count_1w.txt
 ```
 
-Install on a connected device/emulator with `./gradlew :app:installDebug` (or `adb install`).
+Install on a connected device/emulator with `./gradlew :app:installDebug` (or `adb install -r`).
+
+Release builds are signed from `~/.android/keystores/zn-keyboard-release.properties` (`storeFile`, `storePassword`, `keyAlias`, `keyPassword`; `storeFile` is relative to that file). Without it, `./gradlew :app:assembleRelease` produces an unsigned APK. An update only installs over an existing app signed with the same key.
 
 ## Enable the keyboard
 
@@ -118,10 +127,10 @@ Install on a connected device/emulator with `./gradlew :app:installDebug` (or `a
 
 ## Configure AI rewrite (optional)
 
-1. Open ZnKeyboard settings → AI / agent section.
+1. Open ZnKeyboard settings → **Tools** tab.
 2. Choose a provider (OpenAI or OpenRouter), paste your API key, and pick a model.
 3. The key is encrypted with the Android Keystore and stored only on your device.
-4. Trigger a rewrite from the keyboard's agent button and review the suggestion before it's applied.
+4. Tap the **Rewrite** key on the shortcut row (there by default; re-add it from Layout → Shortcut rows & macros) and review the suggestion before it's applied.
 
 You are billed directly by your chosen provider for your own usage; ZnKeyboard never proxies requests.
 
