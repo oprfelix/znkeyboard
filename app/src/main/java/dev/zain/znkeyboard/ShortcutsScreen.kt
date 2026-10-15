@@ -154,6 +154,7 @@ internal fun ShortcutsScreen(onBack: () -> Unit) {
     var selection by remember { mutableStateOf<KeySelection?>(null) }
     var paletteRowId by remember { mutableStateOf<String?>(null) }
     var draft by remember { mutableStateOf<MacroDraft?>(null) }
+    var confirmingResetRowId by remember { mutableStateOf<String?>(null) }
 
     fun keysFor(rowId: String) = if (rowId == UPPER) upperKeys else secondKeys
     fun maxKeysFor(rowId: String) =
@@ -275,7 +276,7 @@ internal fun ShortcutsScreen(onBack: () -> Unit) {
                         },
                         onReset = {
                             selection = null
-                            setKeys(rowId, defaultKeysFor(rowId))
+                            confirmingResetRowId = rowId
                         },
                         onMove = { from, to ->
                             val keys = keysFor(rowId)
@@ -350,6 +351,22 @@ internal fun ShortcutsScreen(onBack: () -> Unit) {
                 draft = newMacroDraft(addToRowId = rowId)
             },
             onDismiss = { paletteRowId = null },
+        )
+    }
+
+    confirmingResetRowId?.let { rowId ->
+        val rowLabel = KeyboardSettings.labelForKeyboardRow(rowId)
+        AlertDialog(
+            onDismissRequest = { confirmingResetRowId = null },
+            title = { Text("Reset $rowLabel?") },
+            text = { Text("Your keys and their order in this row will be replaced with the defaults. Macros themselves are kept.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    setKeys(rowId, defaultKeysFor(rowId))
+                    confirmingResetRowId = null
+                }) { Text("Reset") }
+            },
+            dismissButton = { TextButton(onClick = { confirmingResetRowId = null }) { Text("Cancel") } },
         )
     }
 }
