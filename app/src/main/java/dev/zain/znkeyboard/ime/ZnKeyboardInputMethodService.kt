@@ -292,7 +292,11 @@ class ZnKeyboardInputMethodService : InputMethodService(),
             KeyboardAction.Enter -> handleEnter(modifiers)
             is KeyboardAction.KeyCode -> {
                 cancelActiveAgentForEditorChange()
-                sendKey(action.keyCode, modifiers)
+                if (modifiers.shift) {
+                    sendShiftedKeys(action.keyCode, 1, modifiers)
+                } else {
+                    sendKey(action.keyCode, modifiers)
+                }
             }
             is KeyboardAction.Chord -> {
                 cancelActiveAgentForEditorChange()
@@ -329,8 +333,8 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         cancelBackspaceGestureDelete()
     }
 
-    override fun onSpaceCursorDragStarted(): Boolean {
-        return startSpaceCursorDrag()
+    override fun onSpaceCursorDragStarted(extendSelection: Boolean): Boolean {
+        return startSpaceCursorDrag(extendSelection)
     }
 
     override fun onSpaceCursorDragChanged(characterDelta: Int) {
@@ -431,16 +435,22 @@ class ZnKeyboardInputMethodService : InputMethodService(),
 
     override fun onComposerSuggestionSelected(text: String) {
         if (isSensitiveEditor(currentEditorInfo)) return
-        val snapshot = captureEditorSnapshot(KeyboardSettings.MAX_TEXT_SNIPPET_CHARS + 1) ?: return
-        if (snapshot.textStartOffset != 0 || snapshot.text.length > KeyboardSettings.MAX_TEXT_SNIPPET_CHARS) return
-        val currentText = snapshot.text
-        val cursorAtEnd = snapshot.selectionStart == snapshot.text.length &&
-            snapshot.selectionEnd == snapshot.text.length
-        if (!cursorAtEnd || !text.startsWith(currentText, ignoreCase = true) || text.length <= currentText.length) {
+        val inputConnection = currentInputConnection ?: return
+        val completion = textBeforeCursorForCompletion(text.length)
+            ?.let { findComposerCompletion(it, listOf(text)) }
+        if (completion == null) {
             setComposerSuggestion(null)
             return
         }
-        handleText(text.substring(currentText.length), ModifierState(ctrl = false, alt = false))
+        // Replace the typed prefix too, so the snippet's own casing wins ("He" -> "hello").
+        inputConnection.beginBatchEdit()
+        try {
+            inputConnection.finishComposingText()
+            inputConnection.deleteSurroundingText(completion.prefixLength, 0)
+            handleText(text, ModifierState(ctrl = false, alt = false))
+        } finally {
+            inputConnection.endBatchEdit()
+        }
         setComposerSuggestion(null)
     }
 
@@ -1220,29 +1230,36 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         }
     }
 
-    private fun startSpaceCursorDrag(): Boolean {
+    private fun startSpaceCursorDrag(extendSelection: Boolean): Boolean {
         val inputConnection = currentInputConnection ?: return false
         if (activeSurface != KeyboardSurface.Keyboard) return false
 
         cancelActiveAgentForEditorChange()
         if (isRawKeyEventEditor(currentEditorInfo) || isSensitiveEditor(currentEditorInfo)) {
-            spaceCursorDragState = SpaceCursorDragState.KeyEvents()
+            spaceCursorDragState = SpaceCursorDragState.KeyEvents(extendSelection = extendSelection)
             return true
         }
 
         val snapshot = captureEditorSnapshot(CURSOR_DRAG_CONTEXT_CHARS) ?: run {
-            spaceCursorDragState = SpaceCursorDragState.KeyEvents()
+            spaceCursorDragState = SpaceCursorDragState.KeyEvents(extendSelection = extendSelection)
             return true
         }
         val minOffset = snapshot.textStartOffset
         val maxOffset = snapshot.textStartOffset + snapshot.text.length
-        val anchorOffset = maxOf(snapshot.selectionStart, snapshot.selectionEnd).coerceIn(minOffset, maxOffset)
+        // TextView reports selectionStart as the anchor, so a backwards selection keeps its direction.
+        val selectionAnchor = if (extendSelection) snapshot.selectionStart.coerceIn(minOffset, maxOffset) else null
+        val anchorOffset = if (extendSelection) {
+            snapshot.selectionEnd
+        } else {
+            maxOf(snapshot.selectionStart, snapshot.selectionEnd)
+        }.coerceIn(minOffset, maxOffset)
         inputConnection.finishComposingText()
         spaceCursorDragState = SpaceCursorDragState.Selection(
             anchorOffset = anchorOffset,
             minOffset = minOffset,
             maxOffset = maxOffset,
             currentOffset = anchorOffset,
+            selectionAnchor = selectionAnchor,
         )
         return true
     }
@@ -1265,7 +1282,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         val targetOffset = desiredOffset.coerceIn(state.minOffset, state.maxOffset)
         if (targetOffset == state.currentOffset) {
             if (desiredOffset < state.minOffset || desiredOffset > state.maxOffset) {
-                val fallbackState = SpaceCursorDragState.KeyEvents(lastCharacterDelta = state.lastCharacterDelta)
+                val fallbackState = state.toKeyEvents()
                 spaceCursorDragState = fallbackState
                 updateKeyEventSpaceCursorDrag(fallbackState, characterDelta)
                 return
@@ -1277,7 +1294,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         var selectionUpdated = false
         inputConnection.beginBatchEdit()
         try {
-            selectionUpdated = inputConnection.setSelection(targetOffset, targetOffset)
+            selectionUpdated = inputConnection.setSelection(state.selectionAnchor ?: targetOffset, targetOffset)
         } finally {
             inputConnection.endBatchEdit()
         }
@@ -1287,7 +1304,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
             state.lastCharacterDelta = characterDelta
             scheduleEmojiSuggestionRefresh()
         } else {
-            val fallbackState = SpaceCursorDragState.KeyEvents(lastCharacterDelta = state.lastCharacterDelta)
+            val fallbackState = state.toKeyEvents()
             spaceCursorDragState = fallbackState
             updateKeyEventSpaceCursorDrag(fallbackState, characterDelta)
         }
@@ -1300,7 +1317,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         val stepDelta = characterDelta - state.lastCharacterDelta
         if (stepDelta == 0) return
 
-        sendCursorKeyEvents(stepDelta)
+        sendCursorKeyEvents(stepDelta, state.extendSelection)
         state.lastCharacterDelta = characterDelta
     }
 
@@ -1308,18 +1325,51 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         spaceCursorDragState = null
     }
 
-    private fun sendCursorKeyEvents(characterDelta: Int) {
+    private fun sendCursorKeyEvents(characterDelta: Int, extendSelection: Boolean) {
         val keyCode = if (characterDelta > 0) {
             KeyEvent.KEYCODE_DPAD_RIGHT
         } else {
             KeyEvent.KEYCODE_DPAD_LEFT
         }
         val eventCount = if (characterDelta > 0) characterDelta else -characterDelta
-        repeat(eventCount.coerceAtMost(CURSOR_DRAG_MAX_CHARS)) {
-            sendKey(keyCode, ModifierState(ctrl = false, alt = false))
+        if (extendSelection) {
+            sendShiftedKeys(keyCode, eventCount.coerceAtMost(CURSOR_DRAG_MAX_CHARS), ModifierState(ctrl = false, alt = false))
+        } else {
+            repeat(eventCount.coerceAtMost(CURSOR_DRAG_MAX_CHARS)) {
+                sendKey(keyCode, ModifierState(ctrl = false, alt = false))
+            }
         }
         scheduleEmojiSuggestionRefresh()
         scheduleComposerSuggestionRefresh()
+    }
+
+    /**
+     * TextView extends a selection only after seeing Shift go down (its buffer meta state), not from
+     * the arrow event's meta flags alone, so wrap the keys in a Shift press.
+     */
+    private fun sendShiftedKeys(keyCode: Int, count: Int, modifiers: ModifierState) {
+        val inputConnection = currentInputConnection ?: return
+        val shifted = modifiers.copy(shift = true)
+        sendModifierEvent(inputConnection, KeyEvent.ACTION_DOWN, shifted.toMetaState())
+        repeat(count) { sendKey(keyCode, shifted) }
+        sendModifierEvent(inputConnection, KeyEvent.ACTION_UP, modifiers.copy(shift = false).toMetaState())
+    }
+
+    private fun sendModifierEvent(inputConnection: InputConnection, action: Int, metaState: Int) {
+        val time = SystemClock.uptimeMillis()
+        inputConnection.sendKeyEvent(
+            KeyEvent(
+                time,
+                time,
+                action,
+                KeyEvent.KEYCODE_SHIFT_LEFT,
+                0,
+                metaState,
+                KeyCharacterMap.VIRTUAL_KEYBOARD,
+                0,
+                KeyEvent.FLAG_SOFT_KEYBOARD or KeyEvent.FLAG_KEEP_TOUCH_MODE,
+            ),
+        )
     }
 
     private fun isBackspaceGestureDeleteTargetCurrent(
@@ -1723,30 +1773,40 @@ class ZnKeyboardInputMethodService : InputMethodService(),
             setComposerSuggestion(null)
             return
         }
-        val snapshot = captureEditorSnapshot(KeyboardSettings.MAX_TEXT_SNIPPET_CHARS + 1) ?: run {
-            setComposerSuggestion(null)
-            return
-        }
-        if (snapshot.textStartOffset != 0 || snapshot.text.length > KeyboardSettings.MAX_TEXT_SNIPPET_CHARS) {
-            setComposerSuggestion(null)
-            return
-        }
-
-        val currentText = snapshot.text
-        val cursorAtEnd = snapshot.selectionStart == snapshot.text.length &&
-            snapshot.selectionEnd == snapshot.text.length
-        if (!cursorAtEnd) {
-            setComposerSuggestion(null)
-            return
-        }
-        val suggestion = currentText
-            .takeIf { it.isNotEmpty() }
-            ?.let { prefix ->
-                snippetCompletionSources.firstOrNull { snippet ->
-                    snippet.length > prefix.length && snippet.startsWith(prefix, ignoreCase = true)
-                }
-            }
+        val sources = snippetCompletionSources
+        val suggestion = textBeforeCursorForCompletion(sources.maxOf { it.length })
+            ?.let { findComposerCompletion(it, sources) }
+            ?.snippet
         setComposerSuggestion(suggestion)
+    }
+
+    /** Text before a collapsed cursor that isn't mid-word, or null when no completion should show. */
+    private fun textBeforeCursorForCompletion(maxChars: Int): String? {
+        val inputConnection = currentInputConnection ?: return null
+        if (!inputConnection.getSelectedText(0).isNullOrEmpty()) return null
+        val after = inputConnection.getTextAfterCursor(1, 0)
+        if (!after.isNullOrEmpty() && after[0].isLetterOrDigit()) return null
+        return inputConnection.getTextBeforeCursor(maxChars, 0)?.toString()
+    }
+
+    /**
+     * Tries every word start before the cursor, longest run first, so "hello w" can still finish
+     * "hello world" while a new word after a space gets its own completion.
+     */
+    private fun findComposerCompletion(before: String, candidates: List<String>): ComposerCompletion? {
+        val longest = candidates.maxOfOrNull { it.length } ?: return null
+        // Index 0 may be mid-word when the editor returned a full window of maxChars.
+        val firstStart = (before.length - longest + 1).coerceAtLeast(0)
+        for (start in firstStart until before.length) {
+            if (before[start].isWhitespace()) continue
+            if (start > 0 && !before[start - 1].isWhitespace() && before[start - 1] !in COMPOSER_WORD_OPENERS) continue
+            val prefixLength = before.length - start
+            val snippet = candidates.firstOrNull { candidate ->
+                candidate.length > prefixLength && candidate.regionMatches(0, before, start, prefixLength, ignoreCase = true)
+            }
+            if (snippet != null) return ComposerCompletion(snippet, prefixLength)
+        }
+        return null
     }
 
     private fun setComposerSuggestion(text: String?) {
@@ -2417,6 +2477,8 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     private val ModifierState.hasHardwareMeta: Boolean
         get() = ctrl || alt
 
+    private data class ComposerCompletion(val snippet: String, val prefixLength: Int)
+
     private data class EditorSnapshot(
         val text: String,
         val textStartOffset: Int,
@@ -2467,10 +2529,15 @@ class ZnKeyboardInputMethodService : InputMethodService(),
             val maxOffset: Int,
             var currentOffset: Int,
             var lastCharacterDelta: Int = 0,
-        ) : SpaceCursorDragState()
+            /** Fixed end of the selection when Shift is held; null moves a plain cursor. */
+            val selectionAnchor: Int? = null,
+        ) : SpaceCursorDragState() {
+            fun toKeyEvents() = KeyEvents(lastCharacterDelta, extendSelection = selectionAnchor != null)
+        }
 
         data class KeyEvents(
             var lastCharacterDelta: Int = 0,
+            val extendSelection: Boolean = false,
         ) : SpaceCursorDragState()
     }
 
@@ -2542,6 +2609,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         const val EMOJI_SUGGESTION_CONTEXT_CHARS = 180
         const val EMOJI_SUGGESTION_REFRESH_DELAY_MS = 120L
         const val COMPOSER_SUGGESTION_REFRESH_DELAY_MS = 80L
+        const val COMPOSER_WORD_OPENERS = "([{\"“"
         const val TYPING_CONTEXT_CHARS = 16
         const val OWN_EDIT_SETTLE_MS = 1_000L
         const val DOUBLE_SPACE_PERIOD_WINDOW_MS = 700L

@@ -47,7 +47,7 @@ class ZnKeyboardView @JvmOverloads constructor(
         fun onBackspaceGestureDeleteChanged(wordCount: Int)
         fun onBackspaceGestureDeleteFinished()
         fun onBackspaceGestureDeleteCancelled()
-        fun onSpaceCursorDragStarted(): Boolean
+        fun onSpaceCursorDragStarted(extendSelection: Boolean): Boolean
         fun onSpaceCursorDragChanged(characterDelta: Int)
         fun onSpaceCursorDragFinished()
         fun onSpaceCursorDragCancelled()
@@ -577,8 +577,10 @@ class ZnKeyboardView @JvmOverloads constructor(
             cancelLongPressFor(pointerId)
             touch.cursorDragConsumed = true
             touch.currentKey = gesture.key
-            if (callback?.onSpaceCursorDragStarted() == true) {
+            val shiftTouch = heldShiftTouch(pointerId)
+            if (callback?.onSpaceCursorDragStarted(extendSelection = shiftTouch != null) == true) {
                 gesture.active = true
+                shiftTouch?.heldAsModifier = true
                 typingEngine?.learner?.onContextChanged(null)
                 clearLatchedModifiers()
             } else {
@@ -613,9 +615,17 @@ class ZnKeyboardView @JvmOverloads constructor(
     }
 
     private fun releasePointersThrough(pointerId: Int) {
-        while (pointerQueue.isNotEmpty()) {
-            val nextPointerId = pointerQueue.removeAt(0)
+        val shiftHeld = activeTouches.get(pointerId)?.let { claimHeldShift(pointerId, it) } == true
+        var queueIndex = 0
+        while (queueIndex < pointerQueue.size) {
+            val nextPointerId = pointerQueue[queueIndex]
             val touch = activeTouches.get(nextPointerId)
+            // A Shift held for selecting stays down until its own finger lifts.
+            if (nextPointerId != pointerId && touch?.heldAsModifier == true) {
+                queueIndex++
+                continue
+            }
+            pointerQueue.removeAt(queueIndex)
             activeTouches.remove(nextPointerId)
             finishBackspaceGesture(touch)
             finishSpaceCursorDrag(touch)
@@ -624,9 +634,12 @@ class ZnKeyboardView @JvmOverloads constructor(
             if (
                 touch?.longPressConsumed != true &&
                 touch?.repeatConsumed != true &&
-                touch?.cursorDragConsumed != true
+                touch?.cursorDragConsumed != true &&
+                touch?.heldAsModifier != true
             ) {
-                touch?.currentKey?.let { key -> handleKey(key, touch.learningSample(key)) }
+                touch?.currentKey?.let { key ->
+                    handleKey(key, touch.learningSample(key), shiftHeld = shiftHeld && nextPointerId == pointerId)
+                }
             }
             if (nextPointerId == pointerId) {
                 return
@@ -635,6 +648,25 @@ class ZnKeyboardView @JvmOverloads constructor(
         activeTouches.remove(pointerId)
         cancelLongPressFor(pointerId)
         cancelBackspaceRepeatFor(pointerId)
+    }
+
+    /** Key-code keys (arrows, Home, Tab…) tapped while Shift is physically held get Shift applied. */
+    private fun claimHeldShift(pointerId: Int, touch: ActiveTouch): Boolean {
+        val intent = touch.currentKey?.intent as? KeyIntent.Dispatch ?: return false
+        if (intent.action !is KeyboardAction.KeyCode) return false
+        if (touch.longPressConsumed || touch.repeatConsumed || touch.cursorDragConsumed) return false
+        val shiftTouch = heldShiftTouch(pointerId) ?: return false
+        shiftTouch.heldAsModifier = true
+        return true
+    }
+
+    private fun heldShiftTouch(excludingPointerId: Int): ActiveTouch? {
+        for (index in 0 until activeTouches.size()) {
+            if (activeTouches.keyAt(index) == excludingPointerId) continue
+            val touch = activeTouches.valueAt(index)
+            if (touch.currentKey?.intent == KeyIntent.Shift) return touch
+        }
+        return null
     }
 
     private fun cancelActiveTouches() {
@@ -1287,7 +1319,7 @@ class ZnKeyboardView @JvmOverloads constructor(
         return size
     }
 
-    private fun handleKey(key: KeySpec, sample: TypingLearner.Sample? = null) {
+    private fun handleKey(key: KeySpec, sample: TypingLearner.Sample? = null, shiftHeld: Boolean = false) {
         when (val intent = key.intent) {
             KeyIntent.Shift -> {
                 // Tap toggles one-shot Shift; a quick double tap locks caps (Gboard / iOS convention).
@@ -1339,7 +1371,7 @@ class ZnKeyboardView @JvmOverloads constructor(
                     shiftState = ShiftState.Off
                     autoShiftActive = false
                 }
-                callback?.onKeyboardAction(intent.action, ModifierState(ctrl = ctrl, alt = alt))
+                callback?.onKeyboardAction(intent.action, ModifierState(ctrl = ctrl, alt = alt, shift = shiftHeld))
                 if (ctrl || alt) {
                     ctrl = false
                     alt = false
@@ -2157,6 +2189,7 @@ class ZnKeyboardView @JvmOverloads constructor(
         var longPressConsumed: Boolean = false,
         var repeatConsumed: Boolean = false,
         var cursorDragConsumed: Boolean = false,
+        var heldAsModifier: Boolean = false,
         var backspaceGesture: BackspaceGestureTouch? = null,
         var spaceCursorDrag: SpaceCursorDragTouch? = null,
     )

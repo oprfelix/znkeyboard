@@ -17,6 +17,7 @@ internal object ImeModeToolbar {
     data class Colors(
         val function: Int,
         val selected: Int,
+        val onSelected: Int,
         val text: Int,
         val mutedText: Int,
         val disabledText: Int,
@@ -98,12 +99,17 @@ internal object ImeModeToolbar {
             isClickable = enabled && onClick != null
             isFocusable = false
             typeface = if (label == "GIF") Typeface.DEFAULT_BOLD else Typeface.DEFAULT
-            setTextColor(if (enabled) colors.text else colors.disabledText)
+            val contentColor = when {
+                !enabled -> colors.disabledText
+                active -> colors.onSelected
+                else -> colors.text
+            }
+            setTextColor(contentColor)
             setTextSize(TypedValue.COMPLEX_UNIT_SP, if (label == "GIF") 14f else 22f)
             background = ImePressFeedback.roundedBackground(
                 context = context,
                 containerColor = if (active) colors.selected else colors.function,
-                contentColor = if (enabled) colors.text else colors.disabledText,
+                contentColor = contentColor,
             )
             onClick?.let { click -> setOnClickListener { click() } }
         }

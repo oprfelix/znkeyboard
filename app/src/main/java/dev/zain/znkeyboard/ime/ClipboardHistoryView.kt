@@ -131,7 +131,7 @@ internal class ClipboardHistoryListView @JvmOverloads constructor(
             ellipsize = TextUtils.TruncateAt.END
             setMaxWidth(dp(148))
             setPadding(dp(12), 0, dp(12), 0)
-            setTextColor(if (selected) PALETTE.text else PALETTE.mutedText)
+            setTextColor(if (selected) PALETTE.onSelected else PALETTE.mutedText)
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
             background = sourcePillBackground(selected)
             isClickable = true
@@ -656,6 +656,7 @@ internal class ClipboardHistoryListView @JvmOverloads constructor(
         val key get() = ImeColors.KEY
         val function get() = ImeColors.FUNCTION_DARK
         val selected get() = ImeColors.SELECTED
+        val onSelected get() = ImeColors.ON_SELECTED
         val cardStroke get() = ImeColors.DIVIDER
         val text get() = ImeColors.TEXT
         val mutedText get() = ImeColors.SECONDARY_TEXT

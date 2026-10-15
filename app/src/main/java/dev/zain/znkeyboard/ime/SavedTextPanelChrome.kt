@@ -60,6 +60,7 @@ internal object SavedTextPanelChrome {
         selectedColor: Int,
         unselectedColor: Int,
         textColor: Int,
+        onSelectedTextColor: Int,
         mutedTextColor: Int,
         onClick: () -> Unit,
     ): TextView {
@@ -76,6 +77,7 @@ internal object SavedTextPanelChrome {
                 selectedColor = selectedColor,
                 unselectedColor = unselectedColor,
                 textColor = textColor,
+                onSelectedTextColor = onSelectedTextColor,
                 mutedTextColor = mutedTextColor,
             )
         }
@@ -86,15 +88,16 @@ internal object SavedTextPanelChrome {
         selectedColor: Int,
         unselectedColor: Int,
         textColor: Int,
+        onSelectedTextColor: Int,
         mutedTextColor: Int,
     ) {
-        setTextColor(if (selected) textColor else mutedTextColor)
+        setTextColor(if (selected) onSelectedTextColor else mutedTextColor)
         typeface = Typeface.DEFAULT
         background = if (selected) {
             ImePressFeedback.roundedBackground(
                 context = context,
                 containerColor = selectedColor,
-                contentColor = textColor,
+                contentColor = onSelectedTextColor,
                 radiusDp = 18,
             )
         } else {

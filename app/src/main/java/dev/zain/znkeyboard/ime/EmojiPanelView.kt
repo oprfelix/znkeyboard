@@ -230,6 +230,7 @@ class EmojiPanelView @JvmOverloads constructor(
             colors = ImeModeToolbar.Colors(
                 function = PALETTE.function,
                 selected = PALETTE.selected,
+                onSelected = PALETTE.onSelected,
                 text = PALETTE.text,
                 mutedText = PALETTE.mutedText,
                 disabledText = PALETTE.disabledText,
@@ -650,6 +651,7 @@ class EmojiPanelView @JvmOverloads constructor(
         const val key = Color.TRANSPARENT
         val function get() = ImeColors.KEY
         val selected get() = ImeColors.SELECTED
+        val onSelected get() = ImeColors.ON_SELECTED
         val text get() = ImeColors.TEXT
         val mutedText get() = ImeColors.MUTED_TEXT
         val disabledText get() = ImeColors.DISABLED_TEXT
