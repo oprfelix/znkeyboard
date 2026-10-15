@@ -1480,20 +1480,28 @@ class ZnKeyboardView @JvmOverloads constructor(
     }
 
     private fun layoutKeys(totalWidth: Float, totalHeight: Float): List<KeyHit> {
-        val rows = rows()
+        val mainRows = rows()
+        val suggestionRow = composerSuggestionRow()
+        // Same pixels onMeasure adds for the suggestion, so the other rows never resize.
+        val suggestionBand = if (suggestionRow != null) {
+            ImeLayout.compactAgentRowHeightPx(context, heightScale).toFloat()
+        } else {
+            0f
+        }
+        val rows = listOfNotNull(suggestionRow) + mainRows
         val horizontalPadding = dp(ImeLayout.HORIZONTAL_PADDING_DP.toFloat())
         val topPadding = dp(ImeLayout.TOP_PADDING_DP.toFloat())
         val bottomPadding = dp(bottomPaddingDp.toFloat()) + bottomSystemControlGapPx
         val keyGap = dp(ImeLayout.KEY_GAP_DP.toFloat())
         val rowGap = dp(ImeLayout.ROW_GAP_DP.toFloat())
-        val rowWeightSum = rows.fold(0f) { total, row -> total + row.heightWeight }
-        val usableHeight = totalHeight - topPadding - bottomPadding - rowGap * (rows.size - 1)
+        val rowWeightSum = mainRows.fold(0f) { total, row -> total + row.heightWeight }
+        val usableHeight = totalHeight - suggestionBand - topPadding - bottomPadding - rowGap * (mainRows.size - 1)
         val unitHeight = usableHeight / rowWeightSum
 
         val visualRows = mutableListOf<List<VisualKey>>()
         var top = topPadding
         rows.forEach { row ->
-            val rowHeight = row.heightWeight * unitHeight
+            val rowHeight = if (row === suggestionRow) suggestionBand - rowGap else row.heightWeight * unitHeight
             val keys = row.keys
             val keyWeightSum = keys.fold(0f) { total, key -> total + key.weight }
             val layoutKeyCount = row.layoutKeyCount ?: keys.size
@@ -1583,7 +1591,7 @@ class ZnKeyboardView @JvmOverloads constructor(
             )
             LayoutMode.PhonePad -> phonePadRows()
         }
-        return listOfNotNull(composerSuggestionRow()) + buttonRows + mainRows
+        return buttonRows + mainRows
     }
 
     private fun composerSuggestionRow(): RowSpec? {
