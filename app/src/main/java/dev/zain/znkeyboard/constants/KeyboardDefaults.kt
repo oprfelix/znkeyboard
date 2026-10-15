@@ -6,7 +6,7 @@ object KeyboardDefaults {
     const val DEFAULT_HEIGHT_SCALE = 0.94f
     const val MIN_BOTTOM_PADDING_DP = 0
     const val MAX_BOTTOM_PADDING_DP = 96
-    const val DEFAULT_BOTTOM_PADDING_DP = ImeDimensions.BASE_BOTTOM_PADDING_DP
+    const val DEFAULT_BOTTOM_PADDING_DP = 20
 
     const val MAX_UPPER_ROW_KEYS = 9
     const val MAX_SECOND_ROW_BUTTONS = MAX_UPPER_ROW_KEYS
