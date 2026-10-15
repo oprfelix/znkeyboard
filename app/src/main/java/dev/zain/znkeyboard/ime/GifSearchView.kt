@@ -414,6 +414,7 @@ class GifSearchView @JvmOverloads constructor(
             colors = ImeModeToolbar.Colors(
                 function = PALETTE.function,
                 selected = PALETTE.selected,
+                onSelected = PALETTE.onSelected,
                 text = PALETTE.text,
                 mutedText = PALETTE.mutedText,
                 disabledText = PALETTE.disabledText,
@@ -854,6 +855,7 @@ class GifSearchView @JvmOverloads constructor(
         val key get() = ImeColors.KEY
         val function get() = ImeColors.FUNCTION
         val selected get() = ImeColors.SELECTED
+        val onSelected get() = ImeColors.ON_SELECTED
         val text get() = ImeColors.TEXT
         val mutedText get() = ImeColors.MUTED_TEXT
         val disabledText get() = ImeColors.DISABLED_TEXT

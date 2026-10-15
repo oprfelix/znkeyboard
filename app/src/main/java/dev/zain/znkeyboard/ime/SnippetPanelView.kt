@@ -123,6 +123,7 @@ class SnippetPanelView @JvmOverloads constructor(
         selectedColor = PALETTE.selected,
         unselectedColor = PALETTE.background,
         textColor = PALETTE.text,
+        onSelectedTextColor = PALETTE.onSelected,
         mutedTextColor = PALETTE.mutedText,
         onClick = { selectTab(KeyboardSettings.SavedTextPanelTab.Clipboard, notify = true) },
     )
@@ -133,6 +134,7 @@ class SnippetPanelView @JvmOverloads constructor(
         selectedColor = PALETTE.selected,
         unselectedColor = PALETTE.background,
         textColor = PALETTE.text,
+        onSelectedTextColor = PALETTE.onSelected,
         mutedTextColor = PALETTE.mutedText,
         onClick = { selectTab(KeyboardSettings.SavedTextPanelTab.Snippets, notify = true) },
     )
@@ -263,6 +265,7 @@ class SnippetPanelView @JvmOverloads constructor(
                 selectedColor = PALETTE.selected,
                 unselectedColor = PALETTE.background,
                 textColor = PALETTE.text,
+                onSelectedTextColor = PALETTE.onSelected,
                 mutedTextColor = PALETTE.mutedText,
             )
         }
@@ -461,6 +464,7 @@ class SnippetPanelView @JvmOverloads constructor(
         val key get() = ImeColors.KEY_DARK
         val function get() = ImeColors.FUNCTION_DARK
         val selected get() = ImeColors.SELECTED
+        val onSelected get() = ImeColors.ON_SELECTED
         val border get() = ImeColors.BORDER
         val text get() = ImeColors.TEXT
         val tagText get() = ImeColors.TAG_TEXT
