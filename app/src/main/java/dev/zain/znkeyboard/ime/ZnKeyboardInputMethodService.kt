@@ -444,7 +444,16 @@ class ZnKeyboardInputMethodService : InputMethodService(),
             setComposerSuggestion(null)
             return
         }
-        handleText(text.substring(currentText.length), ModifierState(ctrl = false, alt = false))
+        val inputConnection = currentInputConnection ?: return
+        // Replace the typed prefix too, so the snippet's own casing wins ("He" -> "hello").
+        inputConnection.beginBatchEdit()
+        try {
+            inputConnection.finishComposingText()
+            inputConnection.deleteSurroundingText(currentText.length, 0)
+            handleText(text, ModifierState(ctrl = false, alt = false))
+        } finally {
+            inputConnection.endBatchEdit()
+        }
         setComposerSuggestion(null)
     }
 
