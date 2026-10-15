@@ -71,7 +71,7 @@ Turn the keyboard into *your* keyboard. Add and arrange extra shortcut rows from
 - **Material You theme** that follows your wallpaper and light/dark mode, or a true-black "Classic" theme.
 - Selection‑aware deletion and correct editor‑action handling (`Done`, `Go`, `Next`, `Search`, `Send`, etc.).
 - **GIF picker** powered by [KLIPY](https://klipy.com), with on‑device caching and content filtering.
-- **Password-encrypted backup & restore** for settings, clipboard history, and configured API credentials.
+- **Password-encrypted backup & restore** for settings, clipboard history, learned typing, and configured API credentials.
 
 ## Architecture
 
@@ -130,7 +130,7 @@ You are billed directly by your chosen provider for your own usage; ZnKeyboard n
 - No analytics, no telemetry, no third‑party SDKs for tracking.
 - AI requests go straight from your device to the endpoint you configured, using your key.
 - GIF search talks to KLIPY only while the GIF panel is open.
-- Adaptive-touch learning stores only aggregate statistics (per-key touch offsets, letter-trigram counts) in no-backup storage, never in password or incognito fields, and can be reset from Settings → Typing.
+- Adaptive-touch learning stores only aggregate statistics (per-key touch offsets, letter-trigram counts) in no-backup storage (excluded from cloud backup, included only in password-encrypted exports), never in password or incognito fields, and can be reset from Settings → Typing.
 - Settings and secrets stay on-device; secrets are encrypted at rest. User-created backups are encrypted with a password that is never saved by the app.
 
 ## Contributing

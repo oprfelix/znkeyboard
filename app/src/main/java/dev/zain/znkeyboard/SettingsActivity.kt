@@ -1168,7 +1168,7 @@ private fun BackupRestoreSection(
         )
 
         Text(
-            text = "Password-encrypted backups include settings, clipboard history, and configured API keys.",
+            text = "Password-encrypted backups include settings, clipboard history, learned typing, and configured API keys.",
             color = ZnKeyboardColors.Muted,
             style = MaterialTheme.typography.bodySmall,
         )

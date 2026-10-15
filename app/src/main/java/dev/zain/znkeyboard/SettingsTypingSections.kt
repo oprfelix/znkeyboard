@@ -292,7 +292,7 @@ internal fun AdaptiveTouchSection() {
             title = "Learn how I type",
             description = "Reads each tap where you aimed, learns where your thumbs actually land on every key, " +
                 "and uses letter patterns only to settle taps that fall between keys. Learning stays on this " +
-                "device and is skipped in password and incognito fields.",
+                "device (and in your encrypted backups) and is skipped in password and incognito fields.",
             checked = adaptive,
             onCheckedChange = { adaptive = it; KeyboardSettings.saveAdaptiveTouchEnabled(context, it) },
         )

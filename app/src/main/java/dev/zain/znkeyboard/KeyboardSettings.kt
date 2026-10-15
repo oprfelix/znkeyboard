@@ -10,6 +10,7 @@ import dev.zain.znkeyboard.constants.GifDefaults
 import dev.zain.znkeyboard.constants.ImeColors
 import dev.zain.znkeyboard.constants.KeyboardDefaults
 import dev.zain.znkeyboard.ime.ClipboardHistoryStore
+import dev.zain.znkeyboard.typing.AdaptiveTypingEngine
 import org.json.JSONArray
 import org.json.JSONException
 import org.json.JSONObject
@@ -1058,7 +1059,8 @@ object KeyboardSettings {
                             .put("profiles", agentProfilesJson(readAgentProfiles(context)))
                             .put("activeProfileId", readActiveAgentProfileId(context)),
                     )
-                    .put("clipboardHistory", clipboardHistoryJson(ClipboardHistoryStore.read(context))),
+                    .put("clipboardHistory", clipboardHistoryJson(ClipboardHistoryStore.read(context)))
+                    .put("learnedTyping", learnedTypingJson(AdaptiveTypingEngine.readLearnedData(context))),
             )
             .put(
                 "secrets",
@@ -1148,6 +1150,13 @@ object KeyboardSettings {
             ?: readCustomEmojiTags(context)
         val clipboardHistory = settings.optClipboardHistory("clipboardHistory")
             ?.let(ClipboardHistoryStore::normalizeEntries)
+        val learnedTyping = settings.optJSONObject("learnedTyping")?.let { typing ->
+            AdaptiveTypingEngine.LearnedData(
+                portraitTouch = typing.optBase64("portraitTouch"),
+                landscapeTouch = typing.optBase64("landscapeTouch"),
+                personalLetters = typing.optBase64("personalLetters"),
+            )
+        }
 
         val agentSecrets = secrets?.optJSONObject("agentApiKeys")
         val restoredAgentSecrets = AgentProviderType.entries.mapNotNull { providerType ->
@@ -1249,6 +1258,10 @@ object KeyboardSettings {
             rewrite.optBoolean("reasoningTextEnabled", readAgentReasoningTextEnabled(context)),
         )
         clipboardHistory?.let { ClipboardHistoryStore.replace(context, it) }
+        learnedTyping?.let {
+            AdaptiveTypingEngine.replaceLearnedData(context, it)
+            bumpTypingModelGeneration(context)
+        }
         restoredAgentSecrets.forEach { secret ->
             saveAgentApiKey(context, secret.providerType, secret.value)
             saveAgentApiKeyLocked(context, secret.providerType, secret.locked)
@@ -1562,6 +1575,19 @@ object KeyboardSettings {
                 )
             }
         }
+    }
+
+    private fun learnedTypingJson(data: AdaptiveTypingEngine.LearnedData): JSONObject {
+        return JSONObject().apply {
+            data.portraitTouch?.let { put("portraitTouch", Base64.encodeToString(it, Base64.NO_WRAP)) }
+            data.landscapeTouch?.let { put("landscapeTouch", Base64.encodeToString(it, Base64.NO_WRAP)) }
+            data.personalLetters?.let { put("personalLetters", Base64.encodeToString(it, Base64.NO_WRAP)) }
+        }
+    }
+
+    private fun JSONObject.optBase64(key: String): ByteArray? {
+        val encoded = optString(key).takeIf { it.isNotEmpty() } ?: return null
+        return runCatching { Base64.decode(encoded, Base64.NO_WRAP) }.getOrNull()
     }
 
     private fun JSONObject.optTextSnippetList(key: String): List<TextSnippet>? {

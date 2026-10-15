@@ -99,7 +99,8 @@ ships 0.7 because real text contains names, code and code-switching that an Engl
 ## Privacy
 
 - Learning is on-device only. The model is stored in `noBackupFilesDir/typing/`, which is
-  excluded from cloud backup, device transfer, and ZnKeyboard's encrypted export.
+  excluded from cloud backup and device transfer; it leaves the device only inside ZnKeyboard's
+  password-encrypted export, so a restore carries your learned typing to a new phone.
 - Only aggregates are stored: per-key touch statistics and letter-trigram counts. No text is kept.
 - Nothing is learned in password fields or in fields that set
   `EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING` (for example, incognito tabs).

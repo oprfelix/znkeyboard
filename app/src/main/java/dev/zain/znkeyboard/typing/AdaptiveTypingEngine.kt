@@ -11,8 +11,8 @@ import java.util.concurrent.Executors
  * character language model, and their on-device persistence. Everything is main-thread only except
  * file I/O, which runs on a private single-thread executor with snapshots.
  *
- * Data lives in [Context.getNoBackupFilesDir]: it never leaves the device, is excluded from cloud
- * backup and device transfer, and is not included in ZnKeyboard's encrypted settings export.
+ * Data lives in [Context.getNoBackupFilesDir]: it is excluded from cloud backup and device transfer,
+ * and leaves the device only inside ZnKeyboard's password-encrypted settings export.
  */
 class AdaptiveTypingEngine(context: Context) {
     private val appContext = context.applicationContext
@@ -68,15 +68,15 @@ class AdaptiveTypingEngine(context: Context) {
         }
     }
 
-    /** Called when settings reset the learned data in another process component. */
+    /** Called when settings reset or restore the learned data in another process component. */
     fun resetIfGenerationChanged(generation: Int) {
         if (generation == loadedGeneration) return
-        loadedGeneration = generation
         learner.discardPending()
         portraitModel.reset()
         landscapeModel.reset()
         languageModel.reset()
         savedConfirmations = learner.confirmations
+        load(generation)
     }
 
     fun save() {
@@ -112,18 +112,9 @@ class AdaptiveTypingEngine(context: Context) {
         if (target.sampleCount == 0f) target.copyFrom(loaded)
     }
 
-    private fun readFile(name: String): ByteArray? = runCatching {
-        File(directory(appContext), name).takeIf(File::isFile)?.readBytes()
-    }.getOrNull()
+    private fun readFile(name: String): ByteArray? = readFile(appContext, name)
 
-    private fun writeFile(name: String, bytes: ByteArray) {
-        runCatching {
-            val dir = directory(appContext).apply { mkdirs() }
-            val temp = File(dir, "$name.tmp")
-            temp.writeBytes(bytes)
-            temp.renameTo(File(dir, name))
-        }
-    }
+    private fun writeFile(name: String, bytes: ByteArray) = writeFile(appContext, name, bytes)
 
     private fun mainThread(block: () -> Unit) {
         android.os.Handler(android.os.Looper.getMainLooper()).post(block)
@@ -137,6 +128,36 @@ class AdaptiveTypingEngine(context: Context) {
 
         private fun directory(context: Context) = File(context.noBackupFilesDir, "typing")
 
+        private fun readFile(context: Context, name: String): ByteArray? = runCatching {
+            File(directory(context), name).takeIf(File::isFile)?.readBytes()
+        }.getOrNull()
+
+        private fun writeFile(context: Context, name: String, bytes: ByteArray) {
+            runCatching {
+                val dir = directory(context).apply { mkdirs() }
+                val temp = File(dir, "$name.tmp")
+                temp.writeBytes(bytes)
+                temp.renameTo(File(dir, name))
+            }
+        }
+
+        fun readLearnedData(context: Context) = LearnedData(
+            portraitTouch = readFile(context, PORTRAIT_FILE),
+            landscapeTouch = readFile(context, LANDSCAPE_FILE),
+            personalLetters = readFile(context, LANGUAGE_FILE),
+        )
+
+        /** Replaces saved learning with [data], dropping parts that fail to decode; callers bump the model generation. */
+        fun replaceLearnedData(context: Context, data: LearnedData) {
+            deleteLearnedData(context)
+            data.portraitTouch?.takeIf { TouchModel.decode(it) != null }
+                ?.let { writeFile(context, PORTRAIT_FILE, it) }
+            data.landscapeTouch?.takeIf { TouchModel.decode(it) != null }
+                ?.let { writeFile(context, LANDSCAPE_FILE, it) }
+            data.personalLetters?.takeIf { CharLanguageModel().decodePersonal(it) }
+                ?.let { writeFile(context, LANGUAGE_FILE, it) }
+        }
+
         /** Settings-side read of the learned portrait model for visualisation. */
         fun readPortraitModel(context: Context): TouchModel? = runCatching {
             File(directory(context), PORTRAIT_FILE).takeIf(File::isFile)?.readBytes()?.let(TouchModel::decode)
@@ -146,5 +167,11 @@ class AdaptiveTypingEngine(context: Context) {
             directory(context).listFiles()?.forEach(File::delete)
         }
     }
+
+    class LearnedData(
+        val portraitTouch: ByteArray?,
+        val landscapeTouch: ByteArray?,
+        val personalLetters: ByteArray?,
+    )
 }
 
