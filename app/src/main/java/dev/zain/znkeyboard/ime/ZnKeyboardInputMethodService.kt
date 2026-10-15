@@ -40,7 +40,6 @@ import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.Locale
-import java.util.concurrent.Executors
 
 class ZnKeyboardInputMethodService : InputMethodService(),
     ZnKeyboardView.Callback,
@@ -71,7 +70,6 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     private var activeComposerSuggestion: String? = null
     private var pendingComposerSuggestionRefresh: Runnable? = null
     private val mainHandler = Handler(Looper.getMainLooper())
-    private val backgroundExecutor = Executors.newSingleThreadExecutor()
     private var snippetChangeListener: android.content.SharedPreferences.OnSharedPreferenceChangeListener? = null
     private lateinit var typingEngine: AdaptiveTypingEngine
     private var appliedThemeSignature: String? = null
@@ -109,7 +107,6 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         ClipboardLinkPreviewRepository.loadPersistedPreviews(this)
         registerClipboardListener()
         capturePrimaryClipboardText()
-        migrateLegacySavedText()
         loadSnippetCompletionSources()
         snippetChangeListener = KeyboardSettings.registerTextSnippetsChangeListener(this) {
             loadSnippetCompletionSources()
@@ -249,7 +246,6 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         cancelComposerSuggestionRefresh()
         snippetChangeListener?.let { KeyboardSettings.unregisterTextSnippetsChangeListener(this, it) }
         snippetChangeListener = null
-        backgroundExecutor.shutdown()
         typingEngine.shutdown()
         gifSearchView?.dispose()
         gifSearchView = null
@@ -300,12 +296,17 @@ class ZnKeyboardInputMethodService : InputMethodService(),
             }
             is KeyboardAction.Chord -> {
                 cancelActiveAgentForEditorChange()
-                sendKey(action.keyCode, ModifierState(ctrl = action.ctrl, alt = action.alt))
+                sendKey(action.keyCode, ModifierState(ctrl = action.ctrl, alt = action.alt, shift = action.shift))
             }
             is KeyboardAction.Sequence -> {
                 cancelActiveAgentForEditorChange()
                 for (step in action.steps) {
-                    sendKey(step.keyCode, ModifierState(ctrl = step.ctrl, alt = step.alt))
+                    when (step) {
+                        is KeyboardAction.Chord ->
+                            sendKey(step.keyCode, ModifierState(ctrl = step.ctrl, alt = step.alt, shift = step.shift))
+                        is KeyboardAction.Text -> handleText(step.value, ModifierState(ctrl = false, alt = false))
+                        else -> Unit
+                    }
                 }
             }
             is KeyboardAction.Text -> handleText(action.value, modifiers)
@@ -419,6 +420,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     }
 
     override fun onEmojiKeySuggestionSelected(emoji: String) {
+        replaceAdjacentSuggestionText(emoji)
         handleText(emoji, ModifierState(ctrl = false, alt = false))
         persistRecentEmojis(EmojiCatalog.promoteRecentEmoji(emoji, recentEmojis))
     }
@@ -527,6 +529,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
             view.setFunctionKeyBackgroundsEnabled(KeyboardSettings.readFunctionKeyBackgroundsEnabled(this))
             view.setKeyHapticsEnabled(KeyboardSettings.readKeyHapticsEnabled(this))
             view.setKeyPreviewEnabled(KeyboardSettings.readKeyPreviewEnabled(this))
+            view.setShortcutMacros(KeyboardSettings.readShortcutMacros(this))
             view.setUpperRowKeyIds(KeyboardSettings.readUpperRowKeyIds(this))
             view.setSecondRowButtonIds(KeyboardSettings.readSecondRowButtonIds(this))
             view.setKeyboardRowOrder(KeyboardSettings.readKeyboardRowOrder(this))
@@ -868,7 +871,21 @@ class ZnKeyboardInputMethodService : InputMethodService(),
             ?.getTextBeforeCursor(EMOJI_SUGGESTION_CONTEXT_CHARS, 0)
             ?.toString()
             .orEmpty()
-        setEmojiKeySuggestion(findEmojiSuggestionForContext(beforeCursor))
+        setEmojiKeySuggestion(findEmojiSuggestionForContext(beforeCursor)?.emoji)
+    }
+
+    /** "Done|" + ✅ → "✅"; "Done |" + ✅ → "Done ✅". */
+    private fun replaceAdjacentSuggestionText(emoji: String) {
+        val inputConnection = currentInputConnection ?: return
+        if (isSensitiveEditor(currentEditorInfo)) return
+        if (!inputConnection.getSelectedText(0).isNullOrEmpty()) return
+        val beforeCursor = inputConnection
+            .getTextBeforeCursor(EMOJI_SUGGESTION_CONTEXT_CHARS, 0)
+            ?.toString()
+            ?: return
+        val match = findEmojiSuggestionForContext(beforeCursor) ?: return
+        if (match.emoji != emoji || !match.endsAtContextEnd) return
+        inputConnection.deleteSurroundingText(beforeCursor.length - match.charStart, 0)
     }
 
     private fun setEmojiKeySuggestion(emoji: String?) {
@@ -877,8 +894,9 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         keyboardView?.setEmojiKeySuggestion(emoji)
     }
 
-    private fun findEmojiSuggestionForContext(context: String): String? {
-        val contextTokens = tokenizeEmojiSuggestionText(context)
+    private fun findEmojiSuggestionForContext(context: String): EmojiSuggestionMatch? {
+        val tokenMatches = EMOJI_SUGGESTION_TOKEN_REGEX.findAll(context).toList()
+        val contextTokens = tokenMatches.map { it.value.lowercase(Locale.US) }
         if (contextTokens.isEmpty()) return null
 
         var bestMatch: EmojiSuggestionMatch? = null
@@ -886,10 +904,13 @@ class ZnKeyboardInputMethodService : InputMethodService(),
             val startIndex = contextTokens.lastIndexOfSequence(suggestion.tokens)
             if (startIndex < 0) return@forEach
 
+            val endIndex = startIndex + suggestion.tokens.lastIndex
             val match = EmojiSuggestionMatch(
                 emoji = suggestion.emoji,
                 startIndex = startIndex,
-                endIndex = startIndex + suggestion.tokens.lastIndex,
+                endIndex = endIndex,
+                charStart = tokenMatches[startIndex].range.first,
+                endsAtContextEnd = tokenMatches[endIndex].range.last == context.lastIndex,
             )
             val currentBest = bestMatch
             if (
@@ -900,7 +921,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
                 bestMatch = match
             }
         }
-        return bestMatch?.emoji
+        return bestMatch
     }
 
     private fun tokenizeEmojiSuggestionText(value: String): List<String> {
@@ -1666,12 +1687,6 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         clipboardManager.setPrimaryClip(clip)
     }
 
-    private fun migrateLegacySavedText() {
-        backgroundExecutor.execute {
-            runCatching { ComposerSuggestionStore.migrateIntoSnippets(applicationContext) }
-        }
-    }
-
     /** Snippets double as as-you-type completions; newest first wins when several match. */
     private fun loadSnippetCompletionSources() {
         snippetCompletionSources = KeyboardSettings.readTextSnippets(this).asReversed().map { it.text }
@@ -2395,6 +2410,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         var state = 0
         if (ctrl) state = state or KeyEvent.META_CTRL_ON or KeyEvent.META_CTRL_LEFT_ON
         if (alt) state = state or KeyEvent.META_ALT_ON or KeyEvent.META_ALT_LEFT_ON
+        if (shift) state = state or KeyEvent.META_SHIFT_ON or KeyEvent.META_SHIFT_LEFT_ON
         return state
     }
 
@@ -2417,6 +2433,8 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         val emoji: String,
         val startIndex: Int,
         val endIndex: Int,
+        val charStart: Int,
+        val endsAtContextEnd: Boolean,
     )
 
     private data class AgentEditTarget(
@@ -2552,6 +2570,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
             "`" to SelectionWrapPair("`", "`"),
         )
         val EMOJI_SUGGESTION_TOKEN_SPLIT_REGEX = Regex("[^\\p{L}\\p{N}]+")
+        val EMOJI_SUGGESTION_TOKEN_REGEX = Regex("[\\p{L}\\p{N}]+")
         val THINK_BLOCK_REGEX = Regex("(?is)<think>.*?</think>")
         val REASONING_BLOCK_REGEX = Regex("(?is)<reasoning>.*?</reasoning>")
         val FALLBACK_REWRITE_PROMPT = """
