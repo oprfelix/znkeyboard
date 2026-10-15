@@ -300,9 +300,7 @@ class ZnKeyboardView @JvmOverloads constructor(
 
     fun setPhonePadMode(enabled: Boolean) {
         val targetMode = if (enabled) LayoutMode.PhonePad else LayoutMode.Letters
-        if (enabled) {
-            lastNumericLayoutMode = LayoutMode.PhonePad
-        }
+        lastNumericLayoutMode = if (enabled) LayoutMode.PhonePad else LayoutMode.Symbols
         if (layoutMode != targetMode) {
             layoutMode = targetMode
             shiftState = ShiftState.Off
