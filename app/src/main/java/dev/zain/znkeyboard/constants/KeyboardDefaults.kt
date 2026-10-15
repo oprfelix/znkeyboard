@@ -3,7 +3,7 @@ package dev.zain.znkeyboard.constants
 object KeyboardDefaults {
     const val MIN_HEIGHT_SCALE = 0.82f
     const val MAX_HEIGHT_SCALE = 1.24f
-    const val DEFAULT_HEIGHT_SCALE = 0.94f
+    const val DEFAULT_HEIGHT_SCALE = 1.0f
     const val MIN_BOTTOM_PADDING_DP = 0
     const val MAX_BOTTOM_PADDING_DP = 96
     const val DEFAULT_BOTTOM_PADDING_DP = 20
