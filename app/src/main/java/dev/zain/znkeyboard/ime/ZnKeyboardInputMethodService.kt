@@ -435,21 +435,18 @@ class ZnKeyboardInputMethodService : InputMethodService(),
 
     override fun onComposerSuggestionSelected(text: String) {
         if (isSensitiveEditor(currentEditorInfo)) return
-        val snapshot = captureEditorSnapshot(KeyboardSettings.MAX_TEXT_SNIPPET_CHARS + 1) ?: return
-        if (snapshot.textStartOffset != 0 || snapshot.text.length > KeyboardSettings.MAX_TEXT_SNIPPET_CHARS) return
-        val currentText = snapshot.text
-        val cursorAtEnd = snapshot.selectionStart == snapshot.text.length &&
-            snapshot.selectionEnd == snapshot.text.length
-        if (!cursorAtEnd || !text.startsWith(currentText, ignoreCase = true) || text.length <= currentText.length) {
+        val inputConnection = currentInputConnection ?: return
+        val completion = textBeforeCursorForCompletion(text.length)
+            ?.let { findComposerCompletion(it, listOf(text)) }
+        if (completion == null) {
             setComposerSuggestion(null)
             return
         }
-        val inputConnection = currentInputConnection ?: return
         // Replace the typed prefix too, so the snippet's own casing wins ("He" -> "hello").
         inputConnection.beginBatchEdit()
         try {
             inputConnection.finishComposingText()
-            inputConnection.deleteSurroundingText(currentText.length, 0)
+            inputConnection.deleteSurroundingText(completion.prefixLength, 0)
             handleText(text, ModifierState(ctrl = false, alt = false))
         } finally {
             inputConnection.endBatchEdit()
@@ -1776,30 +1773,40 @@ class ZnKeyboardInputMethodService : InputMethodService(),
             setComposerSuggestion(null)
             return
         }
-        val snapshot = captureEditorSnapshot(KeyboardSettings.MAX_TEXT_SNIPPET_CHARS + 1) ?: run {
-            setComposerSuggestion(null)
-            return
-        }
-        if (snapshot.textStartOffset != 0 || snapshot.text.length > KeyboardSettings.MAX_TEXT_SNIPPET_CHARS) {
-            setComposerSuggestion(null)
-            return
-        }
-
-        val currentText = snapshot.text
-        val cursorAtEnd = snapshot.selectionStart == snapshot.text.length &&
-            snapshot.selectionEnd == snapshot.text.length
-        if (!cursorAtEnd) {
-            setComposerSuggestion(null)
-            return
-        }
-        val suggestion = currentText
-            .takeIf { it.isNotEmpty() }
-            ?.let { prefix ->
-                snippetCompletionSources.firstOrNull { snippet ->
-                    snippet.length > prefix.length && snippet.startsWith(prefix, ignoreCase = true)
-                }
-            }
+        val sources = snippetCompletionSources
+        val suggestion = textBeforeCursorForCompletion(sources.maxOf { it.length })
+            ?.let { findComposerCompletion(it, sources) }
+            ?.snippet
         setComposerSuggestion(suggestion)
+    }
+
+    /** Text before a collapsed cursor that isn't mid-word, or null when no completion should show. */
+    private fun textBeforeCursorForCompletion(maxChars: Int): String? {
+        val inputConnection = currentInputConnection ?: return null
+        if (!inputConnection.getSelectedText(0).isNullOrEmpty()) return null
+        val after = inputConnection.getTextAfterCursor(1, 0)
+        if (!after.isNullOrEmpty() && after[0].isLetterOrDigit()) return null
+        return inputConnection.getTextBeforeCursor(maxChars, 0)?.toString()
+    }
+
+    /**
+     * Tries every word start before the cursor, longest run first, so "hello w" can still finish
+     * "hello world" while a new word after a space gets its own completion.
+     */
+    private fun findComposerCompletion(before: String, candidates: List<String>): ComposerCompletion? {
+        val longest = candidates.maxOfOrNull { it.length } ?: return null
+        // Index 0 may be mid-word when the editor returned a full window of maxChars.
+        val firstStart = (before.length - longest + 1).coerceAtLeast(0)
+        for (start in firstStart until before.length) {
+            if (before[start].isWhitespace()) continue
+            if (start > 0 && !before[start - 1].isWhitespace() && before[start - 1] !in COMPOSER_WORD_OPENERS) continue
+            val prefixLength = before.length - start
+            val snippet = candidates.firstOrNull { candidate ->
+                candidate.length > prefixLength && candidate.regionMatches(0, before, start, prefixLength, ignoreCase = true)
+            }
+            if (snippet != null) return ComposerCompletion(snippet, prefixLength)
+        }
+        return null
     }
 
     private fun setComposerSuggestion(text: String?) {
@@ -2470,6 +2477,8 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     private val ModifierState.hasHardwareMeta: Boolean
         get() = ctrl || alt
 
+    private data class ComposerCompletion(val snippet: String, val prefixLength: Int)
+
     private data class EditorSnapshot(
         val text: String,
         val textStartOffset: Int,
@@ -2600,6 +2609,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         const val EMOJI_SUGGESTION_CONTEXT_CHARS = 180
         const val EMOJI_SUGGESTION_REFRESH_DELAY_MS = 120L
         const val COMPOSER_SUGGESTION_REFRESH_DELAY_MS = 80L
+        const val COMPOSER_WORD_OPENERS = "([{\"“"
         const val TYPING_CONTEXT_CHARS = 16
         const val OWN_EDIT_SETTLE_MS = 1_000L
         const val DOUBLE_SPACE_PERIOD_WINDOW_MS = 700L
