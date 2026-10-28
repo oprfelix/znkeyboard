@@ -6,5 +6,9 @@
     <string name="agent_action_apply">Apply</string>
     <string name="agent_action_cancel">Cancel</string>
     <string name="agent_action_copy">Copy</string>
+    <!-- Shown while typing Chinese (pinyin mode), whatever the system language. -->
+    <string name="agent_action_apply_zh">应用</string>
+    <string name="agent_action_cancel_zh">取消</string>
+    <string name="agent_action_copy_zh">复制</string>
     <string name="agent_error_clip_label">ZnKeyboard LLM error</string>
 </resources>

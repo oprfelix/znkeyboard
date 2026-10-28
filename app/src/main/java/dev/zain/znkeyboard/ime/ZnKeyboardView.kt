@@ -24,6 +24,7 @@ import dev.zain.znkeyboard.KeyboardSettings
 import dev.zain.znkeyboard.MacroStep
 import dev.zain.znkeyboard.ShortcutMacro
 import dev.zain.znkeyboard.ShortcutMacros
+import dev.zain.znkeyboard.constants.AgentDefaults
 import dev.zain.znkeyboard.constants.ImeColors
 import dev.zain.znkeyboard.constants.ImeDimensions
 import dev.zain.znkeyboard.typing.AdaptiveTypingEngine
@@ -57,6 +58,8 @@ class ZnKeyboardView @JvmOverloads constructor(
         fun onAgentRewriteRequested()
         fun onSaveSnippetRequested()
         fun onComposerSuggestionSelected(text: String)
+        fun onPinyinModeToggled()
+        fun onTranslateLanguageMenuRequested()
     }
 
     var callback: Callback? = null
@@ -119,6 +122,12 @@ class ZnKeyboardView @JvmOverloads constructor(
     private var shortcutMacrosByKeyId: Map<String, ShortcutMacro> = emptyMap()
     private var shortcutRowState = ShortcutRowState(secondRowVisible = true)
     private var emojiKeySuggestion: String? = null
+    private var pinyinModeEnabled = false
+    private var rewriteLabel = "Rewrite"
+    // Shown on a round key beside Rewrite while it translates; null when it only polishes.
+    private var translateLanguageCode: String? = null
+    // Reused by onDraw for round keys, which must not allocate.
+    private val circleKeyBounds = RectF()
     private var composerSuggestion: String? = null
     private var keyHapticsEnabled = true
     private var keyPreviewEnabled = true
@@ -281,6 +290,24 @@ class ZnKeyboardView @JvmOverloads constructor(
         }
     }
 
+    fun setPinyinMode(enabled: Boolean) {
+        if (pinyinModeEnabled != enabled) {
+            pinyinModeEnabled = enabled
+            refreshHitTargets()
+            invalidate()
+        }
+    }
+
+    /** [languageCode] adds the round target-language key (e.g. "EN") next to Rewrite. */
+    fun setRewriteMode(label: String, languageCode: String?) {
+        if (rewriteLabel != label || translateLanguageCode != languageCode) {
+            rewriteLabel = label
+            translateLanguageCode = languageCode
+            refreshHitTargets()
+            invalidate()
+        }
+    }
+
     fun setComposerSuggestion(text: String?) {
         if (composerSuggestion != text) {
             composerSuggestion = text
@@ -342,8 +369,12 @@ class ZnKeyboardView @JvmOverloads constructor(
             refreshHitTargets()
         }
 
+        // Round keys first, so the key beside them overlaps and they read as tucked underneath.
         hitTargets.forEach { hit ->
-            drawKey(canvas, hit)
+            if (hit.key.circle) drawKey(canvas, hit)
+        }
+        hitTargets.forEach { hit ->
+            if (!hit.key.circle) drawKey(canvas, hit)
         }
         if (keyPreviewEnabled) {
             drawKeyPreviews(canvas)
@@ -804,7 +835,7 @@ class ZnKeyboardView @JvmOverloads constructor(
 
     private fun drawKey(canvas: Canvas, hit: KeyHit) {
         val key = hit.key
-        val bounds = hit.visualBounds
+        val bounds = if (key.circle) circleBounds(hit.visualBounds) else hit.visualBounds
         val rewriteLoading = key.intent == KeyIntent.AgentRewrite && shortcutRowState.loading
         val pressed = isKeyPressed(key.id)
         val selected = key.active && !rewriteLoading
@@ -815,13 +846,14 @@ class ZnKeyboardView @JvmOverloads constructor(
         // Space is typed as often as letters; it shares their surface rather than looking like a modifier.
         val isSpace = key.id == "space" || key.id == "phone_space"
         val drawBackground = when {
-            pressed || selected || rewriteLoading || isSpace -> true
+            pressed || selected || rewriteLoading || isSpace || key.circle -> true
             // Shortcut rows read as a quiet toolbar: content only, with a pill on press / latch.
             toolbar -> hit.rowStyle == RowStyle.Suggestion || key.intent == KeyIntent.AgentRewrite
             key.role == KeyRole.Function -> functionKeyBackgroundsEnabled
             else -> true
         }
         val containerColor = when {
+            key.circle -> ImeColors.TRANSLATE_BADGE
             rewriteLoading -> PALETTE.aiLoadingSurface
             selected -> PALETTE.selected
             toolbar -> PALETTE.function
@@ -832,6 +864,7 @@ class ZnKeyboardView @JvmOverloads constructor(
             else -> PALETTE.key
         }
         val contentColor = when {
+            key.circle -> ImeColors.ON_TRANSLATE_BADGE
             rewriteLoading -> PALETTE.text
             selected -> PALETTE.onSelected
             isActionKey -> PALETTE.onAction
@@ -885,6 +918,18 @@ class ZnKeyboardView @JvmOverloads constructor(
         if (key.id == "shift" && shiftState == ShiftState.Locked) {
             drawShiftLockIndicator(canvas, bounds, contentColor)
         }
+    }
+
+    /**
+     * Square for a round key, pulled left so it slips under the end of the key before it, as
+     * if growing out of it. With a toolbar's half-height radius it draws a circle.
+     */
+    private fun circleBounds(bounds: RectF): RectF {
+        val side = min(bounds.width(), bounds.height()) * ImeDimensions.TRANSLATE_BADGE_SCALE
+        val left = bounds.left - side * ImeDimensions.TRANSLATE_BADGE_OVERLAP_FRACTION
+        val top = bounds.centerY() - side / 2f
+        circleKeyBounds.set(left, top, left + side, top + side)
+        return circleKeyBounds
     }
 
     private fun keyRadius(bounds: RectF, toolbar: Boolean): Float {
@@ -1362,6 +1407,8 @@ class ZnKeyboardView @JvmOverloads constructor(
             KeyIntent.ToggleAlt -> alt = !alt
             KeyIntent.ToggleCtrl -> ctrl = !ctrl
             KeyIntent.OpenEmojiPanel -> callback?.onEmojiPanelRequested()
+            KeyIntent.TogglePinyinMode -> callback?.onPinyinModeToggled()
+            KeyIntent.ChooseTranslateLanguage -> callback?.onTranslateLanguageMenuRequested()
             KeyIntent.AgentRewrite -> callback?.onAgentRewriteRequested()
             KeyIntent.SaveSnippet -> callback?.onSaveSnippetRequested()
             is KeyIntent.AcceptComposerSuggestion -> callback?.onComposerSuggestionSelected(intent.text)
@@ -1652,6 +1699,21 @@ class ZnKeyboardView @JvmOverloads constructor(
                 rowPrefix = "second",
                 enabled = true,
             )
+        }.toMutableList()
+        val languageCode = translateLanguageCode
+        val rewriteIndex = keys.indexOfFirst { it.intent == KeyIntent.AgentRewrite }
+        if (languageCode != null && rewriteIndex >= 0) {
+            keys.add(
+                rewriteIndex + 1,
+                KeySpec(
+                    id = "second_translate_language",
+                    label = languageCode,
+                    intent = KeyIntent.ChooseTranslateLanguage,
+                    weight = ImeDimensions.TRANSLATE_LANGUAGE_KEY_WEIGHT,
+                    role = KeyRole.Function,
+                    circle = true,
+                ),
+            )
         }
         return keys.takeIf { it.isNotEmpty() }?.let { RowSpec(it, heightWeight = ImeLayout.COMPACT_ROW_WEIGHT, style = RowStyle.Toolbar) }
     }
@@ -1679,9 +1741,13 @@ class ZnKeyboardView @JvmOverloads constructor(
         return when (keyId) {
             "rewrite" -> KeySpec(
                 id = id,
-                label = if (shortcutRowState.loading) "Rewriting" else "Rewrite",
+                label = when {
+                    !shortcutRowState.loading -> rewriteLabel
+                    translateLanguageCode != null -> AgentDefaults.TRANSLATE_REWRITE_LOADING_LABEL
+                    else -> "Rewriting"
+                },
                 intent = KeyIntent.AgentRewrite,
-                weight = weight,
+                weight = if (translateLanguageCode != null) maxOf(weight, ImeDimensions.REWRITE_TRANSLATE_KEY_WEIGHT) else weight,
                 role = KeyRole.Function,
                 active = shortcutRowState.loading,
                 enabled = enabled && shortcutRowState.rewriteEnabled && !shortcutRowState.loading,
@@ -1978,12 +2044,13 @@ class ZnKeyboardView @JvmOverloads constructor(
         val keys = mutableListOf(
             KeySpec(
                 "switch",
-                if (layoutMode == LayoutMode.Letters) "123" else "ABC",
+                // Digits already sit in the number row above, so this key leads with symbols.
+                if (layoutMode == LayoutMode.Letters) "!?#" else "ABC",
                 KeyIntent.SwitchMode,
                 ImeDimensions.MODE_SWITCH_KEY_WEIGHT,
                 KeyRole.Function,
             ),
-            emojiKeySpec(),
+            pinyinModeKeySpec(),
         )
         if (layoutMode != LayoutMode.Letters) {
             keys += KeySpec(
@@ -2004,6 +2071,14 @@ class ZnKeyboardView @JvmOverloads constructor(
                 subLabelStyle = SubLabelStyle.Equal,
             )
         } else {
+            // Comma and period flank space. In 中 mode they show full-width marks; the service turns
+            // the ASCII mark it receives into the Chinese one, so both modes dispatch the same text.
+            keys += KeySpec(
+                "bottom_comma",
+                if (pinyinModeEnabled) "，" else ",",
+                KeyIntent.Dispatch(KeyboardAction.Text(",")),
+                role = KeyRole.Character,
+            )
             keys += KeySpec(
                 "space",
                 "space",
@@ -2011,6 +2086,12 @@ class ZnKeyboardView @JvmOverloads constructor(
                 ImeDimensions.SPACE_KEY_WEIGHT,
                 KeyRole.Function,
                 longPressHint = "snippets",
+            )
+            keys += KeySpec(
+                "bottom_period",
+                if (pinyinModeEnabled) "。" else ".",
+                KeyIntent.Dispatch(KeyboardAction.Text(".")),
+                role = KeyRole.Character,
             )
         }
         keys += KeySpec(
@@ -2027,15 +2108,14 @@ class ZnKeyboardView @JvmOverloads constructor(
         )
     }
 
-    private fun emojiKeySpec(): KeySpec {
-        val suggestion = emojiKeySuggestion
+    /** Takes the emoji key's slot: switches between pinyin (中) and English (EN). */
+    private fun pinyinModeKeySpec(): KeySpec {
         return KeySpec(
-            id = "emoji",
-            label = suggestion ?: "Emoji",
-            intent = KeyIntent.OpenEmojiPanel,
+            id = "pinyin_mode",
+            label = if (pinyinModeEnabled) "中" else "EN",
+            intent = KeyIntent.TogglePinyinMode,
             weight = ImeDimensions.EMOJI_KEY_WEIGHT,
             role = KeyRole.Function,
-            icon = if (suggestion == null) KeyIcon.Emoji else null,
         )
     }
 
@@ -2165,6 +2245,8 @@ class ZnKeyboardView @JvmOverloads constructor(
         val longPressHint: String? = null,
         val subLabel: String? = null,
         val subLabelStyle: SubLabelStyle = SubLabelStyle.Small,
+        /** Drawn as a circle centered in its slot, always with a background. */
+        val circle: Boolean = false,
     )
 
     private data class KeyHit(
@@ -2222,6 +2304,8 @@ class ZnKeyboardView @JvmOverloads constructor(
         data object ToggleAlt : KeyIntent()
         data object ToggleCtrl : KeyIntent()
         data object OpenEmojiPanel : KeyIntent()
+        data object TogglePinyinMode : KeyIntent()
+        data object ChooseTranslateLanguage : KeyIntent()
         data object AgentRewrite : KeyIntent()
         data object SaveSnippet : KeyIntent()
         data class AcceptComposerSuggestion(val text: String) : KeyIntent()

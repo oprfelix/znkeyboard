@@ -103,18 +103,21 @@ class AgentReviewView @JvmOverloads constructor(
         }
     }
 
-    fun renderReview(text: String) {
+    /** [chinese] labels the buttons in Chinese, used while the keyboard is in pinyin mode. */
+    fun renderReview(text: String, chinese: Boolean = false) {
         showingError = false
         suggestionText.text = text
         suggestionText.setTextColor(PALETTE.text)
-        primaryButton.setText(R.string.agent_action_apply)
+        primaryButton.setText(if (chinese) R.string.agent_action_apply_zh else R.string.agent_action_apply)
+        cancelButton.setText(if (chinese) R.string.agent_action_cancel_zh else R.string.agent_action_cancel)
     }
 
-    fun renderError(error: String) {
+    fun renderError(error: String, chinese: Boolean = false) {
         showingError = true
         suggestionText.text = error
         suggestionText.setTextColor(PALETTE.errorText)
-        primaryButton.setText(R.string.agent_action_copy)
+        primaryButton.setText(if (chinese) R.string.agent_action_copy_zh else R.string.agent_action_copy)
+        cancelButton.setText(if (chinese) R.string.agent_action_cancel_zh else R.string.agent_action_cancel)
     }
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {

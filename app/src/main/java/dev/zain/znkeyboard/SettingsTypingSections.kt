@@ -55,6 +55,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import dev.zain.znkeyboard.constants.ImeColors
+import dev.zain.znkeyboard.pinyin.PinyinFuzzyRule
 import dev.zain.znkeyboard.typing.AdaptiveTypingEngine
 import dev.zain.znkeyboard.typing.TouchModel
 import kotlinx.coroutines.Dispatchers
@@ -216,6 +217,31 @@ internal fun TypingFeelSection() {
             checked = doubleSpace,
             onCheckedChange = { doubleSpace = it; KeyboardSettings.saveDoubleSpacePeriodEnabled(context, it) },
         )
+    }
+}
+
+@Composable
+internal fun PinyinSection() {
+    val context = LocalContext.current
+    var rules by remember { mutableStateOf(KeyboardSettings.readPinyinFuzzyRules(context)) }
+    SettingsSectionCard(verticalSpacing = 18.dp) {
+        SettingsSectionHeader(title = "Chinese pinyin", iconResId = R.drawable.ic_keyboard_24)
+        Text(
+            text = "Tap the 中/EN key (left of space) to switch. Fuzzy sounds let either spelling of a pair find the same words.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        PinyinFuzzyRule.entries.forEach { rule ->
+            SettingsSwitchRow(
+                title = rule.label,
+                description = "Fuzzy sound",
+                checked = rule in rules,
+                onCheckedChange = { enabled ->
+                    rules = if (enabled) rules + rule else rules - rule
+                    KeyboardSettings.savePinyinFuzzyRules(context, rules)
+                },
+            )
+        }
     }
 }
 

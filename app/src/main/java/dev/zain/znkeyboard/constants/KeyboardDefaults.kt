@@ -20,7 +20,8 @@ object KeyboardDefaults {
     const val MAX_CUSTOM_EMOJI_TAGS_PER_EMOJI = 12
     const val MAX_CUSTOM_EMOJI_TAG_CHARS = 32
 
-    val DEFAULT_UPPER_ROW_KEY_IDS = listOf("esc", "tab", "ctrl", "alt", "left", "up", "down", "right")
-    val DEFAULT_SECOND_ROW_BUTTON_IDS = listOf("rewrite", "tilde", "slash", "pipe", "minus", "underscore")
+    // Esc/Tab/Ctrl/Alt/arrows are opt-in: an empty row is hidden until keys are added to it.
+    val DEFAULT_UPPER_ROW_KEY_IDS = emptyList<String>()
+    val DEFAULT_SECOND_ROW_BUTTON_IDS = listOf("rewrite", "at", "hash", "ampersand", "percent", "question")
     val DEFAULT_KEYBOARD_ROW_ORDER = listOf("second", "upper")
 }

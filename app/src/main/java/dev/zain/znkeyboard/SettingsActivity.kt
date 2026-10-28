@@ -121,6 +121,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.PopupProperties
+import dev.zain.znkeyboard.constants.AgentDefaults
 import dev.zain.znkeyboard.constants.LiquidNavDimensions
 import dev.zain.znkeyboard.constants.SettingsBackupDefaults
 import dev.zain.znkeyboard.constants.SettingsShellDimensions
@@ -193,6 +194,7 @@ private fun SettingsScreen(onOpenShortcuts: () -> Unit) {
     var agentProviderType by remember { mutableStateOf(KeyboardSettings.readAgentProviderType(context)) }
     var agentApiBaseUrl by remember { mutableStateOf(KeyboardSettings.readAgentApiBaseUrl(context)) }
     var agentModel by remember { mutableStateOf(KeyboardSettings.readAgentModel(context)) }
+    var agentTranslateTarget by remember { mutableStateOf(KeyboardSettings.readAgentTranslateTarget(context).code) }
     var openRouterProviderSlug by remember { mutableStateOf(KeyboardSettings.readOpenRouterProviderSlug(context)) }
     var agentReasoningMode by remember { mutableStateOf(KeyboardSettings.readAgentReasoningMode(context)) }
     var agentReasoningTextEnabled by remember { mutableStateOf(KeyboardSettings.readAgentReasoningTextEnabled(context)) }
@@ -370,6 +372,7 @@ private fun SettingsScreen(onOpenShortcuts: () -> Unit) {
                     TryTypingField()
                     AdaptiveTouchSection()
                     TypingFeelSection()
+                    PinyinSection()
                 }
 
                 SettingsDestination.Keyboard -> {
@@ -438,6 +441,7 @@ private fun SettingsScreen(onOpenShortcuts: () -> Unit) {
                         agentProviderType = agentProviderType,
                         agentApiBaseUrl = agentApiBaseUrl,
                         agentModel = agentModel,
+                        agentTranslateTarget = agentTranslateTarget,
                         openRouterProviderSlug = openRouterProviderSlug,
                         agentReasoningMode = agentReasoningMode,
                         agentReasoningTextEnabled = agentReasoningTextEnabled,
@@ -462,6 +466,10 @@ private fun SettingsScreen(onOpenShortcuts: () -> Unit) {
                         onAgentModelChange = {
                             agentModel = it
                             KeyboardSettings.saveAgentModel(context, it)
+                        },
+                        onAgentTranslateTargetChange = {
+                            agentTranslateTarget = it
+                            KeyboardSettings.saveAgentTranslateTarget(context, it)
                         },
                         onOpenRouterProviderSlugChange = {
                             openRouterProviderSlug = it
@@ -1718,6 +1726,7 @@ private fun AgentModeSection(
     agentProviderType: KeyboardSettings.AgentProviderType,
     agentApiBaseUrl: String,
     agentModel: String,
+    agentTranslateTarget: String,
     openRouterProviderSlug: String,
     agentReasoningMode: KeyboardSettings.AgentReasoningMode,
     agentReasoningTextEnabled: Boolean,
@@ -1729,6 +1738,7 @@ private fun AgentModeSection(
     onAgentProviderTypeChange: (KeyboardSettings.AgentProviderType) -> Unit,
     onAgentApiBaseUrlChange: (String) -> Unit,
     onAgentModelChange: (String) -> Unit,
+    onAgentTranslateTargetChange: (String) -> Unit,
     onOpenRouterProviderSlugChange: (String) -> Unit,
     onAgentReasoningModeChange: (KeyboardSettings.AgentReasoningMode) -> Unit,
     onAgentReasoningTextEnabledChange: (Boolean) -> Unit,
@@ -1801,6 +1811,11 @@ private fun AgentModeSection(
             apiKey = agentApiKey,
             value = agentModel,
             onValueChange = onAgentModelChange,
+        )
+
+        TranslateLanguageSelector(
+            value = agentTranslateTarget,
+            onValueChange = onAgentTranslateTargetChange,
         )
 
         if (agentProviderType == KeyboardSettings.AgentProviderType.OpenRouter) {
@@ -2260,6 +2275,66 @@ private fun ModelSelectorField(
 
         Text(
             text = modelLoadStatus,
+            color = ZnKeyboardColors.Muted,
+            style = MaterialTheme.typography.bodySmall,
+        )
+    }
+}
+
+/** Picks the customer's language (stored as its code); the keyboard can also switch it while typing. */
+@Composable
+private fun TranslateLanguageSelector(
+    value: String,
+    onValueChange: (String) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Box(modifier = Modifier.fillMaxWidth()) {
+            OutlinedButton(
+                onClick = { expanded = true },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = ZnKeyboardColors.OnSurface),
+            ) {
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                    horizontalAlignment = Alignment.Start,
+                ) {
+                    Text(
+                        text = "Translate to",
+                        color = ZnKeyboardColors.Muted,
+                        style = MaterialTheme.typography.labelSmall,
+                    )
+                    val language = AgentDefaults.TRANSLATE_LANGUAGES.firstOrNull { it.code == value }
+                        ?: AgentDefaults.DEFAULT_TRANSLATE_LANGUAGE
+                    Text(
+                        text = "${language.code} · ${language.name}",
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        style = MaterialTheme.typography.bodyLarge,
+                    )
+                }
+                Text(
+                    text = "Change",
+                    color = ZnKeyboardColors.Accent,
+                    style = MaterialTheme.typography.labelLarge,
+                )
+            }
+
+            FloatingPickerMenu(
+                expanded = expanded,
+                items = AgentDefaults.TRANSLATE_LANGUAGES.map { language ->
+                    PickerItem(id = language.code, title = language.code, subtitle = language.name)
+                },
+                onDismissRequest = { expanded = false },
+                onItemSelected = { item ->
+                    expanded = false
+                    onValueChange(item.id)
+                },
+            )
+        }
+        Text(
+            text = "In 中 mode the AI 润译 key polishes your Chinese and translates it into this language; the round key beside it switches language while typing. In EN mode Rewrite only polishes.",
             color = ZnKeyboardColors.Muted,
             style = MaterialTheme.typography.bodySmall,
         )

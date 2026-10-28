@@ -36,6 +36,8 @@ import dev.zain.znkeyboard.typing.AdaptiveTypingEngine
 import org.json.JSONArray
 import org.json.JSONException
 import org.json.JSONObject
+import dev.zain.znkeyboard.pinyin.PinyinDictionary
+import dev.zain.znkeyboard.pinyin.PinyinEngine
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
@@ -48,8 +50,16 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     GifSearchView.Callback,
     SnippetPanelView.Callback,
     SavedTextSearchView.Callback,
-    AgentReviewView.Callback {
+    AgentReviewView.Callback,
+    PinyinCandidateBar.Callback {
     private var keyboardView: ZnKeyboardView? = null
+    private var pinyinBar: PinyinCandidateBar? = null
+    private var pinyinModeEnabled = false
+    // Loaded off the main thread; null until ready, and pinyin input passes through until then.
+    @Volatile private var pinyinDictionary: PinyinDictionary? = null
+    private var pinyinDictionaryLoading = false
+    private var pinyinComposing = ""
+    private var pinyinCandidates: List<PinyinEngine.Candidate> = emptyList()
     private var inputRoot: LinearLayout? = null
     private var keyboardContainer: FrameLayout? = null
     private var emojiPanelView: EmojiPanelView? = null
@@ -134,6 +144,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
             view.setEmojiKeySuggestion(emojiKeySuggestion)
             view.setComposerSuggestion(activeComposerSuggestion)
             view.setPhonePadMode(shouldUsePhonePadMode(currentEditorInfo))
+            view.setPinyinMode(pinyinModeEnabled)
         }
         val emojiSearch = EmojiSearchView(this).also { view ->
             emojiSearchView = view
@@ -147,6 +158,11 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         val savedTextSearch = SavedTextSearchView(this).also { view ->
             savedTextSearchView = view
             view.callback = this
+        }
+        val candidateBar = PinyinCandidateBar(this).also { bar ->
+            pinyinBar = bar
+            bar.callback = this
+            bar.render(pinyinComposing, pinyinCandidates.map { it.text })
         }
         val keyboardSlot = FrameLayout(this).also { container ->
             keyboardContainer = container
@@ -183,6 +199,13 @@ class ZnKeyboardInputMethodService : InputMethodService(),
                 ),
             )
             addView(
+                candidateBar,
+                LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    dp(PINYIN_BAR_HEIGHT_DP),
+                ),
+            )
+            addView(
                 keyboardSlot,
                 LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT,
@@ -197,6 +220,8 @@ class ZnKeyboardInputMethodService : InputMethodService(),
 
     override fun onStartInput(attribute: EditorInfo?, restarting: Boolean) {
         super.onStartInput(attribute, restarting)
+        // A new field: whatever was composing belonged to the old one.
+        clearPinyinComposition()
         currentEditorInfo = attribute
         keyboardView?.setPhonePadMode(shouldUsePhonePadMode(attribute))
         resetAgentState(returnToKeyboard = true)
@@ -227,6 +252,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     }
 
     override fun onFinishInputView(finishingInput: Boolean) {
+        commitPinyinRaw()
         typingEngine.save()
         keyboardView?.clearLatchedModifiers()
         keyboardView?.resetToLetters()
@@ -261,6 +287,10 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         candidatesEnd: Int,
     ) {
         super.onUpdateSelection(oldSelStart, oldSelEnd, newSelStart, newSelEnd, candidatesStart, candidatesEnd)
+        if (pinyinComposing.isNotEmpty() && candidatesStart < 0) {
+            // The editor dropped our composing span (tap elsewhere, app cleared the field).
+            clearPinyinComposition()
+        }
         if (SystemClock.uptimeMillis() - lastOwnEditAt > OWN_EDIT_SETTLE_MS) pendingOwnSelectionUpdates = 0
         if (pendingOwnSelectionUpdates > 0) {
             pendingOwnSelectionUpdates--
@@ -285,6 +315,9 @@ class ZnKeyboardInputMethodService : InputMethodService(),
             return
         }
         if (activeSurface == KeyboardSurface.SavedTextSearch && handleSavedTextSearchKeyboardAction(action, modifiers)) {
+            return
+        }
+        if (activeSurface == KeyboardSurface.Keyboard && handlePinyinAction(action, modifiers)) {
             return
         }
         when (action) {
@@ -493,6 +526,8 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     }
 
     override fun onAgentRewriteRequested() {
+        // Rewrite reads the field, so turn pending pinyin into characters first.
+        commitPinyinWholeTop()
         startRewriteFromCurrentEditor()
     }
 
@@ -517,6 +552,10 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     }
 
     private fun applyKeyboardSettings() {
+        pinyinModeEnabled = KeyboardSettings.readPinyinModeEnabled(this)
+        keyboardView?.setPinyinMode(pinyinModeEnabled)
+        refreshRewriteLabel()
+        if (pinyinModeEnabled) ensurePinyinDictionary()
         val heightScale = KeyboardSettings.readHeightScale(this)
         typingEngine.adaptiveEnabled = KeyboardSettings.readAdaptiveTouchEnabled(this)
         autoCapitalizeEnabled = KeyboardSettings.readAutoCapitalizeEnabled(this)
@@ -745,7 +784,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
             view.callback = this
         }
         reviewView.setHeightScale(KeyboardSettings.readHeightScale(this))
-        reviewView.renderReview(review.replacementText)
+        reviewView.renderReview(review.replacementText, chinese = pinyinModeEnabled)
         activeSurface = KeyboardSurface.Review
         swapKeyboardSurface(reviewView)
         renderSecondRow()
@@ -760,7 +799,10 @@ class ZnKeyboardInputMethodService : InputMethodService(),
             view.callback = this
         }
         reviewView.setHeightScale(KeyboardSettings.readHeightScale(this))
-        reviewView.renderError(message)
+        reviewView.renderError(
+            if (pinyinModeEnabled) AgentDefaults.CHINESE_ERROR_MESSAGES[message] ?: message else message,
+            chinese = pinyinModeEnabled,
+        )
         activeSurface = KeyboardSurface.Review
         swapKeyboardSurface(reviewView)
         renderSecondRow()
@@ -768,6 +810,8 @@ class ZnKeyboardInputMethodService : InputMethodService(),
 
     private fun swapKeyboardSurface(surface: View) {
         val container = keyboardContainer ?: return
+        if (surface !== keyboardView) commitPinyinRaw()
+        pinyinBar?.visibility = if (surface === keyboardView) View.VISIBLE else View.GONE
         (surface.parent as? ViewGroup)?.removeView(surface)
         container.removeAllViews()
         container.addView(
@@ -1065,6 +1109,209 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         return true
     }
 
+    override fun onPinyinModeToggled() {
+        commitPinyinRaw()
+        pinyinModeEnabled = !pinyinModeEnabled
+        KeyboardSettings.savePinyinModeEnabled(this, pinyinModeEnabled)
+        keyboardView?.setPinyinMode(pinyinModeEnabled)
+        refreshRewriteLabel()
+        if (pinyinModeEnabled) ensurePinyinDictionary()
+        updateAutoShift()
+    }
+
+    /** Chinese mode: "AI 润译" plus the round language key; English mode: plain "Rewrite". */
+    private fun refreshRewriteLabel() {
+        if (pinyinModeEnabled) {
+            keyboardView?.setRewriteMode(
+                AgentDefaults.TRANSLATE_REWRITE_LABEL,
+                KeyboardSettings.readAgentTranslateTarget(this).code,
+            )
+        } else {
+            keyboardView?.setRewriteMode("Rewrite", languageCode = null)
+        }
+    }
+
+    override fun onTranslateLanguageMenuRequested() {
+        val bar = pinyinBar ?: return
+        if (bar.isChoosingLanguage) {
+            bar.render(pinyinComposing, pinyinCandidates.map { it.text })
+            return
+        }
+        val current = KeyboardSettings.readAgentTranslateTarget(this)
+        bar.renderLanguageChoices(
+            AgentDefaults.TRANSLATE_LANGUAGES.map { it.code },
+            AgentDefaults.TRANSLATE_LANGUAGES.indexOf(current),
+        )
+    }
+
+    override fun onTranslateLanguageSelected(index: Int) {
+        val language = AgentDefaults.TRANSLATE_LANGUAGES.getOrNull(index) ?: return
+        KeyboardSettings.saveAgentTranslateTarget(this, language.code)
+        refreshRewriteLabel()
+        pinyinBar?.render(pinyinComposing, pinyinCandidates.map { it.text })
+    }
+
+    override fun onPinyinCandidateSelected(index: Int) {
+        selectPinyinCandidate(index)
+    }
+
+    private fun isPinyinActive(): Boolean {
+        val info = currentEditorInfo
+        return pinyinModeEnabled && pinyinDictionary != null &&
+            !isRawKeyEventEditor(info) && !isSensitiveEditor(info) && !shouldUsePhonePadMode(info)
+    }
+
+    /** Loads the dictionary, or rebuilds its index when the fuzzy rules changed, off the main thread. */
+    private fun ensurePinyinDictionary() {
+        if (pinyinDictionaryLoading) return
+        val rules = KeyboardSettings.readPinyinFuzzyRules(this)
+        val current = pinyinDictionary
+        if (current != null && current.fuzzy.rules == rules) return
+        pinyinDictionaryLoading = true
+        val appContext = applicationContext
+        Thread {
+            val loaded = runCatching {
+                current?.withFuzzy(rules) ?: appContext.assets.open(PINYIN_DICTIONARY_ASSET)
+                    .bufferedReader(Charsets.UTF_8)
+                    .use { PinyinDictionary.load(it, rules) }
+            }.getOrNull()
+            mainHandler.post {
+                pinyinDictionaryLoading = false
+                if (loaded != null) pinyinDictionary = loaded
+                updateAutoShift()
+            }
+        }.start()
+    }
+
+    /** Routes keys to the pinyin composer. Returns false to let normal handling run. */
+    private fun handlePinyinAction(action: KeyboardAction, modifiers: ModifierState): Boolean {
+        if (!isPinyinActive() || modifiers.ctrl || modifiers.alt || modifiers.hasHardwareMeta) {
+            return false
+        }
+        val composing = pinyinComposing.isNotEmpty()
+        when (action) {
+            is KeyboardAction.Text -> {
+                val value = action.value
+                val char = value.singleOrNull()
+                when {
+                    char != null && char.lowercaseChar() in 'a'..'z' -> {
+                        updatePinyinComposition(pinyinComposing + char.lowercaseChar())
+                        return true
+                    }
+                    !composing -> {
+                        val punctuation = char?.let { chinesePunctuationFor(it) } ?: return false
+                        handleText(punctuation, modifiers)
+                        return true
+                    }
+                    char == PinyinEngine.SEPARATOR -> {
+                        if (!pinyinComposing.endsWith(PinyinEngine.SEPARATOR)) {
+                            updatePinyinComposition(pinyinComposing + PinyinEngine.SEPARATOR)
+                        }
+                        return true
+                    }
+                    value == " " -> {
+                        if (pinyinCandidates.isEmpty()) commitPinyinRaw() else selectPinyinCandidate(0)
+                        return true
+                    }
+                    char != null && char in '1'..'9' && char - '1' < pinyinCandidates.size -> {
+                        selectPinyinCandidate(char - '1')
+                        return true
+                    }
+                    else -> {
+                        // Punctuation ends the phrase: take the top candidate, then type the mark.
+                        commitPinyinWholeTop()
+                        val punctuation = char?.let { chinesePunctuationFor(it) } ?: return false
+                        handleText(punctuation, modifiers)
+                        return true
+                    }
+                }
+            }
+            KeyboardAction.Backspace -> {
+                if (!composing) return false
+                updatePinyinComposition(pinyinComposing.dropLast(1))
+                return true
+            }
+            KeyboardAction.Enter -> {
+                if (!composing) return false
+                commitPinyinRaw()
+                return true
+            }
+            else -> {
+                commitPinyinRaw()
+                return false
+            }
+        }
+    }
+
+    /** Full-width marks for Chinese text; a period right after a digit stays a decimal point. */
+    private fun chinesePunctuationFor(char: Char): String? {
+        if (char == '.') {
+            val before = currentInputConnection?.getTextBeforeCursor(1, 0)
+            if (!before.isNullOrEmpty() && before.last().isDigit()) return null
+        }
+        return CHINESE_PUNCTUATION[char]
+    }
+
+    private fun updatePinyinComposition(composing: String) {
+        val inputConnection = currentInputConnection ?: return
+        val dictionary = pinyinDictionary ?: return
+        pinyinComposing = composing
+        pinyinCandidates = if (composing.isEmpty()) emptyList() else PinyinEngine.candidates(composing, dictionary)
+        noteOwnEdit()
+        if (composing.isEmpty()) {
+            inputConnection.setComposingText("", 1)
+            inputConnection.finishComposingText()
+        } else {
+            inputConnection.setComposingText(composing, 1)
+        }
+        pinyinBar?.render(composing, pinyinCandidates.map { it.text })
+    }
+
+    private fun selectPinyinCandidate(index: Int) {
+        val candidate = pinyinCandidates.getOrNull(index) ?: return
+        val inputConnection = currentInputConnection ?: return
+        val remaining = pinyinComposing.substring(candidate.consumed.coerceAtMost(pinyinComposing.length))
+            .trimStart(PinyinEngine.SEPARATOR)
+        noteOwnEdit()
+        inputConnection.beginBatchEdit()
+        inputConnection.commitText(candidate.text, 1)
+        if (remaining.isEmpty()) clearPinyinComposition() else updatePinyinComposition(remaining)
+        inputConnection.endBatchEdit()
+        scheduleComposerSuggestionRefresh()
+    }
+
+    /** Commits the best candidate for each remaining piece until nothing is left composing. */
+    private fun commitPinyinWholeTop() {
+        var guard = pinyinComposing.length
+        while (pinyinComposing.isNotEmpty() && guard-- > 0) {
+            if (pinyinCandidates.isEmpty()) {
+                commitPinyinRaw()
+                return
+            }
+            selectPinyinCandidate(0)
+        }
+    }
+
+    /** Puts the typed letters into the field as-is, e.g. for Enter or leaving the keyboard. */
+    private fun commitPinyinRaw() {
+        if (pinyinComposing.isEmpty()) return
+        val raw = pinyinComposing.replace(PinyinEngine.SEPARATOR.toString(), "")
+        currentInputConnection?.let { inputConnection ->
+            noteOwnEdit()
+            inputConnection.commitText(raw, 1)
+        }
+        pinyinComposing = ""
+        pinyinCandidates = emptyList()
+        pinyinBar?.render("", emptyList())
+    }
+
+    /** Forgets the composition without touching the editor, which already let it go. */
+    private fun clearPinyinComposition() {
+        pinyinComposing = ""
+        pinyinCandidates = emptyList()
+        pinyinBar?.render("", emptyList())
+    }
+
     private fun noteOwnEdit() {
         if (isRawKeyEventEditor(currentEditorInfo)) return
         pendingOwnSelectionUpdates++
@@ -1075,7 +1322,9 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     private fun updateAutoShift() {
         val view = keyboardView ?: return
         val info = currentEditorInfo
+        // Pinyin is lowercase; a sentence-start shift would only get in the way.
         if (!autoCapitalizeEnabled || info == null || isRawKeyEventEditor(info) || isSensitiveEditor(info) ||
+            isPinyinActive() ||
             activeSurface != KeyboardSurface.Keyboard
         ) {
             view.setAutoShift(false)
@@ -2312,6 +2561,15 @@ class ZnKeyboardInputMethodService : InputMethodService(),
             appPromptAssetFor(currentEditorInfo?.packageName)?.let { assetPath ->
                 add(loadPromptAsset(assetPath, fallback = ""))
             }
+            // Translate only while typing Chinese; in English mode Rewrite just polishes.
+            // Last, so it overrides the language-matching rules above.
+            if (pinyinModeEnabled) {
+                val translateTarget = KeyboardSettings.readAgentTranslateTarget(this@ZnKeyboardInputMethodService)
+                add(
+                    loadPromptAsset(TRANSLATE_PROMPT_ASSET, fallback = "")
+                        .replace(AgentDefaults.TRANSLATE_LANGUAGE_PLACEHOLDER, translateTarget.name),
+                )
+            }
         }
             .filter { it.isNotBlank() }
             .joinToString(separator = "\n\n---\n\n")
@@ -2611,6 +2869,18 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         const val COMPOSER_SUGGESTION_REFRESH_DELAY_MS = 80L
         const val COMPOSER_WORD_OPENERS = "([{\"“"
         const val TYPING_CONTEXT_CHARS = 16
+        const val PINYIN_BAR_HEIGHT_DP = 44
+        const val PINYIN_DICTIONARY_ASSET = "pinyin/dict.tsv"
+        val CHINESE_PUNCTUATION = mapOf(
+            ',' to "，",
+            '.' to "。",
+            '?' to "？",
+            '!' to "！",
+            ':' to "：",
+            ';' to "；",
+            '(' to "（",
+            ')' to "）",
+        )
         const val OWN_EDIT_SETTLE_MS = 1_000L
         const val DOUBLE_SPACE_PERIOD_WINDOW_MS = 700L
         const val REQUEST_TIMEOUT_MS = AgentDefaults.REQUEST_TIMEOUT_MS
@@ -2622,6 +2892,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         const val STRUCTURED_OUTPUT_TEXT_FIELD = AgentDefaults.STRUCTURED_OUTPUT_TEXT_FIELD
         const val REWRITE_BASE_PROMPT_ASSET = AgentDefaults.REWRITE_BASE_PROMPT_ASSET
         const val WHATSAPP_PROMPT_ASSET = AgentDefaults.WHATSAPP_PROMPT_ASSET
+        const val TRANSLATE_PROMPT_ASSET = AgentDefaults.TRANSLATE_PROMPT_ASSET
         const val WHATSAPP_PACKAGE_NAME = "com.whatsapp"
         const val WHATSAPP_BUSINESS_PACKAGE_NAME = "com.whatsapp.w4b"
         val SELECTION_WRAP_SYMBOLS = mapOf(

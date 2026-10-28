@@ -54,6 +54,10 @@ object ImeColors {
     var ACCENT = Color.rgb(48, 172, 226)
         private set
 
+    // Ink blue for the round target-language key; fixed so it reads the same in every theme.
+    val TRANSLATE_BADGE = Color.rgb(35, 64, 128)
+    val ON_TRANSLATE_BADGE = Color.WHITE
+
     var MUTED_TEXT = Color.rgb(230, 230, 230)
         private set
     var DISABLED_TEXT = Color.rgb(130, 130, 130)

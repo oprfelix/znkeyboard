@@ -9,7 +9,9 @@ import dev.zain.znkeyboard.constants.AgentDefaults
 import dev.zain.znkeyboard.constants.GifDefaults
 import dev.zain.znkeyboard.constants.ImeColors
 import dev.zain.znkeyboard.constants.KeyboardDefaults
+import dev.zain.znkeyboard.constants.TranslateLanguage
 import dev.zain.znkeyboard.ime.ClipboardHistoryStore
+import dev.zain.znkeyboard.pinyin.PinyinFuzzyRule
 import dev.zain.znkeyboard.typing.AdaptiveTypingEngine
 import org.json.JSONArray
 import org.json.JSONException
@@ -65,6 +67,8 @@ object KeyboardSettings {
     private const val KEY_KEY_PREVIEW_ENABLED = "key_preview_enabled"
     private const val KEY_AUTO_CAPITALIZE_ENABLED = "auto_capitalize_enabled"
     private const val KEY_DOUBLE_SPACE_PERIOD_ENABLED = "double_space_period_enabled"
+    private const val KEY_PINYIN_MODE_ENABLED = "pinyin_mode_enabled"
+    private const val KEY_PINYIN_FUZZY_RULES = "pinyin_fuzzy_rules"
     private const val KEY_KEYBOARD_THEME = "keyboard_theme"
     private const val KEY_TYPING_MODEL_GENERATION = "typing_model_generation"
     private const val KEY_RECENT_EMOJIS = "recent_emojis"
@@ -78,6 +82,7 @@ object KeyboardSettings {
     private const val KEY_OPENROUTER_PROVIDER_SLUG = "openrouter_provider_slug"
     private const val KEY_AGENT_REASONING_MODE = "agent_reasoning_mode"
     private const val KEY_AGENT_REASONING_TEXT_ENABLED = "agent_reasoning_text_enabled"
+    private const val KEY_AGENT_TRANSLATE_TARGET = "agent_translate_target"
     private const val KEY_AGENT_PROFILES = "agent_profiles"
     private const val KEY_ACTIVE_AGENT_PROFILE_ID = "active_agent_profile_id"
     private const val KEY_AGENT_API_KEY_LEGACY = "agent_api_key"
@@ -215,6 +220,25 @@ object KeyboardSettings {
     fun readDoubleSpacePeriodEnabled(context: Context) = readFlag(context, KEY_DOUBLE_SPACE_PERIOD_ENABLED, true)
     fun saveDoubleSpacePeriodEnabled(context: Context, enabled: Boolean) =
         saveFlag(context, KEY_DOUBLE_SPACE_PERIOD_ENABLED, enabled)
+
+    /** Whether letters go to the pinyin composer (中) instead of straight into the field (EN). */
+    fun readPinyinModeEnabled(context: Context) = readFlag(context, KEY_PINYIN_MODE_ENABLED, false)
+    fun savePinyinModeEnabled(context: Context, enabled: Boolean) =
+        saveFlag(context, KEY_PINYIN_MODE_ENABLED, enabled)
+
+    fun readPinyinFuzzyRules(context: Context): Set<PinyinFuzzyRule> {
+        val ids = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .getStringSet(KEY_PINYIN_FUZZY_RULES, null)
+            ?: return PinyinFuzzyRule.DEFAULTS
+        return PinyinFuzzyRule.fromIds(ids)
+    }
+
+    fun savePinyinFuzzyRules(context: Context, rules: Set<PinyinFuzzyRule>) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .putStringSet(KEY_PINYIN_FUZZY_RULES, rules.mapTo(mutableSetOf()) { it.id })
+            .apply()
+    }
 
     fun readKeyboardTheme(context: Context): ImeColors.Style = ImeColors.Style.fromId(
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).getString(KEY_KEYBOARD_THEME, null),
@@ -612,6 +636,22 @@ object KeyboardSettings {
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .edit()
             .putString(KEY_AGENT_MODEL, model.trim())
+            .apply()
+    }
+
+    /** Language Rewrite translates into while typing Chinese (pinyin mode). Stored as its code. */
+    fun readAgentTranslateTarget(context: Context): TranslateLanguage {
+        val stored = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .getString(KEY_AGENT_TRANSLATE_TARGET, null)
+        // Earlier builds stored the full name ("English").
+        return AgentDefaults.TRANSLATE_LANGUAGES.firstOrNull { it.code == stored || it.name == stored }
+            ?: AgentDefaults.DEFAULT_TRANSLATE_LANGUAGE
+    }
+
+    fun saveAgentTranslateTarget(context: Context, code: String) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .putString(KEY_AGENT_TRANSLATE_TARGET, code)
             .apply()
     }
 
