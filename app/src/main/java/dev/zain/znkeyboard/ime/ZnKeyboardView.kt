@@ -52,10 +52,8 @@ class ZnKeyboardView @JvmOverloads constructor(
         fun onSpaceCursorDragChanged(characterDelta: Int)
         fun onSpaceCursorDragFinished()
         fun onSpaceCursorDragCancelled()
-        fun onSnippetPanelRequested()
+        fun onClipboardPanelRequested()
         fun onAgentRewriteRequested()
-        fun onSaveSnippetRequested()
-        fun onComposerSuggestionSelected(text: String)
         fun onPinyinModeToggled()
         fun onTranslateLanguageMenuRequested()
     }
@@ -125,7 +123,6 @@ class ZnKeyboardView @JvmOverloads constructor(
     private var translateLanguageCode: String? = null
     // Reused by onDraw for round keys, which must not allocate.
     private val circleKeyBounds = RectF()
-    private var composerSuggestion: String? = null
     private var keyHapticsEnabled = true
     private var keyPreviewEnabled = true
     private var autoShiftActive = false
@@ -297,15 +294,6 @@ class ZnKeyboardView @JvmOverloads constructor(
         }
     }
 
-    fun setComposerSuggestion(text: String?) {
-        if (composerSuggestion != text) {
-            composerSuggestion = text
-            requestLayout()
-            refreshHitTargets()
-            invalidate()
-        }
-    }
-
     fun clearLatchedModifiers() {
         if (ctrl || alt) {
             ctrl = false
@@ -457,7 +445,7 @@ class ZnKeyboardView @JvmOverloads constructor(
                 handleKey(KeySpec("phone_slash_long_press", "/", KeyIntent.Dispatch(KeyboardAction.Text("/"))))
             }
             "space" -> scheduleLongPress(pointerId, "space") {
-                callback?.onSnippetPanelRequested()
+                callback?.onClipboardPanelRequested()
             }
         }
         if (key?.id == "space") {
@@ -820,7 +808,7 @@ class ZnKeyboardView @JvmOverloads constructor(
         val rewriteLoading = key.intent == KeyIntent.AgentRewrite && shortcutRowState.loading
         val pressed = isKeyPressed(key.id)
         val selected = key.active && !rewriteLoading
-        val toolbar = hit.rowStyle == RowStyle.Toolbar || hit.rowStyle == RowStyle.Suggestion
+        val toolbar = hit.rowStyle == RowStyle.Toolbar
         val keyAlpha = if (key.enabled || key.emphasizedWhenDisabled) 255 else DISABLED_KEY_ALPHA
         val radius = keyRadius(bounds, toolbar)
         val isActionKey = key.role == KeyRole.Action && key.id == "enter"
@@ -829,7 +817,7 @@ class ZnKeyboardView @JvmOverloads constructor(
         val drawBackground = when {
             pressed || selected || rewriteLoading || isSpace || key.circle -> true
             // Shortcut rows read as a quiet toolbar: content only, with a pill on press / latch.
-            toolbar -> hit.rowStyle == RowStyle.Suggestion || key.intent == KeyIntent.AgentRewrite
+            toolbar -> key.intent == KeyIntent.AgentRewrite
             key.role == KeyRole.Function -> functionKeyBackgroundsEnabled
             else -> true
         }
@@ -929,7 +917,7 @@ class ZnKeyboardView @JvmOverloads constructor(
             val key = touch.currentKey ?: continue
             if (key.role != KeyRole.Character || key.icon != null || key.label.length > 2) continue
             val hit = hitTargets.firstOrNull { it.key.id == key.id } ?: continue
-            if (hit.rowStyle == RowStyle.Toolbar || hit.rowStyle == RowStyle.Suggestion) continue
+            if (hit.rowStyle == RowStyle.Toolbar) continue
             val bounds = hit.visualBounds
             val bubbleWidth = max(bounds.width() * PREVIEW_WIDTH_FACTOR, dp(PREVIEW_MIN_WIDTH_DP))
             val bubbleHeight = bounds.height() * PREVIEW_HEIGHT_FACTOR
@@ -1376,8 +1364,6 @@ class ZnKeyboardView @JvmOverloads constructor(
             KeyIntent.TogglePinyinMode -> callback?.onPinyinModeToggled()
             KeyIntent.ChooseTranslateLanguage -> callback?.onTranslateLanguageMenuRequested()
             KeyIntent.AgentRewrite -> callback?.onAgentRewriteRequested()
-            KeyIntent.SaveSnippet -> callback?.onSaveSnippetRequested()
-            is KeyIntent.AcceptComposerSuggestion -> callback?.onComposerSuggestionSelected(intent.text)
             is KeyIntent.Dispatch -> {
                 notifyLearner(intent.action, sample)
                 if (shiftState == ShiftState.OneShot && key.consumesOneShotShift) {
@@ -1507,7 +1493,7 @@ class ZnKeyboardView @JvmOverloads constructor(
         }
     }
 
-    private fun layoutRows(): List<RowSpec> = listOfNotNull(composerSuggestionRow()) + rows()
+    private fun layoutRows(): List<RowSpec> = rows()
 
     private fun layoutKeys(totalWidth: Float, totalHeight: Float): List<KeyHit> {
         val rows = layoutRows()
@@ -1616,28 +1602,6 @@ class ZnKeyboardView @JvmOverloads constructor(
         return buttonRows + mainRows
     }
 
-    private fun composerSuggestionRow(): RowSpec? {
-        val suggestion = composerSuggestion ?: return null
-        return RowSpec(
-            keys = listOf(
-                KeySpec(
-                    id = "composer_suggestion",
-                    label = composerSuggestionDisplayLabel(suggestion),
-                    intent = KeyIntent.AcceptComposerSuggestion(suggestion),
-                    role = KeyRole.Function,
-                ),
-            ),
-            heightWeight = ImeLayout.COMPACT_ROW_WEIGHT,
-            style = RowStyle.Suggestion,
-        )
-    }
-
-    private fun composerSuggestionDisplayLabel(text: String): String {
-        val singleLine = text.replace(SUGGESTION_WHITESPACE_REGEX, " ").trim()
-        if (singleLine.length <= MAX_SUGGESTION_LABEL_CHARS) return singleLine
-        return singleLine.take(MAX_SUGGESTION_LABEL_CHARS - 1) + "…"
-    }
-
     private fun numberRow(): RowSpec {
         return RowSpec(chars("1234567890"), ImeLayout.STANDARD_ROW_WEIGHT, style = RowStyle.Numbers)
     }
@@ -1718,14 +1682,6 @@ class ZnKeyboardView @JvmOverloads constructor(
                 active = shortcutRowState.loading,
                 enabled = enabled && shortcutRowState.rewriteEnabled && !shortcutRowState.loading,
                 emphasizedWhenDisabled = shortcutRowState.loading,
-            )
-            "save_text" -> KeySpec(
-                id = id,
-                label = "Save snippet",
-                intent = KeyIntent.SaveSnippet,
-                weight = weight,
-                role = KeyRole.Function,
-                enabled = enabled,
             )
             "ctrl" -> KeySpec(id, "Ctrl", KeyIntent.ToggleCtrl, weight, KeyRole.Function, ctrl, enabled = enabled)
             "alt" -> KeySpec(id, "Alt", KeyIntent.ToggleAlt, weight, KeyRole.Function, alt, enabled = enabled)
@@ -1982,7 +1938,7 @@ class ZnKeyboardView @JvmOverloads constructor(
                 KeyIntent.Dispatch(KeyboardAction.Text(" ")),
                 4.7f,
                 KeyRole.Function,
-                longPressHint = "snippets",
+                longPressHint = "clipboard",
             )
         }
         keys += KeySpec(
@@ -2025,7 +1981,7 @@ class ZnKeyboardView @JvmOverloads constructor(
                 KeyIntent.Dispatch(KeyboardAction.Text(" ")),
                 ImeDimensions.SPACE_KEY_WEIGHT,
                 KeyRole.Function,
-                longPressHint = "snippets",
+                longPressHint = "clipboard",
             )
             keys += KeySpec(
                 "numeric_layout_toggle",
@@ -2051,7 +2007,7 @@ class ZnKeyboardView @JvmOverloads constructor(
                 KeyIntent.Dispatch(KeyboardAction.Text(" ")),
                 ImeDimensions.SPACE_KEY_WEIGHT,
                 KeyRole.Function,
-                longPressHint = "snippets",
+                longPressHint = "clipboard",
             )
             keys += KeySpec(
                 "bottom_period",
@@ -2186,7 +2142,6 @@ class ZnKeyboardView @JvmOverloads constructor(
         Standard,
         Numbers,
         Toolbar,
-        Suggestion,
     }
 
     private data class RowSpec(
@@ -2271,8 +2226,6 @@ class ZnKeyboardView @JvmOverloads constructor(
         data object TogglePinyinMode : KeyIntent()
         data object ChooseTranslateLanguage : KeyIntent()
         data object AgentRewrite : KeyIntent()
-        data object SaveSnippet : KeyIntent()
-        data class AcceptComposerSuggestion(val text: String) : KeyIntent()
         data class Dispatch(val action: KeyboardAction) : KeyIntent()
     }
 
@@ -2314,7 +2267,6 @@ class ZnKeyboardView @JvmOverloads constructor(
         const val PHONE_PAD_SUB_LABEL_MAX_HEIGHT_FRACTION = 0.18f
         const val PHONE_PAD_LABEL_GAP_DP = 1f
         const val PHONE_PAD_SUB_LABEL_ALPHA_FRACTION = 0.78f
-        const val MAX_SUGGESTION_LABEL_CHARS = 48
         const val SLIDE_HYSTERESIS_PITCH_FRACTION = 0.55f
         const val PRESSED_LAYER_OPACITY = 0.2f
         const val PREVIEW_WIDTH_FACTOR = 1.28f
@@ -2326,7 +2278,6 @@ class ZnKeyboardView @JvmOverloads constructor(
         const val NUMERIC_TOGGLE_STACKED_TEXT_SIZE_SP = 12f
         const val NUMERIC_TOGGLE_STACKED_MAX_HEIGHT_FRACTION = 0.28f
         const val NUMERIC_TOGGLE_STACKED_GAP_DP = 1f
-        val SUGGESTION_WHITESPACE_REGEX = Regex("\\s+")
         val AI_LOADING_COLORS = intArrayOf(
             Color.argb(0, 73, 216, 255),
             Color.argb(88, 73, 216, 255),

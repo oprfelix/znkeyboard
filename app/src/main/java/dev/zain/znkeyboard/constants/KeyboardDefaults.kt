@@ -11,10 +11,6 @@ object KeyboardDefaults {
     const val MAX_UPPER_ROW_KEYS = 9
     const val MAX_SECOND_ROW_BUTTONS = MAX_UPPER_ROW_KEYS
 
-    const val MAX_TEXT_SNIPPETS = 200
-    const val MAX_TEXT_SNIPPET_CHARS = 2_000
-    const val MAX_TEXT_SNIPPET_TAGS = 8
-    const val MAX_TEXT_SNIPPET_TAG_CHARS = 32
 
 
     // Esc/Tab/Ctrl/Alt/arrows are opt-in: an empty row is hidden until keys are added to it.

@@ -40,8 +40,8 @@ import java.util.Locale
 
 class ZnKeyboardInputMethodService : InputMethodService(),
     ZnKeyboardView.Callback,
-    SnippetPanelView.Callback,
-    SavedTextSearchView.Callback,
+    ClipboardPanelView.Callback,
+    ClipboardSearchView.Callback,
     AgentReviewView.Callback,
     PinyinCandidateBar.Callback {
     private var keyboardView: ZnKeyboardView? = null
@@ -54,15 +54,11 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     private var pinyinCandidates: List<PinyinEngine.Candidate> = emptyList()
     private var inputRoot: LinearLayout? = null
     private var keyboardContainer: FrameLayout? = null
-    private var snippetPanelView: SnippetPanelView? = null
-    private var savedTextSearchView: SavedTextSearchView? = null
+    private var clipboardPanelView: ClipboardPanelView? = null
+    private var clipboardSearchView: ClipboardSearchView? = null
     private var agentReviewView: AgentReviewView? = null
     private var currentEditorInfo: EditorInfo? = null
-    private var snippetCompletionSources: List<String> = emptyList()
-    private var activeComposerSuggestion: String? = null
-    private var pendingComposerSuggestionRefresh: Runnable? = null
     private val mainHandler = Handler(Looper.getMainLooper())
-    private var snippetChangeListener: android.content.SharedPreferences.OnSharedPreferenceChangeListener? = null
     private lateinit var typingEngine: AdaptiveTypingEngine
     private var appliedThemeSignature: String? = null
     private var autoCapitalizeEnabled = true
@@ -95,31 +91,27 @@ class ZnKeyboardInputMethodService : InputMethodService(),
             engine.load(KeyboardSettings.readTypingModelGeneration(this))
         }
         ClipboardHistoryStore.deleteLegacyRewriteHistory(this)
+        KeyboardSettings.deleteLegacySnippetData(this)
         ClipboardLinkPreviewRepository.loadPersistedPreviews(this)
         registerClipboardListener()
         capturePrimaryClipboardText()
-        loadSnippetCompletionSources()
-        snippetChangeListener = KeyboardSettings.registerTextSnippetsChangeListener(this) {
-            loadSnippetCompletionSources()
-        }
     }
 
     override fun onCreateInputView(): View {
         appliedThemeSignature = ImeColors.apply(this, KeyboardSettings.readKeyboardTheme(this))
         // Cached panels hold colors from the previous theme; rebuild them lazily.
-        snippetPanelView = null
+        clipboardPanelView = null
         agentReviewView = null
         activeSurface = KeyboardSurface.Keyboard
         val keyboard = ZnKeyboardView(this).also { view ->
             keyboardView = view
             view.callback = this
             view.typingEngine = typingEngine
-            view.setComposerSuggestion(activeComposerSuggestion)
             view.setPhonePadMode(shouldUsePhonePadMode(currentEditorInfo))
             view.setPinyinMode(pinyinModeEnabled)
         }
-        val savedTextSearch = SavedTextSearchView(this).also { view ->
-            savedTextSearchView = view
+        val clipboardSearch = ClipboardSearchView(this).also { view ->
+            clipboardSearchView = view
             view.callback = this
         }
         val candidateBar = PinyinCandidateBar(this).also { bar ->
@@ -141,7 +133,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
             inputRoot = this
             orientation = LinearLayout.VERTICAL
             addView(
-                savedTextSearch,
+                clipboardSearch,
                 LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT,
                     LinearLayout.LayoutParams.WRAP_CONTENT,
@@ -194,7 +186,6 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         keyboardView?.setEnterLabel(resolveEnterLabel(info))
         renderSecondRow()
         capturePrimaryClipboardText()
-        scheduleComposerSuggestionRefresh(delayMillis = 0L)
         updateAutoShift()
     }
 
@@ -203,8 +194,6 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         typingEngine.save()
         keyboardView?.clearLatchedModifiers()
         keyboardView?.resetToLetters()
-        cancelComposerSuggestionRefresh()
-        setComposerSuggestion(null)
         resetAgentState(returnToKeyboard = true)
         super.onFinishInputView(finishingInput)
     }
@@ -212,9 +201,6 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     override fun onDestroy() {
         requestGeneration++
         unregisterClipboardListener()
-        cancelComposerSuggestionRefresh()
-        snippetChangeListener?.let { KeyboardSettings.unregisterTextSnippetsChangeListener(this, it) }
-        snippetChangeListener = null
         typingEngine.shutdown()
         super.onDestroy()
     }
@@ -243,12 +229,11 @@ class ZnKeyboardInputMethodService : InputMethodService(),
             updateAutoShift()
         }
         if (oldSelStart != newSelStart || oldSelEnd != newSelEnd) {
-            scheduleComposerSuggestionRefresh()
         }
     }
 
     override fun onKeyboardAction(action: KeyboardAction, modifiers: ModifierState) {
-        if (activeSurface == KeyboardSurface.SavedTextSearch && handleSavedTextSearchKeyboardAction(action, modifiers)) {
+        if (activeSurface == KeyboardSurface.ClipboardSearch && handleClipboardSearchKeyboardAction(action, modifiers)) {
             return
         }
         if (activeSurface == KeyboardSurface.Keyboard && handlePinyinAction(action, modifiers)) {
@@ -316,70 +301,27 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         finishSpaceCursorDrag()
     }
 
-    override fun onSnippetPanelRequested() {
-        showSnippetPanel()
+    override fun onClipboardPanelRequested() {
+        showClipboardPanel()
     }
 
-    override fun onSaveSnippetRequested() {
-        saveCurrentInputAsSnippet()
-    }
-
-    override fun onComposerSuggestionSelected(text: String) {
-        if (isSensitiveEditor(currentEditorInfo)) return
-        val inputConnection = currentInputConnection ?: return
-        val completion = textBeforeCursorForCompletion(text.length)
-            ?.let { findComposerCompletion(it, listOf(text)) }
-        if (completion == null) {
-            setComposerSuggestion(null)
-            return
-        }
-        // Replace the typed prefix too, so the snippet's own casing wins ("He" -> "hello").
-        inputConnection.beginBatchEdit()
-        try {
-            inputConnection.finishComposingText()
-            inputConnection.deleteSurroundingText(completion.prefixLength, 0)
-            handleText(text, ModifierState(ctrl = false, alt = false))
-        } finally {
-            inputConnection.endBatchEdit()
-        }
-        setComposerSuggestion(null)
-    }
-
-    override fun onSnippetSelected(snippet: String) {
-        handleText(snippet, ModifierState(ctrl = false, alt = false))
+    override fun onClipboardPanelClosed() {
         showKeyboardPanel()
     }
 
-    override fun onSnippetSearchRequested(tab: KeyboardSettings.SavedTextPanelTab) {
-        showSavedTextSearchPanel(tab)
+    override fun onClipboardSearchRequested() {
+        showClipboardSearchPanel()
     }
 
-    override fun onSnippetSaveCurrentInput() {
-        saveCurrentInputAsSnippet()
+    override fun onClipboardSearchClosed() {
+        showClipboardPanel()
     }
 
-    override fun onSnippetPanelClosed() {
-        showKeyboardPanel()
-    }
-
-    override fun onSavedTextPanelTabChanged(tab: KeyboardSettings.SavedTextPanelTab) {
-        KeyboardSettings.saveSavedTextPanelTab(this, tab)
-    }
-
-    override fun onSavedTextSearchClosed() {
-        showSnippetPanel()
-    }
-
-    override fun onSavedTextSearchSnippetSelected(snippet: String) {
-        handleText(snippet, ModifierState(ctrl = false, alt = false))
-        showKeyboardPanel()
-    }
-
-    override fun onSavedTextSearchClipboardSelected(text: String) {
+    override fun onClipboardSearchItemSelected(text: String) {
         pasteClipboardHistoryText(text)
     }
 
-    override fun onSavedTextSearchClipboardDeleted(text: String) {
+    override fun onClipboardSearchItemDeleted(text: String) {
         deleteClipboardHistoryText(text)
     }
 
@@ -430,91 +372,46 @@ class ZnKeyboardInputMethodService : InputMethodService(),
             view.setSecondRowButtonIds(KeyboardSettings.readSecondRowButtonIds(this))
             view.setKeyboardRowOrder(KeyboardSettings.readKeyboardRowOrder(this))
         }
-        snippetPanelView?.let { view ->
+        clipboardPanelView?.let { view ->
             view.setHeightScale(heightScale)
-            view.setSnippets(KeyboardSettings.readTextSnippets(this))
             view.submitClipboardHistory(ClipboardHistoryStore.read(this))
         }
-        savedTextSearchView?.let { view ->
-            view.setSnippets(KeyboardSettings.readTextSnippets(this))
+        clipboardSearchView?.let { view ->
             view.setClipboardEntries(ClipboardHistoryStore.read(this))
         }
         agentReviewView?.setHeightScale(heightScale)
         renderSecondRow()
     }
 
-    private fun showSnippetPanel() {
-        hideSavedTextSearchView()
+    private fun showClipboardPanel() {
+        hideClipboardSearchView()
         capturePrimaryClipboardText()
-        val panel = snippetPanelView ?: SnippetPanelView(this).also { view ->
-            snippetPanelView = view
+        val panel = clipboardPanelView ?: ClipboardPanelView(this).also { view ->
+            clipboardPanelView = view
             view.callback = this
         }
-        val selectedTab = KeyboardSettings.readSavedTextPanelTab(this)
         panel.setHeightScale(KeyboardSettings.readHeightScale(this))
-        panel.setSnippets(KeyboardSettings.readTextSnippets(this))
         panel.submitClipboardHistory(ClipboardHistoryStore.read(this))
-        panel.setSelectedTab(selectedTab)
-        activeSurface = KeyboardSurface.Snippets
+        activeSurface = KeyboardSurface.Clipboard
         swapKeyboardSurface(panel)
         renderSecondRow()
     }
 
-    private fun showSavedTextSearchPanel(tab: KeyboardSettings.SavedTextPanelTab) {
+    private fun showClipboardSearchPanel() {
         val keyboard = keyboardView ?: return
-        val search = savedTextSearchView ?: return
+        val search = clipboardSearchView ?: return
         capturePrimaryClipboardText()
-        KeyboardSettings.saveSavedTextPanelTab(this, tab)
-        search.setSnippets(KeyboardSettings.readTextSnippets(this))
         search.setClipboardEntries(ClipboardHistoryStore.read(this))
-        search.showForTab(tab)
+        search.clearSearch()
         search.visibility = View.VISIBLE
         keyboard.setEnterLabel("Search")
-        activeSurface = KeyboardSurface.SavedTextSearch
+        activeSurface = KeyboardSurface.ClipboardSearch
         swapKeyboardSurface(keyboard)
         renderSecondRow()
     }
 
-    private fun saveCurrentInputAsSnippet() {
-        if (isSensitiveEditor(currentEditorInfo)) {
-            Toast.makeText(this, "Snippets are disabled in password fields.", Toast.LENGTH_SHORT).show()
-            return
-        }
-
-        val snapshot = captureEditorSnapshot(KeyboardSettings.MAX_TEXT_SNIPPET_CHARS + 1) ?: run {
-            Toast.makeText(this, "Couldn't read the current field.", Toast.LENGTH_SHORT).show()
-            return
-        }
-        if (snapshot.textStartOffset != 0) {
-            Toast.makeText(this, "Couldn't read the full field.", Toast.LENGTH_SHORT).show()
-            return
-        }
-
-        val snippet = KeyboardSettings.textSnippetFromText(snapshot.text)
-        if (snippet.text.isBlank()) {
-            Toast.makeText(this, "No text to save.", Toast.LENGTH_SHORT).show()
-            return
-        }
-
-        val snippets = KeyboardSettings.readTextSnippets(this)
-        if (snippets.any { it.text == snippet.text }) {
-            Toast.makeText(this, "Snippet already saved.", Toast.LENGTH_SHORT).show()
-            return
-        }
-        if (snippets.size >= KeyboardSettings.MAX_TEXT_SNIPPETS) {
-            Toast.makeText(this, "Snippet limit reached.", Toast.LENGTH_SHORT).show()
-            return
-        }
-
-        val updatedSnippets = snippets + snippet
-        KeyboardSettings.saveTextSnippets(this, updatedSnippets)
-        snippetPanelView?.setSnippets(updatedSnippets)
-        savedTextSearchView?.setSnippets(updatedSnippets)
-        Toast.makeText(this, "Saved to snippets. It will now autocomplete as you type.", Toast.LENGTH_SHORT).show()
-    }
-
     private fun showKeyboardPanel() {
-        hideSavedTextSearchView()
+        hideClipboardSearchView()
         activeSurface = KeyboardSurface.Keyboard
         val keyboard = keyboardView ?: run {
             renderSecondRow()
@@ -528,7 +425,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     }
 
     private fun showAgentReviewPanel(review: AgentReview) {
-        hideSavedTextSearchView()
+        hideClipboardSearchView()
         val reviewView = agentReviewView ?: AgentReviewView(this).also { view ->
             agentReviewView = view
             view.callback = this
@@ -541,7 +438,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     }
 
     private fun showAgentErrorPanel(message: String) {
-        hideSavedTextSearchView()
+        hideClipboardSearchView()
         val reviewView = agentReviewView ?: AgentReviewView(this).also { view ->
             agentReviewView = view
             view.callback = this
@@ -586,8 +483,8 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         )
     }
 
-    private fun hideSavedTextSearchView() {
-        savedTextSearchView?.let { view ->
+    private fun hideClipboardSearchView() {
+        clipboardSearchView?.let { view ->
             if (view.visibility != View.GONE) {
                 view.visibility = View.GONE
             }
@@ -595,26 +492,11 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         }
     }
 
-    private fun List<String>.lastIndexOfSequence(sequence: List<String>): Int {
-        if (sequence.isEmpty() || sequence.size > size) return -1
-        for (startIndex in size - sequence.size downTo 0) {
-            var matches = true
-            for (sequenceIndex in sequence.indices) {
-                if (this[startIndex + sequenceIndex] != sequence[sequenceIndex]) {
-                    matches = false
-                    break
-                }
-            }
-            if (matches) return startIndex
-        }
-        return -1
-    }
-
-    private fun handleSavedTextSearchKeyboardAction(action: KeyboardAction, modifiers: ModifierState): Boolean {
+    private fun handleClipboardSearchKeyboardAction(action: KeyboardAction, modifiers: ModifierState): Boolean {
         if (modifiers.hasHardwareMeta) {
             return true
         }
-        val searchView = savedTextSearchView ?: return true
+        val searchView = clipboardSearchView ?: return true
         when (action) {
             KeyboardAction.Backspace -> searchView.deleteQueryCharacter()
             KeyboardAction.Enter -> Unit
@@ -642,18 +524,15 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         }
         noteOwnEdit()
         if (wrapSelectedText(inputConnection, value)) {
-            scheduleComposerSuggestionRefresh()
             updateAutoShift()
             return
         }
         if (value == " " && applyDoubleSpacePeriod(inputConnection)) {
-            scheduleComposerSuggestionRefresh()
             updateAutoShift()
             return
         }
         if (inputConnection.commitText(value, 1)) {
             lastSpaceCommitAt = if (value == " ") SystemClock.uptimeMillis() else 0L
-            scheduleComposerSuggestionRefresh()
             updateAutoShift()
         }
     }
@@ -844,7 +723,6 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         inputConnection.commitText(candidate.text, 1)
         if (remaining.isEmpty()) clearPinyinComposition() else updatePinyinComposition(remaining)
         inputConnection.endBatchEdit()
-        scheduleComposerSuggestionRefresh()
     }
 
     /** Commits the best candidate for each remaining piece until nothing is left composing. */
@@ -930,7 +808,6 @@ class ZnKeyboardInputMethodService : InputMethodService(),
                 }
             }
         }
-        scheduleComposerSuggestionRefresh()
         updateAutoShift()
     }
 
@@ -1029,7 +906,6 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         }
 
         if (committed) {
-            scheduleComposerSuggestionRefresh()
         } else {
             restoreBackspaceGestureDeleteSelection(inputConnection, state)
         }
@@ -1151,7 +1027,6 @@ class ZnKeyboardInputMethodService : InputMethodService(),
                 sendKey(keyCode, ModifierState(ctrl = false, alt = false))
             }
         }
-        scheduleComposerSuggestionRefresh()
     }
 
     /**
@@ -1248,10 +1123,8 @@ class ZnKeyboardInputMethodService : InputMethodService(),
 
         if (!forceEnter && action != EditorInfo.IME_ACTION_NONE && action != EditorInfo.IME_ACTION_UNSPECIFIED) {
             inputConnection.performEditorAction(action)
-            scheduleComposerSuggestionRefresh()
         } else {
             sendKey(KeyEvent.KEYCODE_ENTER, modifiers)
-            scheduleComposerSuggestionRefresh()
         }
     }
 
@@ -1278,7 +1151,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
             sourcePackageName = snapshot.sourcePackageName,
             sourceAppLabel = snapshot.sourceAppLabel,
         )
-        if (activeSurface == KeyboardSurface.Snippets || activeSurface == KeyboardSurface.SavedTextSearch) {
+        if (activeSurface == KeyboardSurface.Clipboard || activeSurface == KeyboardSurface.ClipboardSearch) {
             refreshClipboardHistoryViews()
         }
     }
@@ -1389,8 +1262,8 @@ class ZnKeyboardInputMethodService : InputMethodService(),
 
     private fun refreshClipboardHistoryViews() {
         val entries = ClipboardHistoryStore.read(this)
-        snippetPanelView?.submitClipboardHistory(entries)
-        savedTextSearchView?.setClipboardEntries(entries)
+        clipboardPanelView?.submitClipboardHistory(entries)
+        clipboardSearchView?.setClipboardEntries(entries)
     }
 
     private fun startRewriteFromCurrentEditor() {
@@ -1455,84 +1328,6 @@ class ZnKeyboardInputMethodService : InputMethodService(),
             }
         }
         clipboardManager.setPrimaryClip(clip)
-    }
-
-    /** Snippets double as as-you-type completions; newest first wins when several match. */
-    private fun loadSnippetCompletionSources() {
-        snippetCompletionSources = KeyboardSettings.readTextSnippets(this).asReversed().map { it.text }
-        scheduleComposerSuggestionRefresh(delayMillis = 0L)
-    }
-
-    private fun scheduleComposerSuggestionRefresh(
-        delayMillis: Long = COMPOSER_SUGGESTION_REFRESH_DELAY_MS,
-    ) {
-        cancelComposerSuggestionRefresh()
-        if (isSensitiveEditor(currentEditorInfo) || snippetCompletionSources.isEmpty()) {
-            setComposerSuggestion(null)
-            return
-        }
-        val refresh = Runnable {
-            pendingComposerSuggestionRefresh = null
-            refreshComposerSuggestion()
-        }
-        pendingComposerSuggestionRefresh = refresh
-        if (delayMillis <= 0L) {
-            mainHandler.post(refresh)
-        } else {
-            mainHandler.postDelayed(refresh, delayMillis)
-        }
-    }
-
-    private fun cancelComposerSuggestionRefresh() {
-        pendingComposerSuggestionRefresh?.let(mainHandler::removeCallbacks)
-        pendingComposerSuggestionRefresh = null
-    }
-
-    private fun refreshComposerSuggestion() {
-        if (isSensitiveEditor(currentEditorInfo) || snippetCompletionSources.isEmpty()) {
-            setComposerSuggestion(null)
-            return
-        }
-        val sources = snippetCompletionSources
-        val suggestion = textBeforeCursorForCompletion(sources.maxOf { it.length })
-            ?.let { findComposerCompletion(it, sources) }
-            ?.snippet
-        setComposerSuggestion(suggestion)
-    }
-
-    /** Text before a collapsed cursor that isn't mid-word, or null when no completion should show. */
-    private fun textBeforeCursorForCompletion(maxChars: Int): String? {
-        val inputConnection = currentInputConnection ?: return null
-        if (!inputConnection.getSelectedText(0).isNullOrEmpty()) return null
-        val after = inputConnection.getTextAfterCursor(1, 0)
-        if (!after.isNullOrEmpty() && after[0].isLetterOrDigit()) return null
-        return inputConnection.getTextBeforeCursor(maxChars, 0)?.toString()
-    }
-
-    /**
-     * Tries every word start before the cursor, longest run first, so "hello w" can still finish
-     * "hello world" while a new word after a space gets its own completion.
-     */
-    private fun findComposerCompletion(before: String, candidates: List<String>): ComposerCompletion? {
-        val longest = candidates.maxOfOrNull { it.length } ?: return null
-        // Index 0 may be mid-word when the editor returned a full window of maxChars.
-        val firstStart = (before.length - longest + 1).coerceAtLeast(0)
-        for (start in firstStart until before.length) {
-            if (before[start].isWhitespace()) continue
-            if (start > 0 && !before[start - 1].isWhitespace() && before[start - 1] !in COMPOSER_WORD_OPENERS) continue
-            val prefixLength = before.length - start
-            val snippet = candidates.firstOrNull { candidate ->
-                candidate.length > prefixLength && candidate.regionMatches(0, before, start, prefixLength, ignoreCase = true)
-            }
-            if (snippet != null) return ComposerCompletion(snippet, prefixLength)
-        }
-        return null
-    }
-
-    private fun setComposerSuggestion(text: String?) {
-        if (activeComposerSuggestion == text) return
-        activeComposerSuggestion = text
-        keyboardView?.setComposerSuggestion(text)
     }
 
     private fun captureRewriteTarget(): AgentEditTarget? {
@@ -2206,8 +2001,6 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     private val ModifierState.hasHardwareMeta: Boolean
         get() = ctrl || alt
 
-    private data class ComposerCompletion(val snippet: String, val prefixLength: Int)
-
     private data class EditorSnapshot(
         val text: String,
         val textStartOffset: Int,
@@ -2282,8 +2075,8 @@ class ZnKeyboardInputMethodService : InputMethodService(),
 
     private enum class KeyboardSurface {
         Keyboard,
-        Snippets,
-        SavedTextSearch,
+        Clipboard,
+        ClipboardSearch,
         Review,
     }
 
@@ -2318,8 +2111,6 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         const val MAX_GESTURE_DELETE_WORDS = 80
         const val CURSOR_DRAG_CONTEXT_CHARS = 8_192
         const val CURSOR_DRAG_MAX_CHARS = 120
-        const val COMPOSER_SUGGESTION_REFRESH_DELAY_MS = 80L
-        const val COMPOSER_WORD_OPENERS = "([{\"“"
         const val TYPING_CONTEXT_CHARS = 16
         const val PINYIN_BAR_HEIGHT_DP = 44
         const val PINYIN_DICTIONARY_ASSET = "pinyin/dict.tsv"

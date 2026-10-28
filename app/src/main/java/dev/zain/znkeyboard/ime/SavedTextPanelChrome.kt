@@ -1,12 +1,8 @@
 package dev.zain.znkeyboard.ime
 
 import android.content.Context
-import android.graphics.Color
-import android.graphics.Typeface
-import android.graphics.drawable.ColorDrawable
 import android.util.TypedValue
 import android.view.Gravity
-import android.widget.ImageButton
 import android.widget.TextView
 import dev.zain.znkeyboard.R
 
@@ -34,75 +30,4 @@ internal object SavedTextPanelChrome {
             setOnClickListener { onClick() }
         }
     }
-
-    fun iconButton(
-        context: Context,
-        iconResId: Int,
-        contentDescription: String,
-        backgroundColor: Int,
-        textColor: Int,
-        onClick: () -> Unit,
-    ): ImageButton {
-        return ImePanelChrome.iconButton(
-            context = context,
-            iconResId = iconResId,
-            contentDescription = contentDescription,
-            backgroundColor = backgroundColor,
-            textColor = textColor,
-            onClick = onClick,
-        )
-    }
-
-    fun tabButton(
-        context: Context,
-        label: String,
-        selected: Boolean,
-        selectedColor: Int,
-        unselectedColor: Int,
-        textColor: Int,
-        onSelectedTextColor: Int,
-        mutedTextColor: Int,
-        onClick: () -> Unit,
-    ): TextView {
-        return TextView(context).apply {
-            text = label
-            gravity = Gravity.CENTER
-            includeFontPadding = false
-            isClickable = true
-            isFocusable = false
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
-            setOnClickListener { onClick() }
-            updateTabButton(
-                selected = selected,
-                selectedColor = selectedColor,
-                unselectedColor = unselectedColor,
-                textColor = textColor,
-                onSelectedTextColor = onSelectedTextColor,
-                mutedTextColor = mutedTextColor,
-            )
-        }
-    }
-
-    fun TextView.updateTabButton(
-        selected: Boolean,
-        selectedColor: Int,
-        unselectedColor: Int,
-        textColor: Int,
-        onSelectedTextColor: Int,
-        mutedTextColor: Int,
-    ) {
-        setTextColor(if (selected) onSelectedTextColor else mutedTextColor)
-        typeface = Typeface.DEFAULT
-        background = if (selected) {
-            ImePressFeedback.roundedBackground(
-                context = context,
-                containerColor = selectedColor,
-                contentColor = onSelectedTextColor,
-                radiusDp = 18,
-            )
-        } else {
-            ColorDrawable(Color.TRANSPARENT)
-        }
-    }
-
 }

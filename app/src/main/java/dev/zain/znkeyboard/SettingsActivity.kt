@@ -196,7 +196,6 @@ private fun SettingsScreen(onOpenShortcuts: () -> Unit) {
     var agentApiKeyLocked by remember { mutableStateOf(KeyboardSettings.readAgentApiKeyLocked(context, agentProviderType)) }
     var agentProfiles by remember { mutableStateOf(KeyboardSettings.readAgentProfiles(context)) }
     var activeAgentProfileId by remember { mutableStateOf(KeyboardSettings.readActiveAgentProfileId(context)) }
-    var textSnippets by remember { mutableStateOf(KeyboardSettings.readTextSnippets(context)) }
     var clipboardHistoryCount by remember { mutableStateOf(ClipboardHistoryStore.read(context).size) }
     var backupPasswordDialogMode by remember { mutableStateOf<BackupPasswordDialogMode?>(null) }
     var pendingExportPassword by remember { mutableStateOf<String?>(null) }
@@ -223,7 +222,6 @@ private fun SettingsScreen(onOpenShortcuts: () -> Unit) {
         agentApiKeyLocked = KeyboardSettings.readAgentApiKeyLocked(context, nextProviderType)
         agentProfiles = KeyboardSettings.readAgentProfiles(context)
         activeAgentProfileId = KeyboardSettings.readActiveAgentProfileId(context)
-        textSnippets = KeyboardSettings.readTextSnippets(context)
         clipboardHistoryCount = ClipboardHistoryStore.read(context).size
     }
 
@@ -289,7 +287,7 @@ private fun SettingsScreen(onOpenShortcuts: () -> Unit) {
                                 refreshSettingsFromStorage()
                                 Toast.makeText(
                                     context,
-                                    "Backup restored (${restoreResult.snippetCount} snippets, ${restoreResult.clipboardEntryCount} clipboard items)",
+                                    "Backup restored (${restoreResult.clipboardEntryCount} clipboard items)",
                                     Toast.LENGTH_SHORT,
                                 ).show()
                             }
@@ -306,21 +304,6 @@ private fun SettingsScreen(onOpenShortcuts: () -> Unit) {
         )
 
         null -> Unit
-    }
-
-    DisposableEffect(context) {
-        val listener = KeyboardSettings.registerTextSnippetsChangeListener(context) {
-            textSnippets = KeyboardSettings.readTextSnippets(context)
-        }
-        onDispose {
-            KeyboardSettings.unregisterTextSnippetsChangeListener(context, listener)
-        }
-    }
-
-    fun updateTextSnippets(snippets: List<KeyboardSettings.TextSnippet>) {
-        val normalizedSnippets = KeyboardSettings.normalizeTextSnippets(snippets)
-        textSnippets = normalizedSnippets
-        KeyboardSettings.saveTextSnippets(context, normalizedSnippets)
     }
 
     Box(
@@ -500,10 +483,10 @@ private fun SettingsScreen(onOpenShortcuts: () -> Unit) {
 
                 }
 
-                SettingsDestination.Saved -> {
-                    TextSnippetsSection(
-                        snippets = textSnippets,
-                        onSnippetsChange = ::updateTextSnippets,
+                SettingsDestination.Backup -> {
+                    BackupRestoreSection(
+                        onExport = { backupPasswordDialogMode = BackupPasswordDialogMode.Export },
+                        onImport = { importLauncher.launch(BACKUP_IMPORT_MIME_TYPES) },
                     )
 
                     ClipboardHistorySettingsSection(
@@ -513,13 +496,6 @@ private fun SettingsScreen(onOpenShortcuts: () -> Unit) {
                             clipboardHistoryCount = 0
                             Toast.makeText(context, "Clipboard history cleared", Toast.LENGTH_SHORT).show()
                         },
-                    )
-                }
-
-                SettingsDestination.Backup -> {
-                    BackupRestoreSection(
-                        onExport = { backupPasswordDialogMode = BackupPasswordDialogMode.Export },
-                        onImport = { importLauncher.launch(BACKUP_IMPORT_MIME_TYPES) },
                     )
                 }
             }
@@ -602,200 +578,6 @@ private fun SettingsTitlePill(title: String, modifier: Modifier = Modifier) {
 private val settingsNavItems = SettingsDestination.entries.map { LiquidNavItem(it.label, it.iconResId) }
 
 @Composable
-private fun TextSnippetsSection(
-    snippets: List<KeyboardSettings.TextSnippet>,
-    onSnippetsChange: (List<KeyboardSettings.TextSnippet>) -> Unit,
-) {
-    var draft by remember { mutableStateOf("") }
-    var confirmingClearUntagged by remember { mutableStateOf(false) }
-    var lastClearedUntaggedSnippetCount by remember { mutableStateOf(0) }
-    var observedSnippetCount by remember { mutableStateOf(snippets.size) }
-    val untaggedSnippetCount = snippets.count { it.tags.isEmpty() }
-    val snippetsWereAdded = snippets.size > observedSnippetCount
-    val clearUntaggedButtonText = if (
-        lastClearedUntaggedSnippetCount > 0 &&
-        untaggedSnippetCount == 0 &&
-        !snippetsWereAdded
-    ) {
-        "Untagged deleted ($lastClearedUntaggedSnippetCount)"
-    } else {
-        "Clear untagged ($untaggedSnippetCount)"
-    }
-    val normalizedDraft = KeyboardSettings.textSnippetFromText(
-        text = draft,
-    )
-    val canAddSnippet = normalizedDraft.text.isNotBlank() &&
-        snippets.none { it.text == normalizedDraft.text } &&
-        snippets.size < KeyboardSettings.MAX_TEXT_SNIPPETS
-
-    LaunchedEffect(snippets.size) {
-        if (snippets.size > observedSnippetCount) {
-            lastClearedUntaggedSnippetCount = 0
-        }
-        observedSnippetCount = snippets.size
-    }
-
-    SettingsSectionCard {
-        SettingsSectionHeader(
-            title = "Text snippets",
-            subtitle = "Long-press space or use a Save snippet key. Snippets also autocomplete as you type.",
-            trailingText = "${snippets.size}/${KeyboardSettings.MAX_TEXT_SNIPPETS}",
-        )
-
-        OutlinedTextField(
-            value = draft,
-            onValueChange = { draft = it.take(KeyboardSettings.MAX_TEXT_SNIPPET_CHARS) },
-            label = { Text("Snippet") },
-            minLines = 2,
-            maxLines = 4,
-            modifier = Modifier.fillMaxWidth(),
-        )
-
-        Button(
-            onClick = {
-                lastClearedUntaggedSnippetCount = 0
-                onSnippetsChange(snippets + normalizedDraft)
-                draft = ""
-            },
-            enabled = canAddSnippet,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Icon(
-                painter = painterResource(R.drawable.ic_add_24),
-                contentDescription = null,
-                modifier = Modifier.size(16.dp),
-            )
-            Spacer(Modifier.width(8.dp))
-            Text("Add")
-        }
-
-        OutlinedButton(
-            onClick = { confirmingClearUntagged = true },
-            enabled = untaggedSnippetCount > 0,
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.outlinedButtonColors(contentColor = ZnKeyboardColors.DeleteContent),
-            border = BorderStroke(1.dp, ZnKeyboardColors.DeleteContent.copy(alpha = 0.55f)),
-        ) {
-            SettingsIconTextButtonContent(
-                iconResId = R.drawable.ic_delete_24,
-                text = clearUntaggedButtonText,
-            )
-        }
-
-        if (snippets.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(44.dp)
-                    .clip(RoundedCornerShape(COMPACT_ITEM_CORNER_RADIUS))
-                    .background(ZnKeyboardColors.Key),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text = "No snippets",
-                    color = ZnKeyboardColors.Muted,
-                    style = MaterialTheme.typography.labelLarge,
-                )
-            }
-        } else {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                snippets.forEachIndexed { index, snippet ->
-                    key(snippet.text) {
-                        TextSnippetEditorRow(
-                            snippet = snippet,
-                            onTagsChange = { tags ->
-                                onSnippetsChange(
-                                    snippets.toMutableList().apply {
-                                        this[index] = snippet.copy(tags = tags)
-                                    },
-                                )
-                            },
-                            onRemove = {
-                                onSnippetsChange(
-                                    snippets.toMutableList().apply {
-                                        removeAt(index)
-                                    },
-                                )
-                            },
-                        )
-                    }
-                }
-            }
-        }
-    }
-
-    if (confirmingClearUntagged) {
-        ClearUntaggedTextSnippetsDialog(
-            untaggedSnippetCount = untaggedSnippetCount,
-            onDismiss = { confirmingClearUntagged = false },
-            onConfirm = {
-                lastClearedUntaggedSnippetCount = untaggedSnippetCount
-                confirmingClearUntagged = false
-                onSnippetsChange(snippets.filter { it.tags.isNotEmpty() })
-            },
-        )
-    }
-}
-
-@Composable
-private fun ClearUntaggedTextSnippetsDialog(
-    untaggedSnippetCount: Int,
-    onDismiss: () -> Unit,
-    onConfirm: () -> Unit,
-) {
-    var confirmationText by remember { mutableStateOf("") }
-    val confirmationMatches = confirmationText == CLEAR_UNTAGGED_SNIPPETS_CONFIRMATION
-    val plural = if (untaggedSnippetCount == 1) "" else "s"
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Clear untagged snippets?") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(
-                    text = "This removes $untaggedSnippetCount snippet$plural with no tags. Tagged snippets will stay.",
-                )
-                OutlinedTextField(
-                    value = confirmationText,
-                    onValueChange = { confirmationText = it.take(CLEAR_UNTAGGED_SNIPPETS_CONFIRMATION.length) },
-                    label = { Text("Type CONFIRM") },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                    keyboardActions = KeyboardActions(
-                        onDone = {
-                            if (confirmationMatches && untaggedSnippetCount > 0) {
-                                onConfirm()
-                            }
-                        },
-                    ),
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = onConfirm,
-                enabled = confirmationMatches && untaggedSnippetCount > 0,
-            ) {
-                Text(
-                    text = "Clear",
-                    color = if (confirmationMatches && untaggedSnippetCount > 0) {
-                        ZnKeyboardColors.DeleteContent
-                    } else {
-                        ZnKeyboardColors.Muted
-                    },
-                )
-            }
-        },
-    )
-}
-
-@Composable
 private fun ClipboardHistorySettingsSection(
     entryCount: Int,
     onClearConfirmed: () -> Unit,
@@ -810,7 +592,7 @@ private fun ClipboardHistorySettingsSection(
         )
 
         Text(
-            text = "Clipboard history is available from the spacebar long-press saved text panel. Clearing it requires confirmation here.",
+            text = "Long-press space on the keyboard to open clipboard history. Clearing it requires confirmation here.",
             color = ZnKeyboardColors.Muted,
             style = MaterialTheme.typography.bodySmall,
         )
@@ -853,343 +635,6 @@ private fun ClipboardHistorySettingsSection(
             },
         )
     }
-}
-
-@Composable
-private fun TextSnippetEditorRow(
-    snippet: KeyboardSettings.TextSnippet,
-    onTagsChange: (List<String>) -> Unit,
-    onRemove: () -> Unit,
-) {
-    var confirmingDelete by remember { mutableStateOf(false) }
-
-    SwipeRevealDeleteRow(
-        onRemove = { confirmingDelete = true },
-    ) {
-        Surface(
-            color = ZnKeyboardColors.Key,
-            shape = RoundedCornerShape(COMPACT_ITEM_CORNER_RADIUS),
-            tonalElevation = 0.dp,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Column(
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                Text(
-                    text = snippet.text,
-                    color = ZnKeyboardColors.OnSurface,
-                    style = MaterialTheme.typography.bodyMedium,
-                    maxLines = 4,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                TextSnippetTagsEditor(
-                    tags = snippet.tags,
-                    onTagsChange = onTagsChange,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-        }
-    }
-
-    if (confirmingDelete) {
-        AlertDialog(
-            onDismissRequest = { confirmingDelete = false },
-            title = { Text("Delete snippet?") },
-            text = {
-                Text(
-                    text = snippet.text,
-                    maxLines = 4,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            },
-            dismissButton = {
-                TextButton(onClick = { confirmingDelete = false }) {
-                    Text("Cancel")
-                }
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        confirmingDelete = false
-                        onRemove()
-                    },
-                ) {
-                    Text(
-                        text = "Delete",
-                        color = ZnKeyboardColors.DeleteContent,
-                    )
-                }
-            },
-        )
-    }
-}
-
-@Composable
-private fun SwipeRevealDeleteRow(
-    onRemove: () -> Unit,
-    content: @Composable () -> Unit,
-) {
-    val density = LocalDensity.current
-    val revealWidthPx = with(density) { TEXT_SNIPPET_DELETE_REVEAL_WIDTH.toPx() }
-    var offsetPx by remember { mutableFloatStateOf(0f) }
-    var dragging by remember { mutableStateOf(false) }
-    val visualOffsetPx by animateFloatAsState(
-        targetValue = offsetPx,
-        animationSpec = if (dragging) {
-            snap()
-        } else {
-            spring(stiffness = Spring.StiffnessMediumLow)
-        },
-        label = "textSnippetDeleteRevealOffset",
-    )
-    val draggableState = rememberDraggableState { delta ->
-        offsetPx = (offsetPx + delta).coerceIn(-revealWidthPx, 0f)
-    }
-    val shape = RoundedCornerShape(COMPACT_ITEM_CORNER_RADIUS)
-
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(shape)
-            .background(ZnKeyboardColors.DeleteBackground),
-    ) {
-        Row(
-            modifier = Modifier
-                .align(Alignment.CenterEnd)
-                .clickable(onClick = onRemove)
-                .padding(horizontal = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(
-                painter = painterResource(R.drawable.ic_delete_24),
-                contentDescription = null,
-                tint = ZnKeyboardColors.DeleteContent,
-                modifier = Modifier.size(18.dp),
-            )
-            Text(
-                text = "Delete",
-                color = ZnKeyboardColors.DeleteContent,
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.SemiBold,
-            )
-        }
-
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .offset { IntOffset(visualOffsetPx.roundToInt(), 0) }
-                .draggable(
-                    state = draggableState,
-                    orientation = Orientation.Horizontal,
-                    onDragStarted = {
-                        dragging = true
-                    },
-                    onDragStopped = {
-                        dragging = false
-                        offsetPx = if (offsetPx <= -revealWidthPx * TEXT_SNIPPET_DELETE_LOCK_THRESHOLD) {
-                            -revealWidthPx
-                        } else {
-                            0f
-                        }
-                    },
-                ),
-        ) {
-            content()
-        }
-    }
-}
-
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun TextSnippetTagsEditor(
-    tags: List<String>,
-    onTagsChange: (List<String>) -> Unit,
-    modifier: Modifier = Modifier,
-    helperText: String? = null,
-) {
-    var addingTag by remember(tags) { mutableStateOf(false) }
-    var tagDraft by remember(tags) { mutableStateOf("") }
-
-    fun submitTagDraft() {
-        val newTags = KeyboardSettings.parseTextSnippetTags(tagDraft)
-        if (newTags.isNotEmpty()) {
-            onTagsChange(KeyboardSettings.normalizeTextSnippetTags(tags + newTags))
-        }
-        tagDraft = ""
-        addingTag = false
-    }
-
-    Column(
-        modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        Text(
-            text = "Tags",
-            color = ZnKeyboardColors.Muted,
-            style = MaterialTheme.typography.labelMedium,
-        )
-        FlowRow(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            tags.forEach { tag ->
-                TextSnippetTagPill(
-                    tag = tag,
-                    onRemove = {
-                        onTagsChange(tags.filterNot { it.equals(tag, ignoreCase = true) })
-                    },
-                )
-            }
-
-            if (tags.size < KeyboardSettings.MAX_TEXT_SNIPPET_TAGS) {
-                if (addingTag) {
-                    TextSnippetTagInputPill(
-                        value = tagDraft,
-                        onValueChange = { tagDraft = it },
-                        onDone = ::submitTagDraft,
-                    )
-                } else {
-                    AddTextSnippetTagButton(
-                        onClick = { addingTag = true },
-                    )
-                }
-            }
-        }
-
-        helperText?.let { text ->
-            Text(
-                text = text,
-                color = ZnKeyboardColors.Muted,
-                style = MaterialTheme.typography.bodySmall,
-            )
-        }
-    }
-}
-
-@Composable
-private fun TextSnippetTagPill(
-    tag: String,
-    onRemove: () -> Unit,
-) {
-    Surface(
-        color = ZnKeyboardColors.FunctionKey,
-        contentColor = ZnKeyboardColors.OnSurface,
-        shape = CircleShape,
-        tonalElevation = 0.dp,
-    ) {
-        Row(
-            modifier = Modifier.padding(start = 10.dp, top = 5.dp, end = 7.dp, bottom = 5.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = "#$tag",
-                style = MaterialTheme.typography.labelMedium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Icon(
-                painter = painterResource(R.drawable.ic_close_24),
-                contentDescription = "Remove $tag tag",
-                tint = ZnKeyboardColors.Muted,
-                modifier = Modifier
-                    .size(14.dp)
-                    .clickable(onClick = onRemove),
-            )
-        }
-    }
-}
-
-@Composable
-private fun AddTextSnippetTagButton(
-    onClick: () -> Unit,
-) {
-    Surface(
-        color = Color.Transparent,
-        contentColor = ZnKeyboardColors.Muted,
-        shape = CircleShape,
-        border = BorderStroke(1.dp, ZnKeyboardColors.Muted.copy(alpha = 0.7f)),
-        tonalElevation = 0.dp,
-        modifier = Modifier
-            .size(26.dp)
-            .clickable(onClick = onClick),
-    ) {
-        Box(contentAlignment = Alignment.Center) {
-            Icon(
-                painter = painterResource(R.drawable.ic_add_24),
-                contentDescription = "Add tag",
-                tint = ZnKeyboardColors.Muted,
-                modifier = Modifier.size(14.dp),
-            )
-        }
-    }
-}
-
-@Composable
-private fun TextSnippetTagInputPill(
-    value: String,
-    onValueChange: (String) -> Unit,
-    onDone: () -> Unit,
-) {
-    val focusRequester = remember { FocusRequester() }
-    val focusManager = LocalFocusManager.current
-    var hasFocused by remember { mutableStateOf(false) }
-
-    LaunchedEffect(Unit) {
-        focusRequester.requestFocus()
-    }
-
-    BasicTextField(
-        value = value,
-        onValueChange = onValueChange,
-        singleLine = true,
-        textStyle = MaterialTheme.typography.labelMedium.copy(color = ZnKeyboardColors.OnSurface),
-        cursorBrush = SolidColor(ZnKeyboardColors.Accent),
-        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-        keyboardActions = KeyboardActions(
-            onDone = {
-                onDone()
-                focusManager.clearFocus()
-            },
-        ),
-        modifier = Modifier
-            .widthIn(min = 118.dp, max = 220.dp)
-            .onFocusChanged { focusState ->
-                if (hasFocused && !focusState.isFocused) {
-                    onDone()
-                }
-                if (focusState.isFocused) {
-                    hasFocused = true
-                }
-            }
-            .focusRequester(focusRequester),
-        decorationBox = { innerTextField ->
-            Surface(
-                color = Color.Transparent,
-                contentColor = ZnKeyboardColors.OnSurface,
-                shape = CircleShape,
-                border = BorderStroke(1.dp, ZnKeyboardColors.Accent.copy(alpha = 0.75f)),
-                tonalElevation = 0.dp,
-            ) {
-                Box(
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                    contentAlignment = Alignment.CenterStart,
-                ) {
-                    if (value.isBlank()) {
-                        Text(
-                            text = "tag tag",
-                            color = ZnKeyboardColors.Muted,
-                            style = MaterialTheme.typography.labelMedium,
-                        )
-                    }
-                    innerTextField()
-                }
-            }
-        },
-    )
 }
 
 @Composable
@@ -1241,8 +686,7 @@ private enum class SettingsDestination(
     Typing("typing", "Typing", "Typing", R.drawable.ic_touch_24),
     Keyboard("keyboard", "Layout", "Layout & rows", R.drawable.ic_keyboard_24),
     Tools("tools", "Tools", "Tools", R.drawable.ic_tune_24),
-    Saved("saved", "Snippets", "Snippets & clipboard", R.drawable.ic_save_24),
-    Backup("backup", "Backup", "Backup", R.drawable.ic_download_24),
+    Backup("backup", "Backup", "Backup & clipboard", R.drawable.ic_download_24),
 }
 
 private enum class BackupPasswordDialogMode {
@@ -2215,6 +1659,3 @@ private val SKIN_TONE_PICKER_MAX_HEIGHT = SettingsUiDimensions.SKIN_TONE_PICKER_
 private val SECTION_CORNER_RADIUS = SettingsUiDimensions.SECTION_CORNER_RADIUS
 private val COMPACT_ITEM_CORNER_RADIUS = SettingsUiDimensions.COMPACT_ITEM_CORNER_RADIUS
 private val PICKER_CORNER_RADIUS = SettingsUiDimensions.PICKER_CORNER_RADIUS
-private val TEXT_SNIPPET_DELETE_REVEAL_WIDTH = 96.dp
-private const val TEXT_SNIPPET_DELETE_LOCK_THRESHOLD = 0.45f
-private const val CLEAR_UNTAGGED_SNIPPETS_CONFIRMATION = "CONFIRM"

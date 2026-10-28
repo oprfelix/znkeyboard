@@ -35,10 +35,6 @@ object KeyboardSettings {
     const val MAX_UPPER_ROW_KEYS = KeyboardDefaults.MAX_UPPER_ROW_KEYS
     private const val LEGACY_MAX_AGENT_ROW_KEYS = 5
     const val MAX_SECOND_ROW_BUTTONS = KeyboardDefaults.MAX_SECOND_ROW_BUTTONS
-    const val MAX_TEXT_SNIPPETS = KeyboardDefaults.MAX_TEXT_SNIPPETS
-    const val MAX_TEXT_SNIPPET_CHARS = KeyboardDefaults.MAX_TEXT_SNIPPET_CHARS
-    const val MAX_TEXT_SNIPPET_TAGS = KeyboardDefaults.MAX_TEXT_SNIPPET_TAGS
-    const val MAX_TEXT_SNIPPET_TAG_CHARS = KeyboardDefaults.MAX_TEXT_SNIPPET_TAG_CHARS
     const val MAX_AGENT_PROFILES = 8
     const val MAX_AGENT_PROFILE_NAME_CHARS = 30
 
@@ -55,8 +51,9 @@ object KeyboardSettings {
     private const val KEY_SECOND_ROW_BUTTONS = "second_row_buttons"
     private const val KEY_KEYBOARD_ROW_ORDER = "keyboard_row_order"
     private const val KEY_SHORTCUT_MACROS = "shortcut_macros"
-    private const val KEY_SAVED_TEXT_PANEL_TAB = "saved_text_panel_tab"
-    private const val KEY_TEXT_SNIPPETS = "text_snippets"
+    // Snippets were removed; these keys only exist to clean up what older versions stored.
+    private const val LEGACY_KEY_SAVED_TEXT_PANEL_TAB = "saved_text_panel_tab"
+    private const val LEGACY_KEY_TEXT_SNIPPETS = "text_snippets"
     private const val KEY_ADAPTIVE_TOUCH_ENABLED = "adaptive_touch_enabled"
     private const val KEY_KEY_HAPTICS_ENABLED = "key_haptics_enabled"
     private const val KEY_KEY_PREVIEW_ENABLED = "key_preview_enabled"
@@ -91,7 +88,6 @@ object KeyboardSettings {
 
     val ACTION_KEY_OPTIONS = listOf(
         UpperRowKeyOption("rewrite", "Rewrite"),
-        UpperRowKeyOption("save_text", "Save snippet"),
     )
 
     val CONTROL_KEY_OPTIONS = listOf(
@@ -158,7 +154,6 @@ object KeyboardSettings {
     private val symbolTextByKeyId = SYMBOL_KEY_OPTIONS.associate { it.id to it.label }
     private val keyboardRowIds = KeyboardRow.entries.mapTo(mutableSetOf()) { it.id }
     private val whitespaceRegex = Regex("\\s+")
-    private val textSnippetTagSeparatorRegex = Regex("[,\\s]+")
 
     fun readHeightScale(context: Context): Float {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -224,6 +219,15 @@ object KeyboardSettings {
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .edit()
             .putStringSet(KEY_PINYIN_FUZZY_RULES, rules.mapTo(mutableSetOf()) { it.id })
+            .apply()
+    }
+
+    /** Drops snippet data saved by versions that still had snippets. */
+    fun deleteLegacySnippetData(context: Context) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .remove(LEGACY_KEY_TEXT_SNIPPETS)
+            .remove(LEGACY_KEY_SAVED_TEXT_PANEL_TAB)
             .apply()
     }
 
@@ -345,19 +349,6 @@ object KeyboardSettings {
         return SHORTCUT_ROW_KEY_OPTIONS.firstOrNull { it.id == keyId }?.label.orEmpty()
     }
 
-    fun readSavedTextPanelTab(context: Context): SavedTextPanelTab {
-        val stored = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .getString(KEY_SAVED_TEXT_PANEL_TAB, null)
-        return SavedTextPanelTab.entries.firstOrNull { it.id == stored } ?: SavedTextPanelTab.Snippets
-    }
-
-    fun saveSavedTextPanelTab(context: Context, tab: SavedTextPanelTab) {
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .edit()
-            .putString(KEY_SAVED_TEXT_PANEL_TAB, tab.id)
-            .apply()
-    }
-
     fun readKeyboardRowOrder(context: Context): List<String> {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val stored = prefs.getString(KEY_KEYBOARD_ROW_ORDER, null) ?: return DEFAULT_KEYBOARD_ROW_ORDER
@@ -391,91 +382,6 @@ object KeyboardSettings {
 
     fun labelForKeyboardRow(rowId: String): String {
         return KeyboardRow.entries.firstOrNull { it.id == rowId }?.label.orEmpty()
-    }
-
-    fun readTextSnippets(context: Context): List<TextSnippet> {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val stored = prefs.getString(KEY_TEXT_SNIPPETS, null) ?: return emptyList()
-        return parseTextSnippetArray(stored)
-            ?.let(::normalizeTextSnippets)
-            ?: emptyList()
-    }
-
-    fun saveTextSnippets(context: Context, snippets: List<TextSnippet>) {
-        val encoded = textSnippetsJson(normalizeTextSnippets(snippets)).toString()
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .edit()
-            .putString(KEY_TEXT_SNIPPETS, encoded)
-            .apply()
-    }
-
-    fun registerTextSnippetsChangeListener(
-        context: Context,
-        onChanged: () -> Unit,
-    ): SharedPreferences.OnSharedPreferenceChangeListener {
-        val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-            if (key == KEY_TEXT_SNIPPETS) {
-                onChanged()
-            }
-        }
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .registerOnSharedPreferenceChangeListener(listener)
-        return listener
-    }
-
-    fun unregisterTextSnippetsChangeListener(
-        context: Context,
-        listener: SharedPreferences.OnSharedPreferenceChangeListener,
-    ) {
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .unregisterOnSharedPreferenceChangeListener(listener)
-    }
-
-    fun normalizeTextSnippets(snippets: List<TextSnippet>): List<TextSnippet> {
-        val seenTexts = mutableSetOf<String>()
-        return snippets
-            .mapNotNull { snippet ->
-                val text = normalizeTextSnippetText(snippet.text)
-                if (text.isBlank() || !seenTexts.add(text)) {
-                    null
-                } else {
-                    TextSnippet(
-                        text = text,
-                        tags = normalizeTextSnippetTags(snippet.tags),
-                    )
-                }
-            }
-            .take(MAX_TEXT_SNIPPETS)
-    }
-
-    fun textSnippetFromText(text: String, tags: List<String> = emptyList()): TextSnippet {
-        return TextSnippet(
-            text = normalizeTextSnippetText(text),
-            tags = normalizeTextSnippetTags(tags),
-        )
-    }
-
-    fun parseTextSnippetTags(value: String): List<String> {
-        return normalizeTextSnippetTags(value.split(textSnippetTagSeparatorRegex))
-    }
-
-    fun normalizeTextSnippetTags(tags: List<String>): List<String> {
-        return tags
-            .flatMap { it.split(textSnippetTagSeparatorRegex) }
-            .map {
-                it.trim()
-                    .removePrefix("#")
-                    .replace(whitespaceRegex, " ")
-                    .take(MAX_TEXT_SNIPPET_TAG_CHARS)
-                    .trim()
-            }
-            .filter { it.isNotBlank() }
-            .distinctBy { it.lowercase() }
-            .take(MAX_TEXT_SNIPPET_TAGS)
-    }
-
-    private fun normalizeTextSnippetText(text: String): String {
-        return text.trim().take(MAX_TEXT_SNIPPET_CHARS)
     }
 
     fun readAgentModeEnabled(context: Context): Boolean {
@@ -894,7 +800,6 @@ object KeyboardSettings {
                             .put("shortcutRowOrder", stringArrayJson(readKeyboardRowOrder(context)))
                             .put("shortcutMacros", ShortcutMacros.toJson(readShortcutMacros(context))),
                     )
-                    .put("snippets", textSnippetsJson(readTextSnippets(context)))
                     .put(
                         "rewrite",
                         JSONObject()
@@ -976,9 +881,6 @@ object KeyboardSettings {
             ?.let(::normalizeKeyboardRowOrder)
             ?: readKeyboardRowOrder(context)
 
-        val snippets = settings.optTextSnippetList("snippets")
-            ?.let(::normalizeTextSnippets)
-            ?: readTextSnippets(context)
         val clipboardHistory = settings.optClipboardHistory("clipboardHistory")
             ?.let(ClipboardHistoryStore::normalizeEntries)
         val learnedTyping = settings.optJSONObject("learnedTyping")?.let { typing ->
@@ -1063,7 +965,6 @@ object KeyboardSettings {
         saveUpperRowKeyIds(context, upperRowKeys)
         saveSecondRowButtonIds(context, secondRowButtons)
         saveKeyboardRowOrder(context, rowOrder)
-        saveTextSnippets(context, snippets)
         saveAgentModeEnabled(context, rewrite.optBoolean("enabled", readAgentModeEnabled(context)))
         saveAgentProviderType(context, providerType)
         saveAgentApiBaseUrl(context, rewrite.optString("apiBaseUrl", readAgentApiBaseUrl(context)))
@@ -1092,7 +993,6 @@ object KeyboardSettings {
 
         return BackupRestoreResult(
             schemaVersion = schemaVersion,
-            snippetCount = snippets.size,
             clipboardEntryCount = clipboardHistory?.size ?: ClipboardHistoryStore.read(context).size,
         )
     }
@@ -1127,14 +1027,6 @@ object KeyboardSettings {
                     add(array.optString(index))
                 }
             }
-        } catch (_: JSONException) {
-            null
-        }
-    }
-
-    private fun parseTextSnippetArray(stored: String): List<TextSnippet>? {
-        return try {
-            JSONArray(stored).toTextSnippetList()
         } catch (_: JSONException) {
             null
         }
@@ -1315,18 +1207,6 @@ object KeyboardSettings {
         }
     }
 
-    private fun textSnippetsJson(snippets: List<TextSnippet>): JSONArray {
-        return JSONArray().apply {
-            normalizeTextSnippets(snippets).forEach { snippet ->
-                put(
-                    JSONObject()
-                        .put("text", snippet.text)
-                        .put("tags", stringArrayJson(snippet.tags)),
-                )
-            }
-        }
-    }
-
     private fun clipboardHistoryJson(entries: List<ClipboardHistoryStore.Entry>): JSONArray {
         return JSONArray().apply {
             ClipboardHistoryStore.normalizeEntries(entries).forEach { entry ->
@@ -1354,27 +1234,6 @@ object KeyboardSettings {
     private fun JSONObject.optBase64(key: String): ByteArray? {
         val encoded = optString(key).takeIf { it.isNotEmpty() } ?: return null
         return runCatching { Base64.decode(encoded, Base64.NO_WRAP) }.getOrNull()
-    }
-
-    private fun JSONObject.optTextSnippetList(key: String): List<TextSnippet>? {
-        val array = optJSONArray(key) ?: return null
-        return array.toTextSnippetList()
-    }
-
-    private fun JSONArray.toTextSnippetList(): List<TextSnippet> {
-        return buildList {
-            for (index in 0 until length()) {
-                val item = opt(index)
-                when (item) {
-                    is JSONObject -> {
-                        val tags = item.optJSONArray("tags")?.toStringList().orEmpty()
-                        add(TextSnippet(text = item.optString("text"), tags = tags))
-                    }
-                    is String -> add(TextSnippet(text = item, tags = emptyList()))
-                    else -> add(TextSnippet(text = optString(index), tags = emptyList()))
-                }
-            }
-        }
     }
 
     private fun JSONArray.toStringList(): List<String> {
@@ -1450,26 +1309,12 @@ object KeyboardSettings {
         val label: String,
     )
 
-    data class TextSnippet(
-        val text: String,
-        val tags: List<String> = emptyList(),
-    )
-
     enum class KeyboardRow(
         val id: String,
         val label: String,
     ) {
         Upper("upper", "Shortcut row A"),
         Second("second", "Shortcut row B"),
-    }
-
-    enum class SavedTextPanelTab(
-        val id: String,
-        val label: String,
-        val searchLabel: String,
-    ) {
-        Clipboard("clipboard", "Clipboard", "Search clipboard"),
-        Snippets("snippets", "Snippets", "Search snippets"),
     }
 
     enum class AgentProviderType(
@@ -1570,7 +1415,6 @@ object KeyboardSettings {
 
     data class BackupRestoreResult(
         val schemaVersion: Int,
-        val snippetCount: Int,
         val clipboardEntryCount: Int,
     )
 
