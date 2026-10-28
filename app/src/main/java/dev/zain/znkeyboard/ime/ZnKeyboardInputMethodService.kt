@@ -6,7 +6,6 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.net.Uri
 import android.inputmethodservice.InputMethodService
 import android.os.Handler
 import android.os.Looper
@@ -21,13 +20,9 @@ import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.ExtractedTextRequest
 import android.view.inputmethod.InputConnection
-import android.view.inputmethod.InputContentInfo
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.Toast
-import androidx.core.content.FileProvider
-import dev.zain.znkeyboard.EmojiCatalog
-import dev.zain.znkeyboard.EmojiSkinTone
 import dev.zain.znkeyboard.KeyboardSettings
 import dev.zain.znkeyboard.R
 import dev.zain.znkeyboard.constants.AgentDefaults
@@ -45,9 +40,6 @@ import java.util.Locale
 
 class ZnKeyboardInputMethodService : InputMethodService(),
     ZnKeyboardView.Callback,
-    EmojiPanelView.Callback,
-    EmojiSearchView.Callback,
-    GifSearchView.Callback,
     SnippetPanelView.Callback,
     SavedTextSearchView.Callback,
     AgentReviewView.Callback,
@@ -62,20 +54,10 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     private var pinyinCandidates: List<PinyinEngine.Candidate> = emptyList()
     private var inputRoot: LinearLayout? = null
     private var keyboardContainer: FrameLayout? = null
-    private var emojiPanelView: EmojiPanelView? = null
-    private var emojiSearchView: EmojiSearchView? = null
-    private var gifSearchView: GifSearchView? = null
     private var snippetPanelView: SnippetPanelView? = null
     private var savedTextSearchView: SavedTextSearchView? = null
     private var agentReviewView: AgentReviewView? = null
     private var currentEditorInfo: EditorInfo? = null
-    private var recentEmojis: List<String> = emptyList()
-    private var recentEmojiRows = EmojiCatalog.DEFAULT_RECENT_ROW_COUNT
-    private var defaultEmojiSkinTone = EmojiSkinTone.Default
-    private var customEmojiTags: Map<String, List<String>> = emptyMap()
-    private var emojiSuggestionTags: List<EmojiSuggestionTag> = emptyList()
-    private var emojiKeySuggestion: String? = null
-    private var pendingEmojiSuggestionRefresh: Runnable? = null
     private var snippetCompletionSources: List<String> = emptyList()
     private var activeComposerSuggestion: String? = null
     private var pendingComposerSuggestionRefresh: Runnable? = null
@@ -96,7 +78,6 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     private var agentError: String? = null
     private var agentLoading = false
     private var requestGeneration = 0
-    private var gifShareGeneration = 0
     private var backspaceGestureDeleteState: BackspaceGestureDeleteState? = null
     private var spaceCursorDragState: SpaceCursorDragState? = null
     private var lastCapturedClipboardSnapshot: ClipboardSnapshot? = null
@@ -125,35 +106,17 @@ class ZnKeyboardInputMethodService : InputMethodService(),
 
     override fun onCreateInputView(): View {
         appliedThemeSignature = ImeColors.apply(this, KeyboardSettings.readKeyboardTheme(this))
-        gifSearchView?.dispose()
-        gifSearchView = null
         // Cached panels hold colors from the previous theme; rebuild them lazily.
-        emojiPanelView = null
         snippetPanelView = null
         agentReviewView = null
         activeSurface = KeyboardSurface.Keyboard
-        recentEmojis = KeyboardSettings.readRecentEmojis(this)
-        recentEmojiRows = KeyboardSettings.readRecentEmojiRows(this)
-        defaultEmojiSkinTone = KeyboardSettings.readEmojiSkinTone(this)
-        customEmojiTags = KeyboardSettings.readCustomEmojiTags(this)
-        rebuildEmojiSuggestionTags()
         val keyboard = ZnKeyboardView(this).also { view ->
             keyboardView = view
             view.callback = this
             view.typingEngine = typingEngine
-            view.setEmojiKeySuggestion(emojiKeySuggestion)
             view.setComposerSuggestion(activeComposerSuggestion)
             view.setPhonePadMode(shouldUsePhonePadMode(currentEditorInfo))
             view.setPinyinMode(pinyinModeEnabled)
-        }
-        val emojiSearch = EmojiSearchView(this).also { view ->
-            emojiSearchView = view
-            view.callback = this
-        }
-        val gifSearch = GifSearchView(this).also { view ->
-            gifSearchView = view
-            view.callback = this
-            view.setProviderSettings(KeyboardSettings.readGifProviderSettings(this))
         }
         val savedTextSearch = SavedTextSearchView(this).also { view ->
             savedTextSearchView = view
@@ -177,20 +140,6 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         return LinearLayout(this).apply {
             inputRoot = this
             orientation = LinearLayout.VERTICAL
-            addView(
-                emojiSearch,
-                LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT,
-                ),
-            )
-            addView(
-                gifSearch,
-                LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT,
-                ),
-            )
             addView(
                 savedTextSearch,
                 LinearLayout.LayoutParams(
@@ -226,7 +175,6 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         keyboardView?.setPhonePadMode(shouldUsePhonePadMode(attribute))
         resetAgentState(returnToKeyboard = true)
         applyKeyboardSettings()
-        scheduleEmojiSuggestionRefresh(delayMillis = 0L)
     }
 
     override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {
@@ -246,7 +194,6 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         keyboardView?.setEnterLabel(resolveEnterLabel(info))
         renderSecondRow()
         capturePrimaryClipboardText()
-        scheduleEmojiSuggestionRefresh(delayMillis = 0L)
         scheduleComposerSuggestionRefresh(delayMillis = 0L)
         updateAutoShift()
     }
@@ -256,9 +203,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         typingEngine.save()
         keyboardView?.clearLatchedModifiers()
         keyboardView?.resetToLetters()
-        cancelEmojiSuggestionRefresh()
         cancelComposerSuggestionRefresh()
-        setEmojiKeySuggestion(null)
         setComposerSuggestion(null)
         resetAgentState(returnToKeyboard = true)
         super.onFinishInputView(finishingInput)
@@ -266,15 +211,11 @@ class ZnKeyboardInputMethodService : InputMethodService(),
 
     override fun onDestroy() {
         requestGeneration++
-        gifShareGeneration++
         unregisterClipboardListener()
-        cancelEmojiSuggestionRefresh()
         cancelComposerSuggestionRefresh()
         snippetChangeListener?.let { KeyboardSettings.unregisterTextSnippetsChangeListener(this, it) }
         snippetChangeListener = null
         typingEngine.shutdown()
-        gifSearchView?.dispose()
-        gifSearchView = null
         super.onDestroy()
     }
 
@@ -302,18 +243,11 @@ class ZnKeyboardInputMethodService : InputMethodService(),
             updateAutoShift()
         }
         if (oldSelStart != newSelStart || oldSelEnd != newSelEnd) {
-            scheduleEmojiSuggestionRefresh()
             scheduleComposerSuggestionRefresh()
         }
     }
 
     override fun onKeyboardAction(action: KeyboardAction, modifiers: ModifierState) {
-        if (activeSurface == KeyboardSurface.EmojiSearch && handleEmojiSearchKeyboardAction(action, modifiers)) {
-            return
-        }
-        if (activeSurface == KeyboardSurface.GifSearch && handleGifSearchKeyboardAction(action, modifiers)) {
-            return
-        }
         if (activeSurface == KeyboardSurface.SavedTextSearch && handleSavedTextSearchKeyboardAction(action, modifiers)) {
             return
         }
@@ -382,84 +316,8 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         finishSpaceCursorDrag()
     }
 
-    override fun onEmojiPanelRequested() {
-        showEmojiPanel()
-    }
-
     override fun onSnippetPanelRequested() {
         showSnippetPanel()
-    }
-
-    override fun onEmojiSelected(emoji: String, updatedRecentEmojis: List<String>) {
-        handleText(emoji, ModifierState(ctrl = false, alt = false))
-        persistRecentEmojis(updatedRecentEmojis)
-    }
-
-    override fun onEmojiSearchRequested() {
-        showEmojiSearchPanel()
-    }
-
-    override fun onGifPanelRequested() {
-        if (isSensitiveEditor(currentEditorInfo)) {
-            Toast.makeText(this, "GIFs are disabled in password fields.", Toast.LENGTH_SHORT).show()
-            return
-        }
-        showGifPanel()
-    }
-
-    override fun onGifKeyboardRequested() {
-        showKeyboardPanel()
-    }
-
-    override fun onGifEmojiRequested() {
-        showEmojiPanel()
-    }
-
-    override fun onGifSearchRequested() {
-        showGifSearchPanel()
-    }
-
-    override fun onEmojiPanelClosed() {
-        showKeyboardPanel()
-    }
-
-    override fun onEmojiBackspace() {
-        handleBackspace(ModifierState(ctrl = false, alt = false))
-    }
-
-    override fun onEmojiSpace() {
-        handleText(" ", ModifierState(ctrl = false, alt = false))
-    }
-
-    override fun onEmojiSearchClosed() {
-        showEmojiPanel()
-    }
-
-    override fun onEmojiSearchEmojiSelected(emoji: String, updatedRecentEmojis: List<String>) {
-        handleText(emoji, ModifierState(ctrl = false, alt = false))
-        persistRecentEmojis(updatedRecentEmojis)
-    }
-
-    override fun onGifSearchClosed() {
-        showKeyboardPanel()
-    }
-
-    override fun onGifSearchBackToBrowse() {
-        showGifPanel(keepCurrentResults = true)
-    }
-
-    override fun onGifBackspace() {
-        handleBackspace(ModifierState(ctrl = false, alt = false))
-    }
-
-    override fun onGifSelected(gif: GifSearchResult) {
-        sendGif(gif)
-    }
-
-    override fun onEmojiKeySuggestionSelected(emoji: String) {
-        replaceAdjacentSuggestionText(emoji)
-        handleText(emoji, ModifierState(ctrl = false, alt = false))
-        persistRecentEmojis(EmojiCatalog.promoteRecentEmoji(emoji, recentEmojis))
     }
 
     override fun onSaveSnippetRequested() {
@@ -561,17 +419,6 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         autoCapitalizeEnabled = KeyboardSettings.readAutoCapitalizeEnabled(this)
         doubleSpacePeriodEnabled = KeyboardSettings.readDoubleSpacePeriodEnabled(this)
         val bottomPaddingDp = KeyboardSettings.readBottomPaddingDp(this)
-        recentEmojiRows = KeyboardSettings.readRecentEmojiRows(this)
-        val updatedDefaultEmojiSkinTone = KeyboardSettings.readEmojiSkinTone(this)
-        val updatedCustomEmojiTags = KeyboardSettings.readCustomEmojiTags(this)
-        val suggestionInputsChanged = defaultEmojiSkinTone != updatedDefaultEmojiSkinTone ||
-            customEmojiTags != updatedCustomEmojiTags
-        defaultEmojiSkinTone = updatedDefaultEmojiSkinTone
-        customEmojiTags = updatedCustomEmojiTags
-        if (suggestionInputsChanged) {
-            rebuildEmojiSuggestionTags()
-            scheduleEmojiSuggestionRefresh(delayMillis = 0L)
-        }
         keyboardView?.let { view ->
             view.setHeightScale(heightScale)
             view.setBottomPaddingDp(bottomPaddingDp)
@@ -582,23 +429,6 @@ class ZnKeyboardInputMethodService : InputMethodService(),
             view.setUpperRowKeyIds(KeyboardSettings.readUpperRowKeyIds(this))
             view.setSecondRowButtonIds(KeyboardSettings.readSecondRowButtonIds(this))
             view.setKeyboardRowOrder(KeyboardSettings.readKeyboardRowOrder(this))
-        }
-        emojiPanelView?.let { view ->
-            view.setHeightScale(heightScale)
-            if (activeSurface != KeyboardSurface.Emoji) {
-                view.setRecentEmojis(recentEmojis)
-            }
-            view.setRecentRowCount(recentEmojiRows)
-            view.setDefaultSkinTone(defaultEmojiSkinTone)
-        }
-        emojiSearchView?.let { view ->
-            view.setRecentEmojis(recentEmojis)
-            view.setDefaultSkinTone(defaultEmojiSkinTone)
-            view.setCustomEmojiTags(customEmojiTags)
-        }
-        gifSearchView?.let { view ->
-            view.setHeightScale(heightScale)
-            view.setProviderSettings(KeyboardSettings.readGifProviderSettings(this))
         }
         snippetPanelView?.let { view ->
             view.setHeightScale(heightScale)
@@ -613,81 +443,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         renderSecondRow()
     }
 
-    private fun showEmojiPanel() {
-        hideEmojiSearchView()
-        hideGifSearchView()
-        hideSavedTextSearchView()
-        val panel = emojiPanelView ?: EmojiPanelView(this).also { view ->
-            emojiPanelView = view
-            view.callback = this
-        }
-        recentEmojis = KeyboardSettings.readRecentEmojis(this)
-        recentEmojiRows = KeyboardSettings.readRecentEmojiRows(this)
-        defaultEmojiSkinTone = KeyboardSettings.readEmojiSkinTone(this)
-        panel.setHeightScale(KeyboardSettings.readHeightScale(this))
-        panel.setRecentEmojis(recentEmojis)
-        panel.setRecentRowCount(recentEmojiRows)
-        panel.setDefaultSkinTone(defaultEmojiSkinTone)
-        activeSurface = KeyboardSurface.Emoji
-        swapKeyboardSurface(panel)
-        renderSecondRow()
-    }
-
-    private fun showEmojiSearchPanel() {
-        hideGifSearchView()
-        hideSavedTextSearchView()
-        val keyboard = keyboardView ?: return
-        val search = emojiSearchView ?: return
-        recentEmojis = KeyboardSettings.readRecentEmojis(this)
-        defaultEmojiSkinTone = KeyboardSettings.readEmojiSkinTone(this)
-        customEmojiTags = KeyboardSettings.readCustomEmojiTags(this)
-        search.setRecentEmojis(recentEmojis)
-        search.setDefaultSkinTone(defaultEmojiSkinTone)
-        search.setCustomEmojiTags(customEmojiTags)
-        search.clearSearch()
-        search.visibility = View.VISIBLE
-        keyboard.setEnterLabel("Search")
-        activeSurface = KeyboardSurface.EmojiSearch
-        swapKeyboardSurface(keyboard)
-        renderSecondRow()
-    }
-
-    private fun showGifPanel(keepCurrentResults: Boolean = false) {
-        hideEmojiSearchView()
-        hideSavedTextSearchView()
-        val panel = gifSearchView ?: return
-        panel.setHeightScale(KeyboardSettings.readHeightScale(this))
-        panel.setProviderSettings(KeyboardSettings.readGifProviderSettings(this))
-        panel.visibility = View.VISIBLE
-        activeSurface = KeyboardSurface.Gif
-        swapKeyboardSurface(panel)
-        if (keepCurrentResults) {
-            panel.showCurrentResultsBrowseMode()
-        } else {
-            panel.showBrowseMode()
-        }
-        renderSecondRow()
-    }
-
-    private fun showGifSearchPanel() {
-        hideEmojiSearchView()
-        hideSavedTextSearchView()
-        val keyboard = keyboardView ?: return
-        val search = gifSearchView ?: return
-        search.setHeightScale(KeyboardSettings.readHeightScale(this))
-        search.setProviderSettings(KeyboardSettings.readGifProviderSettings(this))
-        attachAboveKeyboard(search)
-        search.visibility = View.VISIBLE
-        search.showSearchMode()
-        keyboard.setEnterLabel("Search")
-        activeSurface = KeyboardSurface.GifSearch
-        swapKeyboardSurface(keyboard)
-        renderSecondRow()
-    }
-
     private fun showSnippetPanel() {
-        hideEmojiSearchView()
-        hideGifSearchView()
         hideSavedTextSearchView()
         capturePrimaryClipboardText()
         val panel = snippetPanelView ?: SnippetPanelView(this).also { view ->
@@ -705,8 +461,6 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     }
 
     private fun showSavedTextSearchPanel(tab: KeyboardSettings.SavedTextPanelTab) {
-        hideEmojiSearchView()
-        hideGifSearchView()
         val keyboard = keyboardView ?: return
         val search = savedTextSearchView ?: return
         capturePrimaryClipboardText()
@@ -760,8 +514,6 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     }
 
     private fun showKeyboardPanel() {
-        hideEmojiSearchView()
-        hideGifSearchView()
         hideSavedTextSearchView()
         activeSurface = KeyboardSurface.Keyboard
         val keyboard = keyboardView ?: run {
@@ -776,8 +528,6 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     }
 
     private fun showAgentReviewPanel(review: AgentReview) {
-        hideEmojiSearchView()
-        hideGifSearchView()
         hideSavedTextSearchView()
         val reviewView = agentReviewView ?: AgentReviewView(this).also { view ->
             agentReviewView = view
@@ -791,8 +541,6 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     }
 
     private fun showAgentErrorPanel(message: String) {
-        hideEmojiSearchView()
-        hideGifSearchView()
         hideSavedTextSearchView()
         val reviewView = agentReviewView ?: AgentReviewView(this).also { view ->
             agentReviewView = view
@@ -838,23 +586,6 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         )
     }
 
-    private fun hideEmojiSearchView() {
-        emojiSearchView?.let { view ->
-            if (view.visibility != View.GONE) {
-                view.visibility = View.GONE
-            }
-            view.clearSearch()
-        }
-    }
-
-    private fun hideGifSearchView() {
-        gifSearchView?.let { view ->
-            if (view.visibility != View.GONE) {
-                view.visibility = View.GONE
-            }
-        }
-    }
-
     private fun hideSavedTextSearchView() {
         savedTextSearchView?.let { view ->
             if (view.visibility != View.GONE) {
@@ -862,127 +593,6 @@ class ZnKeyboardInputMethodService : InputMethodService(),
             }
             view.clearSearch()
         }
-    }
-
-    private fun persistRecentEmojis(emojis: List<String>) {
-        val normalizedEmojis = EmojiCatalog.normalizeRecentEmojis(emojis)
-        recentEmojis = normalizedEmojis
-        if (activeSurface != KeyboardSurface.Emoji) {
-            emojiPanelView?.setRecentEmojis(normalizedEmojis)
-        }
-        emojiSearchView?.setRecentEmojis(normalizedEmojis)
-        mainHandler.post {
-            KeyboardSettings.saveRecentEmojis(this, normalizedEmojis)
-        }
-    }
-
-    private fun rebuildEmojiSuggestionTags() {
-        emojiSuggestionTags = buildList {
-            customEmojiTags.forEach { (emoji, tags) ->
-                val entry = EmojiCatalog.entryForEmoji(emoji) ?: return@forEach
-                val displayEmoji = EmojiCatalog.displayEmoji(entry, defaultEmojiSkinTone)
-                tags.forEach { tag ->
-                    val tokens = tokenizeEmojiSuggestionText(tag)
-                    if (tokens.isNotEmpty()) {
-                        add(EmojiSuggestionTag(emoji = displayEmoji, tokens = tokens))
-                    }
-                }
-            }
-        }
-    }
-
-    private fun scheduleEmojiSuggestionRefresh(delayMillis: Long = EMOJI_SUGGESTION_REFRESH_DELAY_MS) {
-        cancelEmojiSuggestionRefresh()
-        if (isSensitiveEditor(currentEditorInfo) || emojiSuggestionTags.isEmpty()) {
-            setEmojiKeySuggestion(null)
-            return
-        }
-
-        val refresh = Runnable {
-            pendingEmojiSuggestionRefresh = null
-            refreshEmojiSuggestion()
-        }
-        pendingEmojiSuggestionRefresh = refresh
-        if (delayMillis <= 0L) {
-            mainHandler.post(refresh)
-        } else {
-            mainHandler.postDelayed(refresh, delayMillis)
-        }
-    }
-
-    private fun cancelEmojiSuggestionRefresh() {
-        pendingEmojiSuggestionRefresh?.let(mainHandler::removeCallbacks)
-        pendingEmojiSuggestionRefresh = null
-    }
-
-    private fun refreshEmojiSuggestion() {
-        if (isSensitiveEditor(currentEditorInfo) || emojiSuggestionTags.isEmpty()) {
-            setEmojiKeySuggestion(null)
-            return
-        }
-
-        val beforeCursor = currentInputConnection
-            ?.getTextBeforeCursor(EMOJI_SUGGESTION_CONTEXT_CHARS, 0)
-            ?.toString()
-            .orEmpty()
-        setEmojiKeySuggestion(findEmojiSuggestionForContext(beforeCursor)?.emoji)
-    }
-
-    /** "Done|" + ✅ → "✅"; "Done |" + ✅ → "Done ✅". */
-    private fun replaceAdjacentSuggestionText(emoji: String) {
-        val inputConnection = currentInputConnection ?: return
-        if (isSensitiveEditor(currentEditorInfo)) return
-        if (!inputConnection.getSelectedText(0).isNullOrEmpty()) return
-        val beforeCursor = inputConnection
-            .getTextBeforeCursor(EMOJI_SUGGESTION_CONTEXT_CHARS, 0)
-            ?.toString()
-            ?: return
-        val match = findEmojiSuggestionForContext(beforeCursor) ?: return
-        if (match.emoji != emoji || !match.endsAtContextEnd) return
-        inputConnection.deleteSurroundingText(beforeCursor.length - match.charStart, 0)
-    }
-
-    private fun setEmojiKeySuggestion(emoji: String?) {
-        if (emojiKeySuggestion == emoji) return
-        emojiKeySuggestion = emoji
-        keyboardView?.setEmojiKeySuggestion(emoji)
-    }
-
-    private fun findEmojiSuggestionForContext(context: String): EmojiSuggestionMatch? {
-        val tokenMatches = EMOJI_SUGGESTION_TOKEN_REGEX.findAll(context).toList()
-        val contextTokens = tokenMatches.map { it.value.lowercase(Locale.US) }
-        if (contextTokens.isEmpty()) return null
-
-        var bestMatch: EmojiSuggestionMatch? = null
-        emojiSuggestionTags.forEach { suggestion ->
-            val startIndex = contextTokens.lastIndexOfSequence(suggestion.tokens)
-            if (startIndex < 0) return@forEach
-
-            val endIndex = startIndex + suggestion.tokens.lastIndex
-            val match = EmojiSuggestionMatch(
-                emoji = suggestion.emoji,
-                startIndex = startIndex,
-                endIndex = endIndex,
-                charStart = tokenMatches[startIndex].range.first,
-                endsAtContextEnd = tokenMatches[endIndex].range.last == context.lastIndex,
-            )
-            val currentBest = bestMatch
-            if (
-                currentBest == null ||
-                match.endIndex > currentBest.endIndex ||
-                (match.endIndex == currentBest.endIndex && match.startIndex < currentBest.startIndex)
-            ) {
-                bestMatch = match
-            }
-        }
-        return bestMatch
-    }
-
-    private fun tokenizeEmojiSuggestionText(value: String): List<String> {
-        return value
-            .lowercase(Locale.US)
-            .split(EMOJI_SUGGESTION_TOKEN_SPLIT_REGEX)
-            .filter { it.isNotBlank() }
     }
 
     private fun List<String>.lastIndexOfSequence(sequence: List<String>): Int {
@@ -998,46 +608,6 @@ class ZnKeyboardInputMethodService : InputMethodService(),
             if (matches) return startIndex
         }
         return -1
-    }
-
-    private fun handleEmojiSearchKeyboardAction(action: KeyboardAction, modifiers: ModifierState): Boolean {
-        if (modifiers.hasHardwareMeta) {
-            return true
-        }
-        val searchView = emojiSearchView ?: return true
-        when (action) {
-            KeyboardAction.Backspace -> searchView.deleteQueryCharacter()
-            KeyboardAction.Enter -> Unit
-            is KeyboardAction.KeyCode -> {
-                if (action.keyCode == KeyEvent.KEYCODE_DEL) {
-                    searchView.deleteQueryCharacter()
-                }
-            }
-            is KeyboardAction.Chord,
-            is KeyboardAction.Sequence -> Unit
-            is KeyboardAction.Text -> searchView.appendQueryText(action.value)
-        }
-        return true
-    }
-
-    private fun handleGifSearchKeyboardAction(action: KeyboardAction, modifiers: ModifierState): Boolean {
-        if (modifiers.hasHardwareMeta) {
-            return true
-        }
-        val searchView = gifSearchView ?: return true
-        when (action) {
-            KeyboardAction.Backspace -> searchView.deleteQueryCharacter()
-            KeyboardAction.Enter -> searchView.searchNow()
-            is KeyboardAction.KeyCode -> {
-                if (action.keyCode == KeyEvent.KEYCODE_DEL) {
-                    searchView.deleteQueryCharacter()
-                }
-            }
-            is KeyboardAction.Chord,
-            is KeyboardAction.Sequence -> Unit
-            is KeyboardAction.Text -> searchView.appendQueryText(action.value)
-        }
-        return true
     }
 
     private fun handleSavedTextSearchKeyboardAction(action: KeyboardAction, modifiers: ModifierState): Boolean {
@@ -1072,20 +642,17 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         }
         noteOwnEdit()
         if (wrapSelectedText(inputConnection, value)) {
-            scheduleEmojiSuggestionRefresh()
             scheduleComposerSuggestionRefresh()
             updateAutoShift()
             return
         }
         if (value == " " && applyDoubleSpacePeriod(inputConnection)) {
-            scheduleEmojiSuggestionRefresh()
             scheduleComposerSuggestionRefresh()
             updateAutoShift()
             return
         }
         if (inputConnection.commitText(value, 1)) {
             lastSpaceCommitAt = if (value == " ") SystemClock.uptimeMillis() else 0L
-            scheduleEmojiSuggestionRefresh()
             scheduleComposerSuggestionRefresh()
             updateAutoShift()
         }
@@ -1350,7 +917,6 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         // TYPE_NULL editors such as terminals expect raw key events, not surrounding-text edits.
         if (isRawKeyEventEditor(currentEditorInfo)) {
             sendKey(KeyEvent.KEYCODE_DEL, modifiers)
-            scheduleEmojiSuggestionRefresh()
             return
         }
 
@@ -1364,7 +930,6 @@ class ZnKeyboardInputMethodService : InputMethodService(),
                 }
             }
         }
-        scheduleEmojiSuggestionRefresh()
         scheduleComposerSuggestionRefresh()
         updateAutoShift()
     }
@@ -1464,7 +1029,6 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         }
 
         if (committed) {
-            scheduleEmojiSuggestionRefresh()
             scheduleComposerSuggestionRefresh()
         } else {
             restoreBackspaceGestureDeleteSelection(inputConnection, state)
@@ -1551,7 +1115,6 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         if (selectionUpdated) {
             state.currentOffset = targetOffset
             state.lastCharacterDelta = characterDelta
-            scheduleEmojiSuggestionRefresh()
         } else {
             val fallbackState = state.toKeyEvents()
             spaceCursorDragState = fallbackState
@@ -1588,7 +1151,6 @@ class ZnKeyboardInputMethodService : InputMethodService(),
                 sendKey(keyCode, ModifierState(ctrl = false, alt = false))
             }
         }
-        scheduleEmojiSuggestionRefresh()
         scheduleComposerSuggestionRefresh()
     }
 
@@ -1689,98 +1251,8 @@ class ZnKeyboardInputMethodService : InputMethodService(),
             scheduleComposerSuggestionRefresh()
         } else {
             sendKey(KeyEvent.KEYCODE_ENTER, modifiers)
-            scheduleEmojiSuggestionRefresh()
             scheduleComposerSuggestionRefresh()
         }
-    }
-
-    private fun sendGif(gif: GifSearchResult) {
-        val info = currentEditorInfo
-        if (isSensitiveEditor(info)) {
-            Toast.makeText(this, "GIFs are disabled in password fields.", Toast.LENGTH_SHORT).show()
-            return
-        }
-        if (!supportsContentMimeType(info, GIF_MIME_TYPE)) {
-            Toast.makeText(this, "This field does not accept GIFs from keyboards.", Toast.LENGTH_LONG).show()
-            return
-        }
-
-        val targetPackage = info?.packageName
-        val appContext = applicationContext
-        val authority = "$packageName.gifprovider"
-        val generation = ++gifShareGeneration
-        Toast.makeText(this, "Preparing GIF...", Toast.LENGTH_SHORT).show()
-        Thread {
-            val result = runCatching {
-                val file = GifCacheStore.downloadGif(appContext, gif)
-                FileProvider.getUriForFile(appContext, authority, file)
-            }
-
-            mainHandler.post {
-                if (generation != gifShareGeneration) {
-                    return@post
-                }
-                if (targetPackage != currentEditorInfo?.packageName) {
-                    return@post
-                }
-                result
-                    .onSuccess { uri ->
-                        runCatching { commitGifContent(gif, uri, targetPackage) }
-                            .onFailure { error ->
-                                Toast.makeText(
-                                    this,
-                                    error.message ?: "Could not send GIF.",
-                                    Toast.LENGTH_LONG,
-                                ).show()
-                            }
-                    }
-                    .onFailure { error ->
-                        Toast.makeText(
-                            this,
-                            error.message ?: "Could not prepare GIF.",
-                            Toast.LENGTH_LONG,
-                        ).show()
-                    }
-            }
-        }.apply {
-            name = "ZnKeyboardGifShare"
-            start()
-        }
-    }
-
-    private fun commitGifContent(gif: GifSearchResult, contentUri: Uri, targetPackage: String?) {
-        val inputConnection = currentInputConnection ?: throw IOException("No active text field.")
-        if (!supportsContentMimeType(currentEditorInfo, GIF_MIME_TYPE)) {
-            throw IOException("This field no longer accepts GIFs.")
-        }
-
-        if (!targetPackage.isNullOrBlank()) {
-            grantUriPermission(targetPackage, contentUri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        }
-
-        val content = InputContentInfo(
-            contentUri,
-            ClipDescription(gif.title, arrayOf(GIF_MIME_TYPE)),
-            runCatching { Uri.parse(gif.gifUrl) }.getOrNull(),
-        )
-        val committed = inputConnection.commitContent(
-            content,
-            InputConnection.INPUT_CONTENT_GRANT_READ_URI_PERMISSION,
-            null,
-        )
-        if (!committed) {
-            if (!targetPackage.isNullOrBlank()) {
-                revokeUriPermission(targetPackage, contentUri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            }
-            throw IOException("This field did not accept the GIF.")
-        }
-    }
-
-    private fun supportsContentMimeType(info: EditorInfo?, mimeType: String): Boolean {
-        return info?.contentMimeTypes
-            ?.any { supportedMimeType ->
-                ClipDescription.compareMimeTypes(mimeType, supportedMimeType)
-            } == true
     }
 
     private fun registerClipboardListener() {
@@ -1904,7 +1376,6 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         }
 
         if (committed) {
-            scheduleEmojiSuggestionRefresh()
             showKeyboardPanel()
         } else {
             Toast.makeText(this, "Couldn't paste clipboard item.", Toast.LENGTH_SHORT).show()
@@ -2744,19 +2215,6 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         val selectionEnd: Int,
     )
 
-    private data class EmojiSuggestionTag(
-        val emoji: String,
-        val tokens: List<String>,
-    )
-
-    private data class EmojiSuggestionMatch(
-        val emoji: String,
-        val startIndex: Int,
-        val endIndex: Int,
-        val charStart: Int,
-        val endsAtContextEnd: Boolean,
-    )
-
     private data class AgentEditTarget(
         val originalText: String,
         val replaceStart: Int,
@@ -2824,10 +2282,6 @@ class ZnKeyboardInputMethodService : InputMethodService(),
 
     private enum class KeyboardSurface {
         Keyboard,
-        Emoji,
-        EmojiSearch,
-        Gif,
-        GifSearch,
         Snippets,
         SavedTextSearch,
         Review,
@@ -2864,8 +2318,6 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         const val MAX_GESTURE_DELETE_WORDS = 80
         const val CURSOR_DRAG_CONTEXT_CHARS = 8_192
         const val CURSOR_DRAG_MAX_CHARS = 120
-        const val EMOJI_SUGGESTION_CONTEXT_CHARS = 180
-        const val EMOJI_SUGGESTION_REFRESH_DELAY_MS = 120L
         const val COMPOSER_SUGGESTION_REFRESH_DELAY_MS = 80L
         const val COMPOSER_WORD_OPENERS = "([{\"“"
         const val TYPING_CONTEXT_CHARS = 16
@@ -2888,7 +2340,6 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         const val MAX_REWRITE_LLM_TOKENS = AgentDefaults.MAX_REWRITE_LLM_TOKENS
         const val CHARS_PER_OUTPUT_TOKEN_ESTIMATE = AgentDefaults.CHARS_PER_OUTPUT_TOKEN_ESTIMATE
         const val ERROR_PREVIEW_CHARS = AgentDefaults.ERROR_PREVIEW_CHARS
-        const val GIF_MIME_TYPE = "image/gif"
         const val STRUCTURED_OUTPUT_TEXT_FIELD = AgentDefaults.STRUCTURED_OUTPUT_TEXT_FIELD
         const val REWRITE_BASE_PROMPT_ASSET = AgentDefaults.REWRITE_BASE_PROMPT_ASSET
         const val WHATSAPP_PROMPT_ASSET = AgentDefaults.WHATSAPP_PROMPT_ASSET
@@ -2908,8 +2359,6 @@ class ZnKeyboardInputMethodService : InputMethodService(),
             "'" to SelectionWrapPair("'", "'"),
             "`" to SelectionWrapPair("`", "`"),
         )
-        val EMOJI_SUGGESTION_TOKEN_SPLIT_REGEX = Regex("[^\\p{L}\\p{N}]+")
-        val EMOJI_SUGGESTION_TOKEN_REGEX = Regex("[\\p{L}\\p{N}]+")
         val THINK_BLOCK_REGEX = Regex("(?is)<think>.*?</think>")
         val REASONING_BLOCK_REGEX = Regex("(?is)<reasoning>.*?</reasoning>")
         val FALLBACK_REWRITE_PROMPT = """

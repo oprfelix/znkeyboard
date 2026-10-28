@@ -16,9 +16,6 @@ object KeyboardDefaults {
     const val MAX_TEXT_SNIPPET_TAGS = 8
     const val MAX_TEXT_SNIPPET_TAG_CHARS = 32
 
-    const val MAX_CUSTOM_EMOJI_TAGGED_EMOJIS = 250
-    const val MAX_CUSTOM_EMOJI_TAGS_PER_EMOJI = 12
-    const val MAX_CUSTOM_EMOJI_TAG_CHARS = 32
 
     // Esc/Tab/Ctrl/Alt/arrows are opt-in: an empty row is hidden until keys are added to it.
     val DEFAULT_UPPER_ROW_KEY_IDS = emptyList<String>()

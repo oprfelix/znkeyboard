@@ -184,12 +184,6 @@ private fun SettingsScreen(onOpenShortcuts: () -> Unit) {
     var functionKeyBackgroundsEnabled by remember {
         mutableStateOf(KeyboardSettings.readFunctionKeyBackgroundsEnabled(context))
     }
-    var emojiSkinTone by remember { mutableStateOf(KeyboardSettings.readEmojiSkinTone(context)) }
-    var recentEmojiRows by remember { mutableStateOf(KeyboardSettings.readRecentEmojiRows(context)) }
-    var customEmojiTags by remember { mutableStateOf(KeyboardSettings.readCustomEmojiTags(context)) }
-    var gifApiBaseUrl by remember { mutableStateOf(KeyboardSettings.readGifApiBaseUrl(context)) }
-    var gifAppKey by remember { mutableStateOf(KeyboardSettings.readGifAppKey(context)) }
-    var gifAppKeyLocked by remember { mutableStateOf(KeyboardSettings.readGifAppKeyLocked(context)) }
     var agentModeEnabled by remember { mutableStateOf(KeyboardSettings.readAgentModeEnabled(context)) }
     var agentProviderType by remember { mutableStateOf(KeyboardSettings.readAgentProviderType(context)) }
     var agentApiBaseUrl by remember { mutableStateOf(KeyboardSettings.readAgentApiBaseUrl(context)) }
@@ -218,12 +212,6 @@ private fun SettingsScreen(onOpenShortcuts: () -> Unit) {
         heightScale = KeyboardSettings.readHeightScale(context)
         bottomPaddingDp = KeyboardSettings.readBottomPaddingDp(context)
         functionKeyBackgroundsEnabled = KeyboardSettings.readFunctionKeyBackgroundsEnabled(context)
-        emojiSkinTone = KeyboardSettings.readEmojiSkinTone(context)
-        recentEmojiRows = KeyboardSettings.readRecentEmojiRows(context)
-        customEmojiTags = KeyboardSettings.readCustomEmojiTags(context)
-        gifApiBaseUrl = KeyboardSettings.readGifApiBaseUrl(context)
-        gifAppKey = KeyboardSettings.readGifAppKey(context)
-        gifAppKeyLocked = KeyboardSettings.readGifAppKeyLocked(context)
         agentModeEnabled = KeyboardSettings.readAgentModeEnabled(context)
         agentProviderType = nextProviderType
         agentApiBaseUrl = KeyboardSettings.readAgentApiBaseUrl(context)
@@ -335,12 +323,6 @@ private fun SettingsScreen(onOpenShortcuts: () -> Unit) {
         KeyboardSettings.saveTextSnippets(context, normalizedSnippets)
     }
 
-    fun updateCustomEmojiTags(tagsByEmoji: Map<String, List<String>>) {
-        val normalizedTags = KeyboardSettings.normalizeCustomEmojiTags(tagsByEmoji)
-        customEmojiTags = normalizedTags
-        KeyboardSettings.saveCustomEmojiTags(context, normalizedTags)
-    }
-
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -423,7 +405,7 @@ private fun SettingsScreen(onOpenShortcuts: () -> Unit) {
 
                         SettingsSwitchRow(
                             title = "Modifier key backgrounds",
-                            description = "Fill Shift, Delete, 123 and emoji keys. Turn off for a lighter look.",
+                            description = "Fill Shift, Delete, !?# and 中/EN keys. Turn off for a lighter look.",
                             checked = functionKeyBackgroundsEnabled,
                             onCheckedChange = {
                                 functionKeyBackgroundsEnabled = it
@@ -516,42 +498,6 @@ private fun SettingsScreen(onOpenShortcuts: () -> Unit) {
                         },
                     )
 
-                    GifSearchSection(
-                        gifApiBaseUrl = gifApiBaseUrl,
-                        gifAppKey = gifAppKey,
-                        gifAppKeyLocked = gifAppKeyLocked,
-                        onGifApiBaseUrlChange = {
-                            gifApiBaseUrl = it
-                            KeyboardSettings.saveGifApiBaseUrl(context, it)
-                        },
-                        onGifAppKeyChange = {
-                            gifAppKey = it
-                            KeyboardSettings.saveGifAppKey(context, it)
-                            if (it.isBlank() && gifAppKeyLocked) {
-                                gifAppKeyLocked = false
-                            }
-                        },
-                        onGifAppKeyLockedChange = {
-                            gifAppKeyLocked = it
-                            KeyboardSettings.saveGifAppKeyLocked(context, it)
-                        },
-                    )
-
-                    EmojiPreferencesSection(
-                        skinTone = emojiSkinTone,
-                        recentEmojiRows = recentEmojiRows,
-                        customEmojiTags = customEmojiTags,
-                        onSkinToneChange = {
-                            emojiSkinTone = it
-                            KeyboardSettings.saveEmojiSkinTone(context, it)
-                        },
-                        onRecentEmojiRowsChange = {
-                            val rows = EmojiCatalog.normalizeRecentRowCount(it)
-                            recentEmojiRows = rows
-                            KeyboardSettings.saveRecentEmojiRows(context, rows)
-                        },
-                        onCustomEmojiTagsChange = ::updateCustomEmojiTags,
-                    )
                 }
 
                 SettingsDestination.Saved -> {
@@ -1399,325 +1345,6 @@ private fun BackupPasswordDialog(
             }
         },
     )
-}
-
-@Composable
-private fun GifSearchSection(
-    gifApiBaseUrl: String,
-    gifAppKey: String,
-    gifAppKeyLocked: Boolean,
-    onGifApiBaseUrlChange: (String) -> Unit,
-    onGifAppKeyChange: (String) -> Unit,
-    onGifAppKeyLockedChange: (Boolean) -> Unit,
-) {
-    SettingsSectionCard {
-        SettingsSectionHeader(
-            title = "GIF search",
-            subtitle = "Uses KLIPY for searchable GIFs and meme-friendly results.",
-            trailingText = if (gifAppKey.isBlank()) "Setup" else "Ready",
-            trailingColor = if (gifAppKey.isBlank()) ZnKeyboardColors.Muted else ZnKeyboardColors.Accent,
-        )
-
-        Text(
-            text = "GIF search queries go directly from this keyboard to KLIPY. The app key is stored on this device and stays out of backups.",
-            color = ZnKeyboardColors.Muted,
-            style = MaterialTheme.typography.bodySmall,
-        )
-
-        OutlinedTextField(
-            value = gifApiBaseUrl,
-            onValueChange = onGifApiBaseUrlChange,
-            label = { Text("API base URL") },
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
-            supportingText = {
-                Text(
-                    text = "Default: ${KeyboardSettings.DEFAULT_GIF_API_BASE_URL}",
-                    color = ZnKeyboardColors.Muted,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    style = MaterialTheme.typography.bodySmall,
-                )
-            },
-            modifier = Modifier.fillMaxWidth(),
-        )
-
-        LockableSecretOutlinedTextField(
-            value = gifAppKey,
-            onValueChange = onGifAppKeyChange,
-            label = "KLIPY app key",
-            locked = gifAppKeyLocked,
-            onLockedChange = onGifAppKeyLockedChange,
-            emptySupportingText = "Create a free key in the KLIPY partner panel.",
-            lockContentDescription = "Lock KLIPY app key",
-            unlockContentDescription = "Unlock KLIPY app key",
-        )
-    }
-}
-
-@Composable
-private fun EmojiPreferencesSection(
-    skinTone: EmojiSkinTone,
-    recentEmojiRows: Int,
-    customEmojiTags: Map<String, List<String>>,
-    onSkinToneChange: (EmojiSkinTone) -> Unit,
-    onRecentEmojiRowsChange: (Int) -> Unit,
-    onCustomEmojiTagsChange: (Map<String, List<String>>) -> Unit,
-) {
-    var expanded by remember { mutableStateOf(false) }
-
-    SettingsSectionCard(verticalSpacing = 12.dp) {
-        SettingsSectionHeader(title = "Emoji")
-
-        Box(modifier = Modifier.fillMaxWidth()) {
-            SettingsPickerLauncherButton(
-                label = "Default tone",
-                value = skinTone.label,
-                onClick = { expanded = true },
-                leadingContent = {
-                    Text(
-                        text = skinTone.sample,
-                        style = MaterialTheme.typography.titleLarge,
-                    )
-                    Spacer(Modifier.width(12.dp))
-                },
-            )
-
-            FloatingPickerMenu(
-                expanded = expanded,
-                items = EmojiSkinTone.entries.map { option ->
-                    PickerItem(
-                        id = option.id,
-                        title = "${option.sample}  ${option.label}",
-                    )
-                },
-                onDismissRequest = { expanded = false },
-                onItemSelected = { item ->
-                    expanded = false
-                    EmojiSkinTone.entries.firstOrNull { it.id == item.id }
-                        ?.let(onSkinToneChange)
-                },
-                maxHeight = SKIN_TONE_PICKER_MAX_HEIGHT,
-            )
-        }
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = "Recent rows",
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold,
-            )
-            Text(
-                text = "$recentEmojiRows",
-                color = ZnKeyboardColors.Muted,
-                style = MaterialTheme.typography.labelLarge,
-            )
-        }
-
-        Slider(
-            value = recentEmojiRows.toFloat(),
-            onValueChange = { value ->
-                onRecentEmojiRowsChange(value.roundToInt())
-            },
-            valueRange = EmojiCatalog.MIN_RECENT_ROW_COUNT.toFloat()..EmojiCatalog.MAX_RECENT_ROW_COUNT.toFloat(),
-            steps = EmojiCatalog.MAX_RECENT_ROW_COUNT - EmojiCatalog.MIN_RECENT_ROW_COUNT - 1,
-        )
-
-        CustomEmojiTagsEditor(
-            tagsByEmoji = customEmojiTags,
-            onTagsChange = onCustomEmojiTagsChange,
-        )
-    }
-}
-
-@Composable
-private fun CustomEmojiTagsEditor(
-    tagsByEmoji: Map<String, List<String>>,
-    onTagsChange: (Map<String, List<String>>) -> Unit,
-) {
-    var draftEmoji by remember { mutableStateOf("") }
-    var draftTags by remember { mutableStateOf("") }
-    val normalizedEmoji = remember(draftEmoji) {
-        draftEmoji
-            .takeIf { it.isNotBlank() }
-            ?.let(KeyboardSettings::normalizeEmojiForCustomTags)
-    }
-    val normalizedTags = remember(draftTags) {
-        KeyboardSettings.normalizeCustomEmojiTagInput(draftTags)
-    }
-    val canSave = normalizedEmoji != null && normalizedTags.isNotEmpty()
-    val editingExistingEmoji = normalizedEmoji?.let { it in tagsByEmoji } == true
-    val atLimit = normalizedEmoji != null &&
-        !editingExistingEmoji &&
-        tagsByEmoji.size >= KeyboardSettings.MAX_CUSTOM_EMOJI_TAGGED_EMOJIS
-
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = "Custom search tags",
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold,
-            )
-            Text(
-                text = "${tagsByEmoji.size}/${KeyboardSettings.MAX_CUSTOM_EMOJI_TAGGED_EMOJIS}",
-                color = ZnKeyboardColors.Muted,
-                style = MaterialTheme.typography.labelLarge,
-            )
-        }
-
-        Text(
-            text = "Add vocabulary that should find a specific emoji in keyboard search.",
-            color = ZnKeyboardColors.Muted,
-            style = MaterialTheme.typography.bodySmall,
-        )
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            OutlinedTextField(
-                value = draftEmoji,
-                onValueChange = { draftEmoji = it },
-                label = { Text("Emoji") },
-                singleLine = true,
-                modifier = Modifier.width(96.dp),
-            )
-            OutlinedTextField(
-                value = draftTags,
-                onValueChange = { draftTags = it },
-                label = { Text("Tags") },
-                placeholder = { Text("chai, duas") },
-                singleLine = true,
-                modifier = Modifier.weight(1f),
-            )
-        }
-
-        Button(
-            onClick = {
-                val emoji = normalizedEmoji ?: return@Button
-                onTagsChange(tagsByEmoji + (emoji to normalizedTags))
-                draftEmoji = ""
-                draftTags = ""
-            },
-            enabled = canSave && (editingExistingEmoji || tagsByEmoji.size < KeyboardSettings.MAX_CUSTOM_EMOJI_TAGGED_EMOJIS),
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Icon(
-                painter = painterResource(R.drawable.ic_add_24),
-                contentDescription = null,
-                modifier = Modifier.size(18.dp),
-            )
-            Spacer(Modifier.width(8.dp))
-            Text(if (editingExistingEmoji) "Update tags" else "Add tags")
-        }
-
-        val helperText = when {
-            draftEmoji.isBlank() && draftTags.isBlank() -> "Paste one supported emoji and comma-separated tags."
-            normalizedEmoji == null -> "Paste exactly one supported emoji."
-            normalizedTags.isEmpty() -> "Enter at least one tag."
-            atLimit -> "Remove an emoji before adding another."
-            else -> "Search will match: ${normalizedTags.joinToString(", ")}"
-        }
-        Text(
-            text = helperText,
-            color = ZnKeyboardColors.Muted,
-            style = MaterialTheme.typography.bodySmall,
-        )
-
-        if (tagsByEmoji.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(44.dp)
-                    .clip(RoundedCornerShape(COMPACT_ITEM_CORNER_RADIUS))
-                    .background(ZnKeyboardColors.Key),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text = "No custom emoji tags",
-                    color = ZnKeyboardColors.Muted,
-                    style = MaterialTheme.typography.labelLarge,
-                )
-            }
-        } else {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                tagsByEmoji.forEach { (emoji, tags) ->
-                    CustomEmojiTagRow(
-                        emoji = emoji,
-                        tags = tags,
-                        onEdit = {
-                            draftEmoji = emoji
-                            draftTags = tags.joinToString(", ")
-                        },
-                        onRemove = {
-                            onTagsChange(tagsByEmoji - emoji)
-                        },
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun CustomEmojiTagRow(
-    emoji: String,
-    tags: List<String>,
-    onEdit: () -> Unit,
-    onRemove: () -> Unit,
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Surface(
-            color = ZnKeyboardColors.Key,
-            shape = RoundedCornerShape(COMPACT_ITEM_CORNER_RADIUS),
-            tonalElevation = 0.dp,
-            modifier = Modifier
-                .weight(1f)
-                .clickable(onClick = onEdit),
-        ) {
-            Row(
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = emoji,
-                    style = MaterialTheme.typography.titleLarge,
-                )
-                Text(
-                    text = tags.joinToString(", "),
-                    color = ZnKeyboardColors.OnSurface,
-                    style = MaterialTheme.typography.bodyMedium,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f),
-                )
-            }
-        }
-
-        IconButton(
-            onClick = onRemove,
-            modifier = Modifier.size(44.dp),
-        ) {
-            Icon(
-                painter = painterResource(R.drawable.ic_delete_24),
-                contentDescription = "Remove custom emoji tags",
-                tint = ZnKeyboardColors.Muted,
-            )
-        }
-    }
 }
 
 @Composable

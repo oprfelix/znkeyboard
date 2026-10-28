@@ -6,7 +6,6 @@ import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
 import dev.zain.znkeyboard.constants.AgentDefaults
-import dev.zain.znkeyboard.constants.GifDefaults
 import dev.zain.znkeyboard.constants.ImeColors
 import dev.zain.znkeyboard.constants.KeyboardDefaults
 import dev.zain.znkeyboard.constants.TranslateLanguage
@@ -33,7 +32,6 @@ object KeyboardSettings {
     const val DEFAULT_AGENT_API_BASE_URL = AgentDefaults.DEFAULT_API_BASE_URL
     const val OPENROUTER_API_BASE_URL = AgentDefaults.OPENROUTER_API_BASE_URL
     const val DEFAULT_AGENT_MODEL = AgentDefaults.DEFAULT_MODEL
-    const val DEFAULT_GIF_API_BASE_URL = GifDefaults.DEFAULT_API_BASE_URL
     const val MAX_UPPER_ROW_KEYS = KeyboardDefaults.MAX_UPPER_ROW_KEYS
     private const val LEGACY_MAX_AGENT_ROW_KEYS = 5
     const val MAX_SECOND_ROW_BUTTONS = KeyboardDefaults.MAX_SECOND_ROW_BUTTONS
@@ -41,9 +39,6 @@ object KeyboardSettings {
     const val MAX_TEXT_SNIPPET_CHARS = KeyboardDefaults.MAX_TEXT_SNIPPET_CHARS
     const val MAX_TEXT_SNIPPET_TAGS = KeyboardDefaults.MAX_TEXT_SNIPPET_TAGS
     const val MAX_TEXT_SNIPPET_TAG_CHARS = KeyboardDefaults.MAX_TEXT_SNIPPET_TAG_CHARS
-    const val MAX_CUSTOM_EMOJI_TAGGED_EMOJIS = KeyboardDefaults.MAX_CUSTOM_EMOJI_TAGGED_EMOJIS
-    const val MAX_CUSTOM_EMOJI_TAGS_PER_EMOJI = KeyboardDefaults.MAX_CUSTOM_EMOJI_TAGS_PER_EMOJI
-    const val MAX_CUSTOM_EMOJI_TAG_CHARS = KeyboardDefaults.MAX_CUSTOM_EMOJI_TAG_CHARS
     const val MAX_AGENT_PROFILES = 8
     const val MAX_AGENT_PROFILE_NAME_CHARS = 30
 
@@ -71,10 +66,6 @@ object KeyboardSettings {
     private const val KEY_PINYIN_FUZZY_RULES = "pinyin_fuzzy_rules"
     private const val KEY_KEYBOARD_THEME = "keyboard_theme"
     private const val KEY_TYPING_MODEL_GENERATION = "typing_model_generation"
-    private const val KEY_RECENT_EMOJIS = "recent_emojis"
-    private const val KEY_RECENT_EMOJI_ROWS = "recent_emoji_rows"
-    private const val KEY_EMOJI_SKIN_TONE = "emoji_skin_tone"
-    private const val KEY_CUSTOM_EMOJI_TAGS = "custom_emoji_tags"
     private const val KEY_AGENT_MODE_ENABLED = "agent_mode_enabled"
     private const val KEY_AGENT_PROVIDER_TYPE = "agent_provider_type"
     private const val KEY_AGENT_API_BASE_URL = "agent_api_base_url"
@@ -89,10 +80,6 @@ object KeyboardSettings {
     private const val KEY_AGENT_API_KEY_CIPHERTEXT = "agent_api_key_ciphertext"
     private const val KEY_AGENT_API_KEY_IV = "agent_api_key_iv"
     private const val KEY_AGENT_API_KEY_LOCKED = "agent_api_key_locked"
-    private const val KEY_GIF_API_BASE_URL = "gif_api_base_url"
-    private const val KEY_GIF_APP_KEY_CIPHERTEXT = "gif_app_key_ciphertext"
-    private const val KEY_GIF_APP_KEY_IV = "gif_app_key_iv"
-    private const val KEY_GIF_APP_KEY_LOCKED = "gif_app_key_locked"
     private const val KEYSTORE_PROVIDER = "AndroidKeyStore"
     private const val KEYSTORE_AGENT_API_KEY_ALIAS = "znkeyboard_agent_api_key"
     private const val KEYSTORE_TRANSFORMATION = "AES/GCM/NoPadding"
@@ -491,99 +478,6 @@ object KeyboardSettings {
         return text.trim().take(MAX_TEXT_SNIPPET_CHARS)
     }
 
-    fun readRecentEmojis(context: Context): List<String> {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val stored = prefs.getString(KEY_RECENT_EMOJIS, null) ?: return emptyList()
-        return parseStringArray(stored)
-            ?.let(EmojiCatalog::normalizeRecentEmojis)
-            ?: emptyList()
-    }
-
-    fun saveRecentEmojis(context: Context, emojis: List<String>) {
-        val encoded = JSONArray().apply {
-            EmojiCatalog.normalizeRecentEmojis(emojis).forEach(::put)
-        }.toString()
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .edit()
-            .putString(KEY_RECENT_EMOJIS, encoded)
-            .apply()
-    }
-
-    fun readRecentEmojiRows(context: Context): Int {
-        return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .getInt(KEY_RECENT_EMOJI_ROWS, EmojiCatalog.DEFAULT_RECENT_ROW_COUNT)
-            .let(EmojiCatalog::normalizeRecentRowCount)
-    }
-
-    fun saveRecentEmojiRows(context: Context, rowCount: Int) {
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .edit()
-            .putInt(KEY_RECENT_EMOJI_ROWS, EmojiCatalog.normalizeRecentRowCount(rowCount))
-            .apply()
-    }
-
-    fun readEmojiSkinTone(context: Context): EmojiSkinTone {
-        val stored = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .getString(KEY_EMOJI_SKIN_TONE, null)
-        return EmojiSkinTone.entries.firstOrNull { it.id == stored } ?: EmojiSkinTone.Default
-    }
-
-    fun saveEmojiSkinTone(context: Context, skinTone: EmojiSkinTone) {
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .edit()
-            .putString(KEY_EMOJI_SKIN_TONE, skinTone.id)
-            .apply()
-    }
-
-    fun readCustomEmojiTags(context: Context): Map<String, List<String>> {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val stored = prefs.getString(KEY_CUSTOM_EMOJI_TAGS, null) ?: return emptyMap()
-        return parseCustomEmojiTags(stored)
-            ?.let(::normalizeCustomEmojiTags)
-            ?: emptyMap()
-    }
-
-    fun saveCustomEmojiTags(context: Context, tagsByEmoji: Map<String, List<String>>) {
-        val encoded = JSONArray().apply {
-            normalizeCustomEmojiTags(tagsByEmoji).forEach { (emoji, tags) ->
-                put(
-                    JSONObject()
-                        .put("emoji", emoji)
-                        .put(
-                            "tags",
-                            JSONArray().apply {
-                                tags.forEach(::put)
-                            },
-                        ),
-                )
-            }
-        }.toString()
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .edit()
-            .putString(KEY_CUSTOM_EMOJI_TAGS, encoded)
-            .apply()
-    }
-
-    fun normalizeCustomEmojiTags(tagsByEmoji: Map<String, List<String>>): Map<String, List<String>> {
-        val normalized = linkedMapOf<String, List<String>>()
-        tagsByEmoji.forEach { (rawEmoji, rawTags) ->
-            val emoji = normalizeEmojiForCustomTags(rawEmoji) ?: return@forEach
-            val tags = normalizeCustomEmojiTagList(rawTags)
-            if (tags.isNotEmpty() && emoji !in normalized && normalized.size < MAX_CUSTOM_EMOJI_TAGGED_EMOJIS) {
-                normalized[emoji] = tags
-            }
-        }
-        return normalized
-    }
-
-    fun normalizeEmojiForCustomTags(emoji: String): String? {
-        return EmojiCatalog.entryForEmoji(emoji.trim())?.emoji
-    }
-
-    fun normalizeCustomEmojiTagInput(input: String): List<String> {
-        return normalizeCustomEmojiTagList(input.split(',', '\n'))
-    }
-
     fun readAgentModeEnabled(context: Context): Boolean {
         return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .getBoolean(KEY_AGENT_MODE_ENABLED, false)
@@ -970,78 +864,6 @@ object KeyboardSettings {
             .apply()
     }
 
-    fun readGifApiBaseUrl(context: Context): String {
-        return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .getString(KEY_GIF_API_BASE_URL, DEFAULT_GIF_API_BASE_URL)
-            ?.trim()
-            ?.takeIf { it.isNotBlank() }
-            ?: DEFAULT_GIF_API_BASE_URL
-    }
-
-    fun saveGifApiBaseUrl(context: Context, baseUrl: String) {
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .edit()
-            .putString(KEY_GIF_API_BASE_URL, baseUrl.trim())
-            .apply()
-    }
-
-    fun readGifAppKey(context: Context): String {
-        val prefs = context.getSharedPreferences(SECRET_PREFS_NAME, Context.MODE_PRIVATE)
-        val ciphertext = prefs.getString(KEY_GIF_APP_KEY_CIPHERTEXT, null)
-        val iv = prefs.getString(KEY_GIF_APP_KEY_IV, null)
-        if (!ciphertext.isNullOrBlank() && !iv.isNullOrBlank()) {
-            return decryptAgentApiKey(ciphertext, iv).getOrElse { "" }
-        }
-        return ""
-    }
-
-    fun saveGifAppKey(context: Context, appKey: String) {
-        val prefs = context.getSharedPreferences(SECRET_PREFS_NAME, Context.MODE_PRIVATE)
-        val trimmedAppKey = appKey.trim()
-        if (trimmedAppKey.isBlank()) {
-            prefs.edit()
-                .remove(KEY_GIF_APP_KEY_CIPHERTEXT)
-                .remove(KEY_GIF_APP_KEY_IV)
-                .remove(KEY_GIF_APP_KEY_LOCKED)
-                .apply()
-            return
-        }
-
-        encryptAgentApiKey(trimmedAppKey)
-            .onSuccess { encryptedValue ->
-                prefs.edit()
-                    .putString(KEY_GIF_APP_KEY_CIPHERTEXT, encryptedValue.ciphertext)
-                    .putString(KEY_GIF_APP_KEY_IV, encryptedValue.iv)
-                    .apply()
-            }
-            .onFailure {
-                prefs.edit()
-                    .remove(KEY_GIF_APP_KEY_CIPHERTEXT)
-                    .remove(KEY_GIF_APP_KEY_IV)
-                    .remove(KEY_GIF_APP_KEY_LOCKED)
-                    .apply()
-            }
-    }
-
-    fun readGifAppKeyLocked(context: Context): Boolean {
-        return context.getSharedPreferences(SECRET_PREFS_NAME, Context.MODE_PRIVATE)
-            .getBoolean(KEY_GIF_APP_KEY_LOCKED, false)
-    }
-
-    fun saveGifAppKeyLocked(context: Context, locked: Boolean) {
-        context.getSharedPreferences(SECRET_PREFS_NAME, Context.MODE_PRIVATE)
-            .edit()
-            .putBoolean(KEY_GIF_APP_KEY_LOCKED, locked)
-            .apply()
-    }
-
-    fun readGifProviderSettings(context: Context): GifProviderSettings {
-        return GifProviderSettings(
-            baseUrl = readGifApiBaseUrl(context),
-            appKey = readGifAppKey(context),
-        )
-    }
-
     /**
      * Creates the backup payload that is encrypted before it leaves the device.
      * Never write this JSON directly to user-selected storage.
@@ -1074,19 +896,6 @@ object KeyboardSettings {
                     )
                     .put("snippets", textSnippetsJson(readTextSnippets(context)))
                     .put(
-                        "emoji",
-                        JSONObject()
-                            .put("skinTone", readEmojiSkinTone(context).id)
-                            .put("recentRows", readRecentEmojiRows(context))
-                            .put("recentEmojis", stringArrayJson(readRecentEmojis(context)))
-                            .put("customTags", customEmojiTagsJson(readCustomEmojiTags(context))),
-                    )
-                    .put(
-                        "gif",
-                        JSONObject()
-                            .put("apiBaseUrl", readGifApiBaseUrl(context)),
-                    )
-                    .put(
                         "rewrite",
                         JSONObject()
                             .put("enabled", readAgentModeEnabled(context))
@@ -1118,9 +927,7 @@ object KeyboardSettings {
                             }
                         },
                     )
-                    .put("agentProfiles", agentProfileSecretsJson(readAgentProfiles(context)))
-                    .put("gifAppKey", readGifAppKey(context))
-                    .put("gifAppKeyLocked", readGifAppKeyLocked(context)),
+                    .put("agentProfiles", agentProfileSecretsJson(readAgentProfiles(context))),
             )
 
         return backup.toString(BACKUP_JSON_INDENT)
@@ -1140,8 +947,6 @@ object KeyboardSettings {
         val settings = backup.optJSONObject("settings")
             ?: throw JSONException("Backup is missing settings.")
         val keyboard = settings.optJSONObject("keyboard") ?: JSONObject()
-        val emoji = settings.optJSONObject("emoji") ?: JSONObject()
-        val gif = settings.optJSONObject("gif") ?: JSONObject()
         val rewrite = settings.optJSONObject("rewrite") ?: JSONObject()
         val secrets = backup.optJSONObject("secrets")
 
@@ -1174,20 +979,6 @@ object KeyboardSettings {
         val snippets = settings.optTextSnippetList("snippets")
             ?.let(::normalizeTextSnippets)
             ?: readTextSnippets(context)
-        val skinTone = emoji.optById(
-            key = "skinTone",
-            entries = EmojiSkinTone.entries,
-            defaultValue = readEmojiSkinTone(context),
-            idFor = EmojiSkinTone::id,
-        )
-        val recentRows = emoji.optInt("recentRows", readRecentEmojiRows(context))
-            .let(EmojiCatalog::normalizeRecentRowCount)
-        val recentEmojis = emoji.optStringList("recentEmojis")
-            ?.let(EmojiCatalog::normalizeRecentEmojis)
-            ?: readRecentEmojis(context)
-        val customEmojiTags = emoji.optCustomEmojiTags("customTags")
-            ?.let(::normalizeCustomEmojiTags)
-            ?: readCustomEmojiTags(context)
         val clipboardHistory = settings.optClipboardHistory("clipboardHistory")
             ?.let(ClipboardHistoryStore::normalizeEntries)
         val learnedTyping = settings.optJSONObject("learnedTyping")?.let { typing ->
@@ -1245,12 +1036,6 @@ object KeyboardSettings {
                 .take(MAX_AGENT_PROFILES)
         }
         val restoredActiveProfileId = rewrite.optString("activeProfileId").trim()
-        val restoredGifAppKey = secrets
-            ?.takeIf { it.has("gifAppKey") }
-            ?.optString("gifAppKey")
-        val restoredGifAppKeyLocked = secrets
-            ?.takeIf { it.has("gifAppKeyLocked") }
-            ?.optBoolean("gifAppKeyLocked", readGifAppKeyLocked(context))
 
         val providerType = rewrite.optById(
             key = "providerType",
@@ -1279,11 +1064,6 @@ object KeyboardSettings {
         saveSecondRowButtonIds(context, secondRowButtons)
         saveKeyboardRowOrder(context, rowOrder)
         saveTextSnippets(context, snippets)
-        saveEmojiSkinTone(context, skinTone)
-        saveRecentEmojiRows(context, recentRows)
-        saveRecentEmojis(context, recentEmojis)
-        saveCustomEmojiTags(context, customEmojiTags)
-        saveGifApiBaseUrl(context, gif.optString("apiBaseUrl", readGifApiBaseUrl(context)))
         saveAgentModeEnabled(context, rewrite.optBoolean("enabled", readAgentModeEnabled(context)))
         saveAgentProviderType(context, providerType)
         saveAgentApiBaseUrl(context, rewrite.optString("apiBaseUrl", readAgentApiBaseUrl(context)))
@@ -1309,16 +1089,10 @@ object KeyboardSettings {
         restoredAgentProfiles?.let { profiles ->
             replaceAgentProfiles(context, profiles, restoredActiveProfileId)
         }
-        restoredGifAppKey?.let { appKey ->
-            saveGifAppKey(context, appKey)
-            restoredGifAppKeyLocked?.let { locked -> saveGifAppKeyLocked(context, locked) }
-        }
 
         return BackupRestoreResult(
             schemaVersion = schemaVersion,
             snippetCount = snippets.size,
-            customEmojiTagCount = customEmojiTags.size,
-            recentEmojiCount = recentEmojis.size,
             clipboardEntryCount = clipboardHistory?.size ?: ClipboardHistoryStore.read(context).size,
         )
     }
@@ -1364,42 +1138,6 @@ object KeyboardSettings {
         } catch (_: JSONException) {
             null
         }
-    }
-
-    private fun parseCustomEmojiTags(stored: String): Map<String, List<String>>? {
-        return try {
-            val array = JSONArray(stored)
-            buildMap {
-                for (index in 0 until array.length()) {
-                    val item = array.optJSONObject(index) ?: continue
-                    val emoji = item.optString("emoji")
-                    val tags = item.optJSONArray("tags") ?: continue
-                    put(
-                        emoji,
-                        buildList {
-                            for (tagIndex in 0 until tags.length()) {
-                                add(tags.optString(tagIndex))
-                            }
-                        },
-                    )
-                }
-            }
-        } catch (_: JSONException) {
-            null
-        }
-    }
-
-    private fun normalizeCustomEmojiTagList(tags: List<String>): List<String> {
-        return tags
-            .map {
-                it.trim()
-                    .replace(whitespaceRegex, " ")
-                    .take(MAX_CUSTOM_EMOJI_TAG_CHARS)
-                    .trim()
-            }
-            .filter { it.isNotBlank() }
-            .distinctBy { it.lowercase() }
-            .take(MAX_CUSTOM_EMOJI_TAGS_PER_EMOJI)
     }
 
     private fun encryptAgentApiKey(apiKey: String): Result<EncryptedValue> {
@@ -1589,18 +1327,6 @@ object KeyboardSettings {
         }
     }
 
-    private fun customEmojiTagsJson(tagsByEmoji: Map<String, List<String>>): JSONArray {
-        return JSONArray().apply {
-            tagsByEmoji.forEach { (emoji, tags) ->
-                put(
-                    JSONObject()
-                        .put("emoji", emoji)
-                        .put("tags", stringArrayJson(tags)),
-                )
-            }
-        }
-    }
-
     private fun clipboardHistoryJson(entries: List<ClipboardHistoryStore.Entry>): JSONArray {
         return JSONArray().apply {
             ClipboardHistoryStore.normalizeEntries(entries).forEach { entry ->
@@ -1664,24 +1390,6 @@ object KeyboardSettings {
         return buildList {
             for (index in 0 until array.length()) {
                 add(array.optString(index))
-            }
-        }
-    }
-
-    private fun JSONObject.optCustomEmojiTags(key: String): Map<String, List<String>>? {
-        val array = optJSONArray(key) ?: return null
-        return linkedMapOf<String, List<String>>().apply {
-            for (index in 0 until array.length()) {
-                val item = array.optJSONObject(index) ?: continue
-                val tags = item.optJSONArray("tags") ?: continue
-                put(
-                    item.optString("emoji"),
-                    buildList {
-                        for (tagIndex in 0 until tags.length()) {
-                            add(tags.optString(tagIndex))
-                        }
-                    },
-                )
             }
         }
     }
@@ -1849,14 +1557,6 @@ object KeyboardSettings {
         val apiKeyLocked: Boolean,
     )
 
-    data class GifProviderSettings(
-        val baseUrl: String,
-        val appKey: String,
-    ) {
-        val isConfigured: Boolean
-            get() = baseUrl.isNotBlank() && appKey.isNotBlank()
-    }
-
     private data class EncryptedValue(
         val ciphertext: String,
         val iv: String,
@@ -1871,8 +1571,6 @@ object KeyboardSettings {
     data class BackupRestoreResult(
         val schemaVersion: Int,
         val snippetCount: Int,
-        val customEmojiTagCount: Int,
-        val recentEmojiCount: Int,
         val clipboardEntryCount: Int,
     )
 

@@ -49,7 +49,7 @@ object ImeDimensions {
     const val MODE_SWITCH_KEY_WEIGHT = 1.25f
     const val SPACE_KEY_WEIGHT = 5.1f
     const val ENTER_KEY_WEIGHT = 1.55f
-    const val EMOJI_KEY_WEIGHT = 0.9f
+    const val PINYIN_MODE_KEY_WEIGHT = 0.9f
 
     const val BROWSE_HEADER_HEIGHT_DP = 42
     const val BACK_BUTTON_WIDTH_DP = 44

@@ -52,9 +52,7 @@ class ZnKeyboardView @JvmOverloads constructor(
         fun onSpaceCursorDragChanged(characterDelta: Int)
         fun onSpaceCursorDragFinished()
         fun onSpaceCursorDragCancelled()
-        fun onEmojiPanelRequested()
         fun onSnippetPanelRequested()
-        fun onEmojiKeySuggestionSelected(emoji: String)
         fun onAgentRewriteRequested()
         fun onSaveSnippetRequested()
         fun onComposerSuggestionSelected(text: String)
@@ -121,7 +119,6 @@ class ZnKeyboardView @JvmOverloads constructor(
     private var keyboardRowOrder = KeyboardSettings.DEFAULT_KEYBOARD_ROW_ORDER
     private var shortcutMacrosByKeyId: Map<String, ShortcutMacro> = emptyMap()
     private var shortcutRowState = ShortcutRowState(secondRowVisible = true)
-    private var emojiKeySuggestion: String? = null
     private var pinyinModeEnabled = false
     private var rewriteLabel = "Rewrite"
     // Shown on a round key beside Rewrite while it translates; null when it only polishes.
@@ -277,14 +274,6 @@ class ZnKeyboardView @JvmOverloads constructor(
     fun setEnterLabel(label: String) {
         if (enterLabel != label) {
             enterLabel = label
-            refreshHitTargets()
-            invalidate()
-        }
-    }
-
-    fun setEmojiKeySuggestion(emoji: String?) {
-        if (emojiKeySuggestion != emoji) {
-            emojiKeySuggestion = emoji
             refreshHitTargets()
             invalidate()
         }
@@ -461,14 +450,6 @@ class ZnKeyboardView @JvmOverloads constructor(
         pointerQueue.remove(pointerId)
         pointerQueue.add(pointerId)
         when (key?.id) {
-            "comma" -> scheduleLongPress(pointerId, "comma") {
-                callback?.onEmojiPanelRequested()
-            }
-            "emoji" -> emojiKeySuggestion?.let { emoji ->
-                scheduleLongPress(pointerId, "emoji") {
-                    callback?.onEmojiKeySuggestionSelected(emoji)
-                }
-            }
             "apostrophe" -> scheduleLongPress(pointerId, "apostrophe") {
                 handleKey(KeySpec("backtick_long_press", "`", KeyIntent.Dispatch(KeyboardAction.Text("`"))))
             }
@@ -1180,7 +1161,6 @@ class ZnKeyboardView @JvmOverloads constructor(
         canvas.translate(left, top)
         canvas.scale(iconSize / ImeLayout.ICON_VIEWPORT, iconSize / ImeLayout.ICON_VIEWPORT)
         when (icon) {
-            KeyIcon.Emoji -> drawEmojiIcon(canvas)
             KeyIcon.ArrowLeft -> drawArrowIcon(canvas, ArrowDirection.Left)
             KeyIcon.ArrowUp -> drawArrowIcon(canvas, ArrowDirection.Up)
             KeyIcon.ArrowDown -> drawArrowIcon(canvas, ArrowDirection.Down)
@@ -1192,19 +1172,6 @@ class ZnKeyboardView @JvmOverloads constructor(
             KeyIcon.Space -> drawSpaceIcon(canvas)
         }
         canvas.restore()
-    }
-
-    private fun drawEmojiIcon(canvas: Canvas) {
-        canvas.drawCircle(12f, 12f, 7f, iconPaint)
-        iconPaint.style = Paint.Style.FILL
-        canvas.drawCircle(9.2f, 10.4f, 0.9f, iconPaint)
-        canvas.drawCircle(14.8f, 10.4f, 0.9f, iconPaint)
-        iconPaint.style = Paint.Style.STROKE
-        val smile = Path().apply {
-            moveTo(8.6f, 14f)
-            cubicTo(10.2f, 16f, 13.8f, 16f, 15.4f, 14f)
-        }
-        canvas.drawPath(smile, iconPaint)
     }
 
     private fun drawArrowIcon(canvas: Canvas, direction: ArrowDirection) {
@@ -1406,7 +1373,6 @@ class ZnKeyboardView @JvmOverloads constructor(
             }
             KeyIntent.ToggleAlt -> alt = !alt
             KeyIntent.ToggleCtrl -> ctrl = !ctrl
-            KeyIntent.OpenEmojiPanel -> callback?.onEmojiPanelRequested()
             KeyIntent.TogglePinyinMode -> callback?.onPinyinModeToggled()
             KeyIntent.ChooseTranslateLanguage -> callback?.onTranslateLanguageMenuRequested()
             KeyIntent.AgentRewrite -> callback?.onAgentRewriteRequested()
@@ -2108,13 +2074,13 @@ class ZnKeyboardView @JvmOverloads constructor(
         )
     }
 
-    /** Takes the emoji key's slot: switches between pinyin (中) and English (EN). */
+    /** Switches between pinyin (中) and English (EN). */
     private fun pinyinModeKeySpec(): KeySpec {
         return KeySpec(
             id = "pinyin_mode",
             label = if (pinyinModeEnabled) "中" else "EN",
             intent = KeyIntent.TogglePinyinMode,
-            weight = ImeDimensions.EMOJI_KEY_WEIGHT,
+            weight = ImeDimensions.PINYIN_MODE_KEY_WEIGHT,
             role = KeyRole.Function,
         )
     }
@@ -2198,7 +2164,6 @@ class ZnKeyboardView @JvmOverloads constructor(
     }
 
     private enum class KeyIcon {
-        Emoji,
         ArrowLeft,
         ArrowUp,
         ArrowDown,
@@ -2303,7 +2268,6 @@ class ZnKeyboardView @JvmOverloads constructor(
         data object ToggleNumericLayout : KeyIntent()
         data object ToggleAlt : KeyIntent()
         data object ToggleCtrl : KeyIntent()
-        data object OpenEmojiPanel : KeyIntent()
         data object TogglePinyinMode : KeyIntent()
         data object ChooseTranslateLanguage : KeyIntent()
         data object AgentRewrite : KeyIntent()

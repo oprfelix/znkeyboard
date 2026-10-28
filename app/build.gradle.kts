@@ -43,7 +43,9 @@ android {
             if (releaseSigning != null) {
                 signingConfig = signingConfigs.getByName("release")
             }
-            isMinifyEnabled = false
+            // R8 drops unused Compose/AndroidX code; the APK goes from ~27 MB to a fraction of that.
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
