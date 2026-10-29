@@ -40,7 +40,7 @@
     <string name="nav_backup_title">Backup &amp; clipboard</string>
     <string name="voice_title">Voice input</string>
     <string name="voice_subtitle">Hold the space bar to talk, release to insert. Slide up to cancel.</string>
-    <string name="voice_desc">Uses Google Gemini with the API key above. In 中 mode it writes down what you said and removes filler words; in EN mode it also translates into your Translate to language. Audio is sent to Google, kept only in memory, and never saved on the phone. Off in password fields.</string>
+    <string name="voice_desc">Always uses Google Gemini, with the key saved under the Google Gemini provider (even when Rewrite uses another provider). In 中 mode it writes down what you said and removes filler words; in EN mode it also translates into your Translate to language. Audio is sent to Google, kept only in memory, and never saved on the phone. Off in password fields.</string>
     <string name="rewrite_title">Rewrite</string>
     <string name="rewrite_subtitle">Controls the Rewrite button in the tools row.</string>
     <string name="rewrite_desc">Text is sent directly from this keyboard to your configured provider. Rewrite is disabled in password fields.</string>
@@ -224,4 +224,6 @@
         <item quantity="one">%1$d keys · %2$d macro</item>
         <item quantity="other">%1$d keys · %2$d macros</item>
     </plurals>
+    <string name="voice_mic_blocked">Microphone access is turned off for ZnKeyboard. Allow it in system settings (Permissions → Microphone), then come back.</string>
+    <string name="voice_open_app_settings">Open system settings</string>
 </resources>

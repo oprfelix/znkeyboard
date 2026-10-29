@@ -40,7 +40,7 @@
     <string name="nav_backup_title">备份与剪贴板</string>
     <string name="voice_title">语音输入</string>
     <string name="voice_subtitle">按住空格键说话，松开插入文字，上滑取消。</string>
-    <string name="voice_desc">使用上面填写的 Google Gemini API Key。中文模式下把你说的话整理成文字并去掉口头禅；英文模式下还会翻译成“翻译成”里选的语言。录音会发送给 Google，只在内存中处理，不会保存在手机上。密码框里不可用。</string>
+    <string name="voice_desc">始终使用 Google Gemini，用的是在“Google Gemini”服务商下保存的 API Key（即使润色选了其他服务商）。中文模式下把你说的话整理成文字并去掉口头禅；英文模式下还会翻译成“翻译成”里选的语言。录音会发送给 Google，只在内存中处理，不会保存在手机上。密码框里不可用。</string>
     <string name="rewrite_title">AI 润色</string>
     <string name="rewrite_subtitle">控制工具栏里的 AI 润色按钮。</string>
     <string name="rewrite_desc">文字由键盘直接发送给你设置的服务商。密码框里不可用。</string>
@@ -222,4 +222,6 @@
     <plurals name="shortcuts_card_summary">
         <item quantity="other">%1$d 个按键 · %2$d 个宏</item>
     </plurals>
+    <string name="voice_mic_blocked">ZnKeyboard 的麦克风权限已关闭。请在系统设置（权限 → 麦克风）里允许，然后回到这里。</string>
+    <string name="voice_open_app_settings">打开系统设置</string>
 </resources>

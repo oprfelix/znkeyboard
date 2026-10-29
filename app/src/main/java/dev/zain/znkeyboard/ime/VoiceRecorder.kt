@@ -25,7 +25,8 @@ class VoiceRecorder(
     private val onLevel: (level: Float, elapsedMs: Long) -> Unit,
     private val onLimitReached: () -> Unit,
 ) {
-    class Clip(val wav: ByteArray, val durationMs: Long)
+    /** Raw 16-bit PCM; turn it into a request body with [encodeSpeech] off the main thread. */
+    class Clip(val pcm: ByteArray, val durationMs: Long)
 
     private val mainHandler = Handler(Looper.getMainLooper())
     private val pcm = ByteArrayOutputStream()
@@ -68,9 +69,22 @@ class VoiceRecorder(
         return true
     }
 
-    /** Stops recording and returns the clip with leading and trailing silence trimmed. */
+    /** Stops recording and returns what was captured. */
     fun stop(): Clip {
         val durationMs = SystemClock.elapsedRealtime() - startedAt
+        release()
+        val samples = synchronized(pcm) { pcm.toByteArray() }
+        pcm.reset()
+        return Clip(pcm = samples, durationMs = durationMs)
+    }
+
+    /** Stops recording and throws the audio away. */
+    fun cancel() {
+        release()
+        synchronized(pcm) { pcm.reset() }
+    }
+
+    private fun release() {
         running = false
         thread?.join(READ_JOIN_TIMEOUT_MS)
         thread = null
@@ -79,13 +93,6 @@ class VoiceRecorder(
             record.release()
         }
         audioRecord = null
-        val samples = synchronized(pcm) { pcm.toByteArray() }
-        pcm.reset()
-        return Clip(wav = toWav(trimSilence(samples)), durationMs = durationMs)
-    }
-
-    fun cancel() {
-        stop()
     }
 
     private fun readLoop(record: AudioRecord) {
@@ -119,48 +126,6 @@ class VoiceRecorder(
         return ((rms - 300.0) / 5700.0).coerceIn(0.0, 1.0).toFloat()
     }
 
-    /** Drops quiet audio before the first and after the last loud frame, keeping a short pad. */
-    private fun trimSilence(samples: ByteArray): ByteArray {
-        val frameBytes = SAMPLE_RATE / 50 * BYTES_PER_SAMPLE
-        val frames = samples.size / frameBytes
-        if (frames == 0) return samples
-        fun loud(frame: Int): Boolean {
-            var peak = 0
-            var index = frame * frameBytes
-            val end = index + frameBytes
-            while (index + 1 < end) {
-                val sample = (samples[index].toInt() and 0xFF) or (samples[index + 1].toInt() shl 8)
-                peak = max(peak, abs(sample.toShort().toInt()))
-                index += BYTES_PER_SAMPLE
-            }
-            return peak > SILENCE_PEAK
-        }
-        val first = (0 until frames).firstOrNull(::loud) ?: return ByteArray(0)
-        val last = (frames - 1 downTo 0).first(::loud)
-        val start = max(0, first - PAD_FRAMES) * frameBytes
-        val end = min(frames, last + 1 + PAD_FRAMES) * frameBytes
-        return samples.copyOfRange(start, end)
-    }
-
-    private fun toWav(samples: ByteArray): ByteArray {
-        val header = ByteBuffer.allocate(WAV_HEADER_BYTES).order(ByteOrder.LITTLE_ENDIAN).apply {
-            put("RIFF".toByteArray())
-            putInt(36 + samples.size)
-            put("WAVE".toByteArray())
-            put("fmt ".toByteArray())
-            putInt(16)
-            putShort(1)
-            putShort(1)
-            putInt(SAMPLE_RATE)
-            putInt(SAMPLE_RATE * BYTES_PER_SAMPLE)
-            putShort(BYTES_PER_SAMPLE.toShort())
-            putShort(16)
-            put("data".toByteArray())
-            putInt(samples.size)
-        }
-        return header.array() + samples
-    }
-
     companion object {
         const val SAMPLE_RATE = 16_000
         private const val BYTES_PER_SAMPLE = 2
@@ -169,5 +134,53 @@ class VoiceRecorder(
         private const val SILENCE_PEAK = 900
         // 20 ms frames: keep 0.3 s around the speech so word edges aren't clipped.
         private const val PAD_FRAMES = 15
+
+        /** WAV of [pcm] with silence trimmed, or null when nothing was loud enough to be speech. */
+        fun encodeSpeech(pcm: ByteArray): ByteArray? {
+            val speech = trimSilence(pcm)
+            return if (speech.isEmpty()) null else toWav(speech)
+        }
+
+        /** Drops quiet audio before the first and after the last loud frame, keeping a short pad. */
+        private fun trimSilence(samples: ByteArray): ByteArray {
+            val frameBytes = SAMPLE_RATE / 50 * BYTES_PER_SAMPLE
+            val frames = samples.size / frameBytes
+            if (frames == 0) return samples
+            fun loud(frame: Int): Boolean {
+                var peak = 0
+                var index = frame * frameBytes
+                val end = index + frameBytes
+                while (index + 1 < end) {
+                    val sample = (samples[index].toInt() and 0xFF) or (samples[index + 1].toInt() shl 8)
+                    peak = max(peak, abs(sample.toShort().toInt()))
+                    index += BYTES_PER_SAMPLE
+                }
+                return peak > SILENCE_PEAK
+            }
+            val first = (0 until frames).firstOrNull(::loud) ?: return ByteArray(0)
+            val last = (frames - 1 downTo 0).first(::loud)
+            val start = max(0, first - PAD_FRAMES) * frameBytes
+            val end = min(frames, last + 1 + PAD_FRAMES) * frameBytes
+            return samples.copyOfRange(start, end)
+        }
+
+        private fun toWav(samples: ByteArray): ByteArray {
+            val header = ByteBuffer.allocate(WAV_HEADER_BYTES).order(ByteOrder.LITTLE_ENDIAN).apply {
+                put("RIFF".toByteArray())
+                putInt(36 + samples.size)
+                put("WAVE".toByteArray())
+                put("fmt ".toByteArray())
+                putInt(16)
+                putShort(1)
+                putShort(1)
+                putInt(SAMPLE_RATE)
+                putInt(SAMPLE_RATE * BYTES_PER_SAMPLE)
+                putShort(BYTES_PER_SAMPLE.toShort())
+                putShort(16)
+                put("data".toByteArray())
+                putInt(samples.size)
+            }
+            return header.array() + samples
+        }
     }
 }

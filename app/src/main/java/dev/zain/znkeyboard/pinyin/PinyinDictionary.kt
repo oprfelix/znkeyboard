@@ -33,8 +33,10 @@ class PinyinDictionary private constructor(
 
     init {
         val rawSyllables = HashSet<String>()
+        // Only a few hundred distinct syllables exist; share one normalized string for each.
+        val normalizedBySyllable = HashMap<String, String>()
         rows.forEachIndexed { rank, row ->
-            val normalized = row.syllables.map(fuzzy::normalize)
+            val normalized = row.syllables.map { normalizedBySyllable.getOrPut(it) { fuzzy.normalize(it) } }
             rawSyllables += row.syllables
             val entry = Entry(row.text, normalized.toTypedArray(), row.syllables, rank)
             exact.getOrPut(normalized.joinToString(" ")) { mutableListOf() }.add(entry)
@@ -102,11 +104,15 @@ class PinyinDictionary private constructor(
     companion object {
         fun load(reader: BufferedReader, rules: Set<PinyinFuzzyRule>): PinyinDictionary {
             val rows = ArrayList<Row>(200_000)
+            // Rows repeat the same few hundred syllables; keep one copy of each string.
+            val syllableCache = HashMap<String, String>()
             reader.forEachLine { line ->
                 val firstTab = line.indexOf('\t')
                 val secondTab = line.indexOf('\t', firstTab + 1)
                 if (firstTab > 0 && secondTab > firstTab) {
-                    rows += Row(line.substring(0, firstTab), line.substring(firstTab + 1, secondTab).split(' '))
+                    val syllables = line.substring(firstTab + 1, secondTab).split(' ')
+                        .map { syllableCache.getOrPut(it) { it } }
+                    rows += Row(line.substring(0, firstTab), syllables)
                 }
             }
             return PinyinDictionary(PinyinFuzzy(rules), rows)

@@ -1,6 +1,18 @@
 package dev.zain.znkeyboard.ime
 
 object AsciiTextSanitizer {
+    /**
+     * English text gets plain ASCII punctuation, as before. Text with non-ASCII letters (Chinese,
+     * Japanese, French, German…) keeps its own quotes and marks; only invisible characters go.
+     */
+    fun clean(text: String): String {
+        val hasNonAsciiLetters = text.any { it.code >= 0x80 && Character.isLetter(it) }
+        if (!hasNonAsciiLetters) return toAscii(text)
+        return text.filterNot { it.code in INVISIBLE }
+    }
+
+    private val INVISIBLE = setOf(0x00AD, 0x200B, 0x200C, 0x200D, 0x200E, 0x200F, 0x2060, 0x2061, 0x2062, 0x2063, 0x2064, 0xFEFF)
+
     private val replacements = mapOf(
         0x201C to "\"",
         0x201D to "\"",

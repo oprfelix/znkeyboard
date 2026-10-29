@@ -226,21 +226,22 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         candidatesEnd: Int,
     ) {
         super.onUpdateSelection(oldSelStart, oldSelEnd, newSelStart, newSelEnd, candidatesStart, candidatesEnd)
+        if (SystemClock.uptimeMillis() - lastOwnEditAt > OWN_EDIT_SETTLE_MS) pendingOwnSelectionUpdates = 0
+        if (pendingOwnSelectionUpdates > 0) {
+            // Our own edit; a late report from an earlier commit must not drop a newer composition.
+            pendingOwnSelectionUpdates--
+            return
+        }
         if (pinyinComposing.isNotEmpty() && candidatesStart < 0) {
             // The editor dropped our composing span (tap elsewhere, app cleared the field).
             clearPinyinComposition()
         }
-        if (SystemClock.uptimeMillis() - lastOwnEditAt > OWN_EDIT_SETTLE_MS) pendingOwnSelectionUpdates = 0
-        if (pendingOwnSelectionUpdates > 0) {
-            pendingOwnSelectionUpdates--
-        } else if (!isRawKeyEventEditor(currentEditorInfo) && (oldSelStart != newSelStart || oldSelEnd != newSelEnd)) {
+        if (!isRawKeyEventEditor(currentEditorInfo) && (oldSelStart != newSelStart || oldSelEnd != newSelEnd)) {
             // The user tapped elsewhere in the text, or the app edited it: accept and resync.
             typingEngine.learner.onContextChanged(
                 if (newSelStart == newSelEnd) currentInputConnection?.getTextBeforeCursor(TYPING_CONTEXT_CHARS, 0) else null,
             )
             updateAutoShift()
-        }
-        if (oldSelStart != newSelStart || oldSelEnd != newSelEnd) {
         }
     }
 
@@ -416,6 +417,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
             view.setFunctionKeyBackgroundsEnabled(KeyboardSettings.readFunctionKeyBackgroundsEnabled(this))
             view.setKeyHapticsEnabled(KeyboardSettings.readKeyHapticsEnabled(this))
             view.setKeyPreviewEnabled(KeyboardSettings.readKeyPreviewEnabled(this))
+            view.setVoiceInputEnabled(KeyboardSettings.readVoiceInputEnabled(this))
             view.setShortcutMacros(KeyboardSettings.readShortcutMacros(this))
             view.setUpperRowKeyIds(KeyboardSettings.readUpperRowKeyIds(this))
             view.setSecondRowButtonIds(KeyboardSettings.readSecondRowButtonIds(this))
@@ -1314,15 +1316,13 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     /** Why voice input can't start in this field right now, or null when it can. */
     private fun voiceInputProblem(): String? {
         val chinese = pinyinModeEnabled
-        val providerSettings = KeyboardSettings.readAgentProviderSettings(this)
+        val gemini = KeyboardSettings.readAgentProviderSettings(this, KeyboardSettings.AgentProviderType.Gemini)
         return when {
             isSensitiveEditor(currentEditorInfo) ->
                 if (chinese) "密码框里不能用语音输入。" else "Voice input is off in password fields."
             checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED ->
-                if (chinese) "请先在设置 → Tools 里开启语音输入。" else "Turn on voice input in Settings → Tools."
-            providerSettings.providerType != KeyboardSettings.AgentProviderType.Gemini ->
-                if (chinese) "语音输入目前只支持 Gemini。" else "Voice input needs the Gemini provider."
-            !providerSettings.isConfigured ->
+                if (chinese) "请先在设置 → 工具 里开启语音输入。" else "Turn on voice input in Settings → Tools."
+            !gemini.isConfigured ->
                 if (chinese) "请先在设置里填好 Gemini API Key。" else "Add your Gemini API key in Settings first."
             else -> null
         }
@@ -1331,30 +1331,19 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     private fun finishVoiceInput(cancelled: Boolean) {
         val recorder = voiceRecorder ?: return
         voiceRecorder = null
-        val clip = recorder.stop()
-        if (cancelled || clip.durationMs < AgentDefaults.MIN_VOICE_CLIP_MS) {
+        if (cancelled) {
+            recorder.cancel()
             keyboardView?.setVoiceIndicator(null)
             return
         }
-        if (clip.wav.size <= WAV_HEADER_BYTES) {
-            showVoiceHint(if (pinyinModeEnabled) "没有听到声音。" else "Didn't hear anything.")
+        val clip = recorder.stop()
+        if (clip.durationMs < AgentDefaults.MIN_VOICE_CLIP_MS) {
+            keyboardView?.setVoiceIndicator(null)
             return
         }
 
-        val providerSettings = KeyboardSettings.readAgentProviderSettings(this)
+        val providerSettings = KeyboardSettings.readAgentProviderSettings(this, KeyboardSettings.AgentProviderType.Gemini)
         val systemPrompt = voiceSystemPrompt()
-        val userContent = JSONArray()
-            .put(JSONObject().put("type", "text").put("text", "Here is my recording."))
-            .put(
-                JSONObject()
-                    .put("type", "input_audio")
-                    .put(
-                        "input_audio",
-                        JSONObject()
-                            .put("data", Base64.encodeToString(clip.wav, Base64.NO_WRAP))
-                            .put("format", "wav"),
-                    ),
-            )
         val generation = ++voiceGeneration
         voiceProcessing = true
         keyboardView?.setVoiceIndicator(ZnKeyboardView.VoiceIndicator.Processing)
@@ -1362,6 +1351,20 @@ class ZnKeyboardInputMethodService : InputMethodService(),
 
         Thread {
             val result = runCatching {
+                // Trimming and encoding a long clip takes a moment, so it happens here, not on the UI thread.
+                val wav = VoiceRecorder.encodeSpeech(clip.pcm) ?: throw NoSpeechException()
+                val userContent = JSONArray()
+                    .put(JSONObject().put("type", "text").put("text", "Here is my recording."))
+                    .put(
+                        JSONObject()
+                            .put("type", "input_audio")
+                            .put(
+                                "input_audio",
+                                JSONObject()
+                                    .put("data", Base64.encodeToString(wav, Base64.NO_WRAP))
+                                    .put("format", "wav"),
+                            ),
+                    )
                 requestChatCompletion(
                     providerSettings = providerSettings,
                     systemPrompt = systemPrompt,
@@ -1376,7 +1379,9 @@ class ZnKeyboardInputMethodService : InputMethodService(),
                 result
                     .onSuccess(::commitVoiceText)
                     .onFailure { error ->
-                        if (error is EmptyModelTextException) {
+                        if (error is NoSpeechException) {
+                            showVoiceHint(if (pinyinModeEnabled) "没有听到声音。" else "Didn't hear anything.")
+                        } else if (error is EmptyModelTextException) {
                             showVoiceHint(if (pinyinModeEnabled) "没听清，请再说一次。" else "Didn't catch that. Try again.")
                         } else {
                             showAgentError(error.message ?: "Voice input failed.")
@@ -1401,6 +1406,8 @@ class ZnKeyboardInputMethodService : InputMethodService(),
 
     private fun commitVoiceText(text: String) {
         val inputConnection = currentInputConnection ?: return
+        // Pinyin typed while waiting is composing text, which commitText would overwrite.
+        commitPinyinWholeTop()
         val before = inputConnection.getTextBeforeCursor(1, 0)?.toString().orEmpty()
         // Dictated English after a word needs a separating space; CJK text never does.
         val needsSpace = before.isNotEmpty() &&
@@ -1772,7 +1779,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         val structuredPayload = parseStructuredOutput(message.opt("content"), includeReasoningText)
         val text = structuredPayload
             .optString(STRUCTURED_OUTPUT_TEXT_FIELD)
-            .let(AsciiTextSanitizer::toAscii)
+            .let(AsciiTextSanitizer::clean)
             .trim()
 
         if (text.isBlank() || text.equals("null", ignoreCase = true)) {
@@ -1946,7 +1953,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     }
 
     private fun applyLlmResult(target: AgentEditTarget, content: String) {
-        val normalized = AsciiTextSanitizer.toAscii(content).trim()
+        val normalized = AsciiTextSanitizer.clean(content).trim()
         if (normalized.isBlank() || normalized.equals("null", ignoreCase = true)) {
             showAgentError("No rewrite returned.")
             return
@@ -2167,6 +2174,9 @@ class ZnKeyboardInputMethodService : InputMethodService(),
 
     private class EmptyModelTextException(message: String) : IOException(message)
 
+    /** The clip held nothing loud enough to be speech, so it was never sent. */
+    private class NoSpeechException : IOException("No speech in the recording.")
+
     private class LlmHttpException(
         val responseCode: Int,
         val responseText: String,
@@ -2223,7 +2233,6 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         const val TRANSLATE_PROMPT_ASSET = AgentDefaults.TRANSLATE_PROMPT_ASSET
         const val VOICE_PROMPT_ASSET = AgentDefaults.VOICE_PROMPT_ASSET
         const val VOICE_HINT_DURATION_MS = 2_500L
-        const val WAV_HEADER_BYTES = 44
         // CJK scripts start at U+2E80; text from there on is written without word spaces.
         const val CJK_START = 0x2E80
         const val WHATSAPP_PACKAGE_NAME = "com.whatsapp"

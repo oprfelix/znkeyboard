@@ -686,8 +686,11 @@ object KeyboardSettings {
             .apply()
     }
 
-    fun readAgentProviderSettings(context: Context): AgentProviderSettings {
-        val providerType = readAgentProviderType(context)
+    /** The selected provider by default; voice input asks for Gemini's settings whichever is selected. */
+    fun readAgentProviderSettings(
+        context: Context,
+        providerType: AgentProviderType = readAgentProviderType(context),
+    ): AgentProviderSettings {
         return AgentProviderSettings(
             providerType = providerType,
             baseUrl = providerType.fixedBaseUrl ?: readAgentApiBaseUrl(context),

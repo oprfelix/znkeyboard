@@ -1,6 +1,7 @@
 package dev.zain.znkeyboard
 
 import android.Manifest
+import android.app.Activity
 import android.app.LocaleManager
 import android.content.Context
 import android.content.Intent
@@ -863,16 +864,21 @@ private fun VoiceInputSection() {
     fun micGranted() = context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
     var enabled by remember { mutableStateOf(KeyboardSettings.readVoiceInputEnabled(context)) }
     var granted by remember { mutableStateOf(micGranted()) }
+    // After "Don't allow" twice Android stops asking, so the switch alone can't turn voice on.
+    var blocked by remember { mutableStateOf(false) }
     val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { result ->
         granted = result
         if (result) {
             enabled = true
             KeyboardSettings.saveVoiceInputEnabled(context, true)
+        } else {
+            blocked = (context as? Activity)?.shouldShowRequestPermissionRationale(Manifest.permission.RECORD_AUDIO) == false
         }
     }
     // The permission can be revoked in system settings while this screen is in the background.
     LifecycleResumeEffect(Unit) {
         granted = micGranted()
+        if (granted) blocked = false
         onPauseOrDispose {}
     }
 
@@ -899,6 +905,23 @@ private fun VoiceInputSection() {
             color = ZnKeyboardColors.Muted,
             style = MaterialTheme.typography.bodySmall,
         )
+        if (blocked && !granted) {
+            Text(
+                text = stringResource(R.string.voice_mic_blocked),
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodySmall,
+            )
+            OutlinedButton(
+                onClick = {
+                    context.startActivity(
+                        Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", context.packageName, null)),
+                    )
+                },
+                shape = SettingsCapsuleShape,
+            ) {
+                Text(stringResource(R.string.voice_open_app_settings))
+            }
+        }
     }
 }
 

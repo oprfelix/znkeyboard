@@ -130,7 +130,12 @@ class ZnKeyboardView @JvmOverloads constructor(
     private var shortcutRowState = ShortcutRowState(secondRowVisible = true)
     private var pinyinModeEnabled = false
     private var voiceIndicator: VoiceIndicator? = null
+    private var voiceInputEnabled = true
     private var voiceCancelArmed = false
+    // Reused on every frame and finger move while recording, so drawing allocates nothing.
+    private val voiceOverlayRect = RectF()
+    private var voiceTimerSeconds = -1L
+    private var voiceTimerText = ""
     private var rewriteLabel = "Rewrite"
     // Shown on a round key beside Rewrite while it translates; null when it only polishes.
     private var translateLanguageCode: String? = null
@@ -296,6 +301,21 @@ class ZnKeyboardView @JvmOverloads constructor(
             refreshHitTargets()
             invalidate()
         }
+    }
+
+    fun setVoiceInputEnabled(enabled: Boolean) {
+        if (voiceInputEnabled != enabled) {
+            voiceInputEnabled = enabled
+            refreshHitTargets()
+            invalidate()
+        }
+    }
+
+    /** Long-press space records speech, so it is labelled only while voice input is on. */
+    private fun spaceLongPressHint(): String? = when {
+        !voiceInputEnabled -> null
+        pinyinModeEnabled -> "语音"
+        else -> "voice"
     }
 
     fun setVoiceIndicator(indicator: VoiceIndicator?) {
@@ -1004,7 +1024,8 @@ class ZnKeyboardView @JvmOverloads constructor(
         val inset = dp(VOICE_OVERLAY_INSET_DP)
         val bottom = space.visualBounds.top - inset
         if (bottom - inset < dp(VOICE_OVERLAY_MIN_HEIGHT_DP)) return null
-        return RectF(inset, inset, width - inset, bottom)
+        voiceOverlayRect.set(inset, inset, width - inset, bottom)
+        return voiceOverlayRect
     }
 
     private fun voiceCancelBoundaryY(): Float? {
@@ -1101,9 +1122,14 @@ class ZnKeyboardView @JvmOverloads constructor(
         canvas.drawText(text, centerX, centerY - (metrics.ascent + metrics.descent) / 2f, textPaint)
     }
 
+    /** m:ss, rebuilt only when the second changes. */
     private fun formatVoiceTime(elapsedMs: Long): String {
         val seconds = elapsedMs / 1000
-        return "%d:%02d".format(seconds / 60, seconds % 60)
+        if (seconds != voiceTimerSeconds) {
+            voiceTimerSeconds = seconds
+            voiceTimerText = "%d:%02d".format(seconds / 60, seconds % 60)
+        }
+        return voiceTimerText
     }
 
     /** Square centered in a round key's slot; with a toolbar's half-height radius it draws a circle. */
@@ -2191,7 +2217,7 @@ class ZnKeyboardView @JvmOverloads constructor(
                 KeyIntent.Dispatch(KeyboardAction.Text(" ")),
                 4.7f,
                 KeyRole.Function,
-                longPressHint = if (pinyinModeEnabled) "语音" else "voice",
+                longPressHint = spaceLongPressHint(),
             )
         }
         keys += KeySpec(
@@ -2234,7 +2260,7 @@ class ZnKeyboardView @JvmOverloads constructor(
                 KeyIntent.Dispatch(KeyboardAction.Text(" ")),
                 ImeDimensions.SPACE_KEY_WEIGHT,
                 KeyRole.Function,
-                longPressHint = if (pinyinModeEnabled) "语音" else "voice",
+                longPressHint = spaceLongPressHint(),
             )
             keys += KeySpec(
                 "numeric_layout_toggle",
@@ -2260,7 +2286,7 @@ class ZnKeyboardView @JvmOverloads constructor(
                 KeyIntent.Dispatch(KeyboardAction.Text(" ")),
                 ImeDimensions.SPACE_KEY_WEIGHT,
                 KeyRole.Function,
-                longPressHint = if (pinyinModeEnabled) "语音" else "voice",
+                longPressHint = spaceLongPressHint(),
             )
             keys += KeySpec(
                 "bottom_period",
