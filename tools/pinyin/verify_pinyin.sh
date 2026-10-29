@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Compiles the pure-Kotlin pinyin engine with PinyinHarness.kt using the Kotlin compiler in the
 # Gradle cache (run a Gradle build once first), then checks segmentation, ranking and fuzzy rules
-# against the bundled dictionary.
+# against the bundled dictionary, plus learning, phrase building and predictions.
 #
 # Usage: tools/pinyin/verify_pinyin.sh
 set -euo pipefail
@@ -21,5 +21,6 @@ OUT="$(mktemp -d)"
 P=app/src/main/java/dev/zain/znkeyboard/pinyin
 "$JAVA_HOME/bin/java" -cp "$CP" org.jetbrains.kotlin.cli.jvm.K2JVMCompiler -jdk-home "$JAVA_HOME" \
   -no-stdlib -no-reflect -classpath "$STD" -nowarn -d "$OUT" \
-  "$P/PinyinFuzzy.kt" "$P/PinyinDictionary.kt" "$P/PinyinEngine.kt" tools/pinyin/PinyinHarness.kt
+  "$P/PinyinFuzzy.kt" "$P/PinyinDictionary.kt" "$P/PinyinEngine.kt" "$P/PinyinUserData.kt" "$P/PinyinLearner.kt" \
+  tools/pinyin/PinyinHarness.kt
 "$JAVA_HOME/bin/java" -cp "$OUT:$STD" PinyinHarnessKt app/src/main/assets/pinyin/dict.tsv

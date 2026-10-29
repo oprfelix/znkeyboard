@@ -56,6 +56,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import dev.zain.znkeyboard.constants.ImeColors
+import dev.zain.znkeyboard.ime.PinyinLearningStore
 import dev.zain.znkeyboard.pinyin.PinyinFuzzyRule
 import dev.zain.znkeyboard.typing.AdaptiveTypingEngine
 import dev.zain.znkeyboard.typing.TouchModel
@@ -227,7 +228,32 @@ internal fun TypingFeelSection() {
 @Composable
 internal fun PinyinSection() {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var rules by remember { mutableStateOf(KeyboardSettings.readPinyinFuzzyRules(context)) }
+    var learning by remember { mutableStateOf(KeyboardSettings.readPinyinLearningEnabled(context)) }
+    var predictions by remember { mutableStateOf(KeyboardSettings.readPinyinPredictionsEnabled(context)) }
+    var confirmingReset by remember { mutableStateOf(false) }
+
+    if (confirmingReset) {
+        AlertDialog(
+            onDismissRequest = { confirmingReset = false },
+            title = { Text(stringResource(R.string.pinyin_reset_title)) },
+            text = { Text(stringResource(R.string.pinyin_reset_text)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmingReset = false
+                    scope.launch {
+                        withContext(Dispatchers.IO) {
+                            KeyboardSettings.bumpPinyinLearningGeneration(context)
+                            PinyinLearningStore.delete(context)
+                        }
+                    }
+                }) { Text(stringResource(R.string.action_clear)) }
+            },
+            dismissButton = { TextButton(onClick = { confirmingReset = false }) { Text(stringResource(R.string.action_cancel)) } },
+        )
+    }
+
     CollapsibleSettingsSection(
         title = stringResource(R.string.pinyin_title),
         iconResId = R.drawable.ic_keyboard_24,
@@ -249,6 +275,19 @@ internal fun PinyinSection() {
                 },
             )
         }
+        SettingsSwitchRow(
+            title = stringResource(R.string.pinyin_learn),
+            description = stringResource(R.string.pinyin_learn_desc),
+            checked = learning,
+            onCheckedChange = { learning = it; KeyboardSettings.savePinyinLearningEnabled(context, it) },
+        )
+        SettingsSwitchRow(
+            title = stringResource(R.string.pinyin_predict),
+            description = stringResource(R.string.pinyin_predict_desc),
+            checked = predictions,
+            onCheckedChange = { predictions = it; KeyboardSettings.savePinyinPredictionsEnabled(context, it) },
+        )
+        OutlinedButton(onClick = { confirmingReset = true }) { Text(stringResource(R.string.pinyin_reset)) }
     }
 }
 

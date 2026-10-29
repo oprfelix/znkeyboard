@@ -1,6 +1,8 @@
 import dev.zain.znkeyboard.pinyin.PinyinDictionary
 import dev.zain.znkeyboard.pinyin.PinyinEngine
 import dev.zain.znkeyboard.pinyin.PinyinFuzzyRule
+import dev.zain.znkeyboard.pinyin.PinyinLearner
+import dev.zain.znkeyboard.pinyin.PinyinUserData
 import java.io.File
 
 private var failures = 0
@@ -62,6 +64,66 @@ fun main(args: Array<String>) {
     check("full pinyin stays exact: nihao has no 年号", top("nihao", strict, 30).none { it.text == "年号" }, "")
     val nhFirst = PinyinEngine.candidates("nh", fuzzy).first { it.text == "你" }
     check("initial-only char consumes 1", nhFirst.consumed == 1, nhFirst.toString())
+
+    // Weights: joke weights no longer outrank everyday words.
+    check("jzm no longer above 说", strict.matches(listOf(PinyinDictionary.Piece("shuo", false)), 1).isNotEmpty(), "")
+
+    // Learning: picks boost a word, phrases built by hand become words, predictions follow.
+    val learnDict = File(args[0]).bufferedReader().use { PinyinDictionary.load(it, PinyinFuzzyRule.DEFAULTS) }
+    val learner = PinyinLearner(PinyinUserData()).apply { dictionary = learnDict }
+    fun pick(text: String, pinyin: String, byHand: Boolean = true) = learner.onPick(text, pinyin.split(' '), byHand)
+
+    val shiBefore = top("shi", learnDict, 40).map { it.text }
+    val rare = shiBefore.drop(10).first()
+    pick(rare, "shi")
+    learner.onCompositionDone()
+    val shiOnce = top("shi", learnDict, 40).map { it.text }
+    check("one pick moves $rare up", shiOnce.indexOf(rare) < shiBefore.indexOf(rare), "${shiBefore.indexOf(rare)} -> ${shiOnce.indexOf(rare)}")
+    repeat(3) { pick(rare, "shi"); learner.onCompositionDone() }
+    check("repeated picks put $rare first", top("shi", learnDict).first().text == rare, top("shi", learnDict).toString())
+
+    check("wangxiaofeng unknown at first", top("wangxiaofeng", learnDict, 3).none { it.text == "王小丰" }, top("wangxiaofeng", learnDict, 3).toString())
+    pick("王", "wang")
+    pick("小丰", "xiao feng")
+    learner.onCompositionDone()
+    check("built phrase 王小丰 by full pinyin", top("wangxiaofeng", learnDict).firstOrNull()?.text == "王小丰", top("wangxiaofeng", learnDict).toString())
+    check("built phrase 王小丰 by 简拼", top("wxf", learnDict, 3).any { it.text == "王小丰" }, top("wxf", learnDict, 3).toString())
+    val built = top("wangxiaofeng", learnDict).first()
+    check("built phrase consumes all", built.consumed == 12 && built.syllables == listOf("wang", "xiao", "feng"), built.toString())
+
+    pick("你", "ni", byHand = false)
+    pick("号", "hao", byHand = false)
+    learner.onCompositionDone()
+    check("space-only conversion builds no phrase", top("nihao", learnDict, 30).none { it.text == "你号" }, "")
+
+    learner.breakChain()
+    pick("中国", "zhong guo")
+    learner.onCompositionDone()
+    val afterChina = learner.predictions(10).map { it.text }
+    check("predicts continuations of 中国", "人" in afterChina, afterChina.toString())
+    pick("人民", "ren min")
+    learner.onCompositionDone()
+    learner.breakChain()
+    pick("中国", "zhong guo")
+    learner.onCompositionDone()
+    check("learned follower comes first", learner.predictions(10).firstOrNull()?.text == "人民", learner.predictions(10).map { it.text }.toString())
+    val continuation = learner.predictions(10).first { it.word != null }
+    learner.onPredictionPicked(continuation)
+    check("picking a continuation moves context", learner.previous == continuation.word?.text, learner.previous.toString())
+    learner.breakChain()
+    check("no predictions without context", learner.predictions(10).isEmpty(), "")
+
+    val restored = PinyinUserData.decode(learner.data.encode())
+    check("user data round-trips", restored != null && restored.words().size == learner.data.words().size &&
+        restored.nextWords("中国", 3) == learner.data.nextWords("中国", 3), "${restored?.words()?.size}")
+    check("rejects foreign files", PinyinUserData.decode("hello".toByteArray()) == null, "")
+
+    val rebuilt = learnDict.withFuzzy(emptySet())
+    learner.applyTo(rebuilt)
+    check("learning survives a fuzzy rebuild", PinyinEngine.candidates("wangxiaofeng", rebuilt).firstOrNull()?.text == "王小丰", "")
+    learnDict.forgetLearned()
+    check("forget drops built phrases", top("wangxiaofeng", learnDict, 5).none { it.text == "王小丰" }, "")
+    check("forget restores order", top("shi", learnDict, 40).map { it.text } == shiBefore, "")
 
     val t = System.nanoTime()
     repeat(200) { PinyinEngine.candidates("zhonghuarenmingongheguo", fuzzy) }

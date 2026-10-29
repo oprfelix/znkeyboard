@@ -1,16 +1,19 @@
 package dev.zain.znkeyboard.pinyin
 
 /**
- * Turns typed pinyin letters into candidates. No prediction or learning: candidates come
- * straight from dictionary weights, longest match first. Full pinyin, 简拼 (initials such as
+ * Turns typed pinyin letters into candidates, longest match first, each group ranked by the
+ * dictionary (weights plus what the user picked before). Full pinyin, 简拼 (initials such as
  * "nh" for 你好) and mixes of the two ("nhao") all work.
  */
 object PinyinEngine {
     /** A piece cut from the input; [end] is its exclusive end offset in the raw input. */
     data class Syllable(val text: String, val end: Int)
 
-    /** [consumed] is how many input characters picking this candidate uses up. */
-    data class Candidate(val text: String, val consumed: Int)
+    /**
+     * [consumed] is how many input characters picking this candidate uses up; [syllables] is
+     * its raw pinyin, one per character, for learning.
+     */
+    data class Candidate(val text: String, val consumed: Int, val syllables: List<String>)
 
     const val SEPARATOR = '\''
     private const val MAX_SYLLABLE_LENGTH = 6
@@ -105,7 +108,7 @@ object PinyinEngine {
             var consumed = syllables[count - 1].end
             if (consumed < input.length && input[consumed] == SEPARATOR) consumed++
             for (word in words) {
-                if (seen.add(word)) result += Candidate(word, consumed)
+                if (seen.add(word.text)) result += Candidate(word.text, consumed, word.syllables)
                 if (result.size >= MAX_CANDIDATES) return result
             }
         }

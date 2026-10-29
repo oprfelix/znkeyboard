@@ -64,7 +64,7 @@
     <string name="gemini_recommended_subtitle">Recommended · fast and low cost</string>
     <string name="gemini_recommended_value">%1$s (recommended)</string>
     <string name="translate_to">Translate to</string>
-    <string name="translate_desc">仅润色 (Polish) only polishes what you typed; AI 润译 (AI Translate) polishes and translates it into this language. The round key beside them switches language while typing. Labels follow 中/EN mode.</string>
+    <string name="translate_desc">润色 (Polish) only polishes what you typed; 翻译 (Translate) polishes and translates it into this language. The round key beside them switches language while typing. Labels follow 中/EN mode.</string>
     <string name="language_en">English</string>
     <string name="language_es">Spanish</string>
     <string name="language_ja">Japanese</string>
@@ -117,6 +117,13 @@
     <string name="pinyin_summary">Fuzzy sounds: %1$d of %2$d on</string>
     <string name="pinyin_desc">Tap the 中/EN key (left of space) to switch. Fuzzy sounds let either spelling of a pair find the same words.</string>
     <string name="pinyin_fuzzy">Fuzzy sound</string>
+    <string name="pinyin_learn">Learn my words</string>
+    <string name="pinyin_learn_desc">Words you pick move up, and phrases you build from several picks are remembered. Kept only on this phone, never in password or incognito fields.</string>
+    <string name="pinyin_predict">Suggest next words</string>
+    <string name="pinyin_predict_desc">After you pick a word, the bar suggests what usually follows it.</string>
+    <string name="pinyin_reset">Clear learned words</string>
+    <string name="pinyin_reset_title">Clear learned words?</string>
+    <string name="pinyin_reset_text">ZnKeyboard forgets the word ranking, phrases and next-word habits it learned from your pinyin typing.</string>
     <string name="touch_reset_title">Reset learned typing?</string>
     <string name="touch_reset_text">ZnKeyboard forgets how your taps land and the letter patterns it learned. It starts adapting again from your next keystroke.</string>
     <string name="action_reset">Reset</string>

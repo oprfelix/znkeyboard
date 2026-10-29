@@ -14,6 +14,16 @@ import sys
 MAX_WORDS = 150_000
 MAX_SYLLABLES = 6
 
+# Upstream rows whose weights are jokes or crawl artifacts (19260817, 12345678...) that would
+# otherwise rank them above everyday words. Values put them among ordinary words.
+WEIGHT_OVERRIDES = {
+    "江泽民": 100_000,
+    "江泽民同志": 10_000,
+    "三国群英传": 1_000,
+    "五个亿": 1_000,
+    "版权": 300_000,
+}
+
 
 def rows(path):
     in_body = False
@@ -27,7 +37,7 @@ def rows(path):
                 continue
             parts = line.split("\t")
             if len(parts) >= 3 and parts[2].isdigit() and parts[1].replace(" ", "").isalpha():
-                yield parts[0], parts[1].strip(), int(parts[2])
+                yield parts[0], parts[1].strip(), WEIGHT_OVERRIDES.get(parts[0], int(parts[2]))
 
 
 def main(chars_path, words_path, out_path):

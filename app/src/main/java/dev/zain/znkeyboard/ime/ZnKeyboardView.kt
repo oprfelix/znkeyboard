@@ -311,6 +311,13 @@ class ZnKeyboardView @JvmOverloads constructor(
         }
     }
 
+    /** The letters-row space bar says how to start voice input, since nothing else on the keyboard does. */
+    private fun spaceLabel(): String = when {
+        !voiceInputEnabled -> "space"
+        pinyinModeEnabled -> "按住说话"
+        else -> "hold to talk"
+    }
+
     /** Long-press space records speech, so it is labelled only while voice input is on. */
     private fun spaceLongPressHint(): String? = when {
         !voiceInputEnabled -> null
@@ -1753,7 +1760,29 @@ class ZnKeyboardView @JvmOverloads constructor(
         if (width > 0 && height > 0) {
             hitTargets = layoutKeys(width.toFloat(), height.toFloat())
             updateLetterGeometry(hitTargets)
+            reportCandidateStrip()
         }
+    }
+
+    /**
+     * Called with the band (top and bottom, in this view's pixels) the pinyin candidates cover
+     * while composing: the first toolbar row, or the first row when there is none.
+     */
+    var onCandidateStripChanged: ((top: Int, bottom: Int) -> Unit)? = null
+
+    /** Whether the band the candidates cover holds 润色 | 翻译, so the bar must offer them itself. */
+    var candidateStripHidesRewrite = false
+        private set
+
+    /** Whether 润色 and 翻译 can be used right now (rewrite set up and nothing in flight). */
+    val rewriteAvailable: Boolean get() = shortcutRowState.rewriteEnabled && !shortcutRowState.loading
+
+    private fun reportCandidateStrip() {
+        val first = hitTargets.firstOrNull { it.rowStyle == RowStyle.Toolbar } ?: hitTargets.firstOrNull() ?: return
+        candidateStripHidesRewrite = hitTargets.any {
+            it.key.intent == KeyIntent.AgentRewrite && it.hitBounds.top == first.hitBounds.top
+        }
+        onCandidateStripChanged?.invoke(first.hitBounds.top.toInt(), first.hitBounds.bottom.toInt())
     }
 
     private fun layoutRows(): List<RowSpec> = rows()
@@ -1896,7 +1925,7 @@ class ZnKeyboardView @JvmOverloads constructor(
         val languageCode = translateLanguageCode
         val rewriteIndex = keys.indexOfFirst { it.intent == KeyIntent.AgentRewrite }
         if (languageCode != null && rewriteIndex >= 0) {
-            // 仅润色 | AI 润译 (EN): the first only polishes, the second also translates. The language
+            // 润色 | 翻译 (EN): the first only polishes, the second also translates. The language
             // badge keeps its own tap target but sits inside the translate key's pill.
             keys.add(
                 rewriteIndex,
@@ -2256,11 +2285,10 @@ class ZnKeyboardView @JvmOverloads constructor(
         if (layoutMode != LayoutMode.Letters) {
             keys += KeySpec(
                 "space",
-                "space",
+                spaceLabel(),
                 KeyIntent.Dispatch(KeyboardAction.Text(" ")),
                 ImeDimensions.SPACE_KEY_WEIGHT,
                 KeyRole.Function,
-                longPressHint = spaceLongPressHint(),
             )
             keys += KeySpec(
                 "numeric_layout_toggle",
@@ -2282,11 +2310,10 @@ class ZnKeyboardView @JvmOverloads constructor(
             )
             keys += KeySpec(
                 "space",
-                "space",
+                spaceLabel(),
                 KeyIntent.Dispatch(KeyboardAction.Text(" ")),
                 ImeDimensions.SPACE_KEY_WEIGHT,
                 KeyRole.Function,
-                longPressHint = spaceLongPressHint(),
             )
             keys += KeySpec(
                 "bottom_period",

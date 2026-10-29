@@ -10,6 +10,7 @@ import dev.zain.znkeyboard.constants.ImeColors
 import dev.zain.znkeyboard.constants.KeyboardDefaults
 import dev.zain.znkeyboard.constants.TranslateLanguage
 import dev.zain.znkeyboard.ime.ClipboardHistoryStore
+import dev.zain.znkeyboard.ime.PinyinLearningStore
 import dev.zain.znkeyboard.pinyin.PinyinFuzzyRule
 import dev.zain.znkeyboard.typing.AdaptiveTypingEngine
 import org.json.JSONArray
@@ -58,6 +59,9 @@ object KeyboardSettings {
     private const val KEY_DOUBLE_SPACE_PERIOD_ENABLED = "double_space_period_enabled"
     private const val KEY_PINYIN_MODE_ENABLED = "pinyin_mode_enabled"
     private const val KEY_PINYIN_FUZZY_RULES = "pinyin_fuzzy_rules"
+    private const val KEY_PINYIN_LEARNING_ENABLED = "pinyin_learning_enabled"
+    private const val KEY_PINYIN_LEARNING_GENERATION = "pinyin_learning_generation"
+    private const val KEY_PINYIN_PREDICTIONS_ENABLED = "pinyin_predictions_enabled"
     private const val KEY_KEYBOARD_THEME = "keyboard_theme"
     private const val KEY_TYPING_MODEL_GENERATION = "typing_model_generation"
     private const val KEY_AGENT_MODE_ENABLED = "agent_mode_enabled"
@@ -213,6 +217,24 @@ object KeyboardSettings {
     fun readPinyinModeEnabled(context: Context) = readFlag(context, KEY_PINYIN_MODE_ENABLED, false)
     fun savePinyinModeEnabled(context: Context, enabled: Boolean) =
         saveFlag(context, KEY_PINYIN_MODE_ENABLED, enabled)
+
+    fun readPinyinLearningEnabled(context: Context) = readFlag(context, KEY_PINYIN_LEARNING_ENABLED, true)
+    fun savePinyinLearningEnabled(context: Context, enabled: Boolean) =
+        saveFlag(context, KEY_PINYIN_LEARNING_ENABLED, enabled)
+
+    /** Whether the candidate bar suggests what comes next after a pinyin commit. */
+    fun readPinyinPredictionsEnabled(context: Context) = readFlag(context, KEY_PINYIN_PREDICTIONS_ENABLED, true)
+    fun savePinyinPredictionsEnabled(context: Context, enabled: Boolean) =
+        saveFlag(context, KEY_PINYIN_PREDICTIONS_ENABLED, enabled)
+
+    /** Bumped when settings clear or restore learned pinyin, so the keyboard reloads it. */
+    fun readPinyinLearningGeneration(context: Context): Int =
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).getInt(KEY_PINYIN_LEARNING_GENERATION, 0)
+
+    fun bumpPinyinLearningGeneration(context: Context) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putInt(KEY_PINYIN_LEARNING_GENERATION, prefs.getInt(KEY_PINYIN_LEARNING_GENERATION, 0) + 1).commit()
+    }
 
     fun readPinyinFuzzyRules(context: Context): Set<PinyinFuzzyRule> {
         val ids = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -748,7 +770,12 @@ object KeyboardSettings {
                             .put("reasoningTextEnabled", readAgentReasoningTextEnabled(context)),
                     )
                     .put("clipboardHistory", clipboardHistoryJson(ClipboardHistoryStore.read(context)))
-                    .put("learnedTyping", learnedTypingJson(AdaptiveTypingEngine.readLearnedData(context))),
+                    .put("learnedTyping", learnedTypingJson(AdaptiveTypingEngine.readLearnedData(context)))
+                    .apply {
+                        PinyinLearningStore.readBytes(context)?.let {
+                            put("learnedPinyin", Base64.encodeToString(it, Base64.NO_WRAP))
+                        }
+                    },
             )
             .put(
                 "secrets",
@@ -824,6 +851,8 @@ object KeyboardSettings {
             )
         }
 
+        val learnedPinyin = settings.optBase64("learnedPinyin")
+
         val agentSecrets = secrets?.optJSONObject("agentApiKeys")
         val restoredAgentSecrets = AgentProviderType.entries.mapNotNull { providerType ->
             val secret = agentSecrets?.optJSONObject(providerType.id) ?: return@mapNotNull null
@@ -884,6 +913,10 @@ object KeyboardSettings {
         learnedTyping?.let {
             AdaptiveTypingEngine.replaceLearnedData(context, it)
             bumpTypingModelGeneration(context)
+        }
+        learnedPinyin?.let {
+            PinyinLearningStore.replace(context, it)
+            bumpPinyinLearningGeneration(context)
         }
         restoredAgentSecrets.forEach { secret ->
             saveAgentApiKey(context, secret.providerType, secret.value)

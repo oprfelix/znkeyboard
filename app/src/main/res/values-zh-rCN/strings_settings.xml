@@ -64,7 +64,7 @@
     <string name="gemini_recommended_subtitle">推荐 · 速度快、成本低</string>
     <string name="gemini_recommended_value">%1$s（推荐）</string>
     <string name="translate_to">翻译成</string>
-    <string name="translate_desc">“仅润色”只润色你输入的文字；“AI 润译”润色后翻译成这里选的语言。打字时点按钮里的语言圆标可以切换。按钮文字跟随中/EN 模式。</string>
+    <string name="translate_desc">“润色”只润色你输入的文字；“翻译”润色后翻译成这里选的语言。打字时点按钮里的语言圆标可以切换。按钮文字跟随中/EN 模式。</string>
     <string name="language_en">英语</string>
     <string name="language_es">西班牙语</string>
     <string name="language_ja">日语</string>
@@ -117,6 +117,13 @@
     <string name="pinyin_summary">模糊音：已开启 %1$d / %2$d</string>
     <string name="pinyin_desc">点空格左边的 中/EN 键切换。开启模糊音后，一对读音中任意一种拼法都能打出同样的字。</string>
     <string name="pinyin_fuzzy">模糊音</string>
+    <string name="pinyin_learn">学习输入习惯</string>
+    <string name="pinyin_learn_desc">常选的词会排到前面，分几次选出的词组会被记住。只保存在本机，密码框和无痕模式不学习。</string>
+    <string name="pinyin_predict">联想</string>
+    <string name="pinyin_predict_desc">选词后，候选栏会给出接下来常用的词。</string>
+    <string name="pinyin_reset">清除输入习惯</string>
+    <string name="pinyin_reset_title">清除输入习惯？</string>
+    <string name="pinyin_reset_text">ZnKeyboard 会忘掉从你的拼音输入中学到的词频、自造词和联想习惯。</string>
     <string name="touch_reset_title">重置学到的打字习惯？</string>
     <string name="touch_reset_text">ZnKeyboard 会忘掉你的点按位置和学到的字母规律，从下一次按键开始重新适应。</string>
     <string name="action_reset">重置</string>
