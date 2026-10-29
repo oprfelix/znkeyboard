@@ -111,6 +111,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         pinyinLearningStore = PinyinLearningStore(this)
         ClipboardHistoryStore.deleteLegacyRewriteHistory(this)
         KeyboardSettings.deleteLegacySnippetData(this)
+        KeyboardSettings.deleteLegacyMacroData(this)
         KeyboardSettings.migrateAgentProviders(this)
         KeyboardSettings.migrateSecondRowClipboard(this)
         ClipboardLinkPreviewRepository.loadPersistedPreviews(this)
@@ -296,21 +297,6 @@ class ZnKeyboardInputMethodService : InputMethodService(),
                     sendKey(action.keyCode, modifiers)
                 }
             }
-            is KeyboardAction.Chord -> {
-                cancelActiveAgentForEditorChange()
-                sendKey(action.keyCode, ModifierState(ctrl = action.ctrl, alt = action.alt, shift = action.shift))
-            }
-            is KeyboardAction.Sequence -> {
-                cancelActiveAgentForEditorChange()
-                for (step in action.steps) {
-                    when (step) {
-                        is KeyboardAction.Chord ->
-                            sendKey(step.keyCode, ModifierState(ctrl = step.ctrl, alt = step.alt, shift = step.shift))
-                        is KeyboardAction.Text -> handleText(step.value, ModifierState(ctrl = false, alt = false))
-                        else -> Unit
-                    }
-                }
-            }
             is KeyboardAction.Text -> handleText(action.value, modifiers)
         }
     }
@@ -452,7 +438,6 @@ class ZnKeyboardInputMethodService : InputMethodService(),
             view.setKeyHapticsEnabled(KeyboardSettings.readKeyHapticsEnabled(this))
             view.setKeyPreviewEnabled(KeyboardSettings.readKeyPreviewEnabled(this))
             view.setVoiceInputEnabled(KeyboardSettings.readVoiceInputEnabled(this))
-            view.setShortcutMacros(KeyboardSettings.readShortcutMacros(this))
             view.setUpperRowKeyIds(KeyboardSettings.readUpperRowKeyIds(this))
             view.setSecondRowButtonIds(KeyboardSettings.readSecondRowButtonIds(this))
             view.setKeyboardRowOrder(KeyboardSettings.readKeyboardRowOrder(this))
@@ -590,8 +575,6 @@ class ZnKeyboardInputMethodService : InputMethodService(),
                     searchView.deleteQueryCharacter()
                 }
             }
-            is KeyboardAction.Chord,
-            is KeyboardAction.Sequence -> Unit
             is KeyboardAction.Text -> searchView.appendQueryText(action.value)
         }
         return true

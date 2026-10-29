@@ -76,23 +76,6 @@ internal fun shortcutOptionLabel(keyId: String, label: String): String = when (k
     else -> label
 }
 
-@Composable
-internal fun macroGroupLabel(group: MacroKeyGroup): String = stringResource(
-    when (group) {
-        MacroKeyGroup.Letters -> R.string.macro_group_letters
-        MacroKeyGroup.Digits -> R.string.macro_group_digits
-        MacroKeyGroup.Editing -> R.string.macro_group_editing
-        MacroKeyGroup.Punctuation -> R.string.macro_group_punctuation
-        MacroKeyGroup.Function -> R.string.macro_group_function
-    },
-)
-
-@Composable
-internal fun macroStepLabel(step: MacroStep): String = when (step) {
-    is MacroStep.Text -> stringResource(R.string.macro_step_text, step.text)
-    else -> ShortcutMacros.stepLabel(step)
-}
-
 /** Backup and storage errors are thrown in English; this shows them in the app language. */
 internal fun localizedError(context: Context, message: String?): String? {
     val text = message?.takeIf { it.isNotBlank() } ?: return null

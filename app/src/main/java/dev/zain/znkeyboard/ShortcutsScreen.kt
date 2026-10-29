@@ -18,13 +18,11 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -33,7 +31,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -54,7 +51,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -67,17 +63,10 @@ private val SECOND = KeyboardRow.Second.id
 
 private data class KeySelection(val rowId: String, val index: Int)
 
-private data class MacroDraft(
-    val macro: ShortcutMacro,
-    val isNew: Boolean,
-    val addToRowId: String? = null,
-)
-
 /** Keyboard-tab entry point: a live, read-only miniature of the shortcut rows. */
 @Composable
 internal fun ShortcutsSummaryCard(onOpen: () -> Unit) {
     val context = LocalContext.current
-    val macros = remember { KeyboardSettings.readShortcutMacros(context) }
     val rows = remember {
         KeyboardSettings.readKeyboardRowOrder(context).map { rowId ->
             rowId to if (rowId == UPPER) {
@@ -97,7 +86,7 @@ internal fun ShortcutsSummaryCard(onOpen: () -> Unit) {
         SettingsSectionHeader(
             title = stringResource(R.string.shortcuts_card_title),
             iconResId = R.drawable.ic_keyboard_24,
-            subtitle = pluralStringResource(R.plurals.shortcuts_card_summary, macros.size, keyCount, macros.size),
+            subtitle = pluralStringResource(R.plurals.shortcuts_card_summary, keyCount, keyCount),
             trailingContent = {
                 Icon(
                     painter = painterResource(R.drawable.ic_chevron_left_24),
@@ -117,7 +106,7 @@ internal fun ShortcutsSummaryCard(onOpen: () -> Unit) {
                         MiniKey(label = stringResource(R.string.shortcuts_empty_row), muted = true, modifier = Modifier.weight(1f))
                     }
                     keyIds.forEach { keyId ->
-                        MiniKey(label = shortcutKeyLabel(keyId, macros), modifier = Modifier.weight(1f))
+                        MiniKey(label = shortcutKeyLabel(keyId), modifier = Modifier.weight(1f))
                     }
                 }
             }
@@ -152,10 +141,8 @@ internal fun ShortcutsScreen(onBack: () -> Unit) {
     var upperKeys by remember { mutableStateOf(KeyboardSettings.readUpperRowKeyIds(context)) }
     var secondKeys by remember { mutableStateOf(KeyboardSettings.readSecondRowButtonIds(context)) }
     var rowOrder by remember { mutableStateOf(KeyboardSettings.readKeyboardRowOrder(context)) }
-    var macros by remember { mutableStateOf(KeyboardSettings.readShortcutMacros(context)) }
     var selection by remember { mutableStateOf<KeySelection?>(null) }
     var paletteRowId by remember { mutableStateOf<String?>(null) }
-    var draft by remember { mutableStateOf<MacroDraft?>(null) }
     var confirmingResetRowId by remember { mutableStateOf<String?>(null) }
 
     fun keysFor(rowId: String) = if (rowId == UPPER) upperKeys else secondKeys
@@ -184,43 +171,7 @@ internal fun ShortcutsScreen(onBack: () -> Unit) {
         selection = null
     }
 
-    fun saveMacros(next: List<ShortcutMacro>) {
-        macros = ShortcutMacros.normalize(next)
-        KeyboardSettings.saveShortcutMacros(context, macros)
-    }
-
-    val currentDraft = draft
-    if (currentDraft != null) {
-        MacroEditorScreen(
-            draft = currentDraft,
-            onBack = { draft = null },
-            onSave = { macro ->
-                val exists = macros.any { it.id == macro.id }
-                saveMacros(if (exists) macros.map { if (it.id == macro.id) macro else it } else macros + macro)
-                currentDraft.addToRowId?.let { rowId ->
-                    if (macro.keyId !in keysFor(rowId)) toggleKey(rowId, macro.keyId)
-                }
-                draft = null
-            },
-            onDelete = {
-                val keyId = currentDraft.macro.keyId
-                saveMacros(macros.filterNot { it.id == currentDraft.macro.id })
-                setKeys(UPPER, upperKeys.filterNot { it == keyId })
-                setKeys(SECOND, secondKeys.filterNot { it == keyId })
-                selection = null
-                draft = null
-            },
-        )
-        return
-    }
-
     BackHandler(onBack = onBack)
-
-    fun newMacroDraft(addToRowId: String? = null) = MacroDraft(
-        macro = ShortcutMacro(ShortcutMacros.newId(), "", emptyList()),
-        isNew = true,
-        addToRowId = addToRowId,
-    )
 
     Scaffold(
         containerColor = ZnKeyboardColors.Background,
@@ -265,7 +216,6 @@ internal fun ShortcutsScreen(onBack: () -> Unit) {
                         keyIds = keysFor(rowId),
                         maxKeys = maxKeysFor(rowId),
                         canReset = keysFor(rowId) != defaultKeysFor(rowId),
-                        macros = macros,
                         selectedIndex = selection?.takeIf { it.rowId == rowId }?.index,
                         otherRowLabel = keyboardRowLabel(otherRowId),
                         canMoveToOtherRow = keysFor(otherRowId).size < maxKeysFor(otherRowId),
@@ -301,42 +251,6 @@ internal fun ShortcutsScreen(onBack: () -> Unit) {
                     )
                 }
             }
-
-            SettingsSectionCard(verticalSpacing = 12.dp) {
-                SettingsSectionHeader(
-                    title = stringResource(R.string.shortcuts_macros),
-                    iconResId = R.drawable.ic_tune_24,
-                    subtitle = stringResource(R.string.shortcuts_macros_desc),
-                    trailingText = "${macros.size}/${ShortcutMacros.MAX_MACROS}",
-                )
-
-                if (macros.isEmpty()) {
-                    Text(
-                        text = stringResource(R.string.shortcuts_no_macros),
-                        color = ZnKeyboardColors.Muted,
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                }
-
-                macros.forEach { macro ->
-                    val rowsUsing = listOf(UPPER, SECOND)
-                        .filter { macro.keyId in keysFor(it) }
-                        .map { keyboardRowLabel(it) }
-                    MacroCard(
-                        macro = macro,
-                        usage = rowsUsing.joinToString().ifEmpty { stringResource(R.string.shortcuts_not_on_row) },
-                        onClick = { draft = MacroDraft(macro, isNew = false) },
-                    )
-                }
-
-                Button(
-                    onClick = { draft = newMacroDraft() },
-                    enabled = macros.size < ShortcutMacros.MAX_MACROS,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    SettingsIconTextButtonContent(R.drawable.ic_add_24, stringResource(R.string.macro_new))
-                }
-            }
         }
     }
 
@@ -345,13 +259,7 @@ internal fun ShortcutsScreen(onBack: () -> Unit) {
             rowLabel = keyboardRowLabel(rowId),
             keyIds = keysFor(rowId),
             maxKeys = maxKeysFor(rowId),
-            macros = macros,
-            canCreateMacro = macros.size < ShortcutMacros.MAX_MACROS,
             onToggle = { keyId -> toggleKey(rowId, keyId) },
-            onNewMacro = {
-                paletteRowId = null
-                draft = newMacroDraft(addToRowId = rowId)
-            },
             onDismiss = { paletteRowId = null },
         )
     }
@@ -389,7 +297,6 @@ private fun ShortcutRowEditor(
     keyIds: List<String>,
     maxKeys: Int,
     canReset: Boolean,
-    macros: List<ShortcutMacro>,
     selectedIndex: Int?,
     otherRowLabel: String,
     canMoveToOtherRow: Boolean,
@@ -430,7 +337,7 @@ private fun ShortcutRowEditor(
             ) {
                 keyIds.forEachIndexed { index, keyId ->
                     KeyChip(
-                        label = shortcutKeyLabel(keyId, macros),
+                        label = shortcutKeyLabel(keyId),
                         selected = index == selectedIndex,
                         onClick = { onSelect(index) },
                     )
@@ -538,68 +445,11 @@ private fun AddKeyChip(onClick: () -> Unit) {
 }
 
 @Composable
-private fun MacroCard(macro: ShortcutMacro, usage: String, onClick: () -> Unit) {
-    Surface(
-        onClick = onClick,
-        color = ZnKeyboardColors.Key,
-        shape = RoundedCornerShape(SettingsUiDimensions.COMPACT_ITEM_CORNER_RADIUS),
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Column(
-            modifier = Modifier.padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = macro.displayLabel,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontFamily = FontFamily.Monospace,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f),
-                )
-                Text(text = usage, color = ZnKeyboardColors.Muted, style = MaterialTheme.typography.labelMedium)
-            }
-            StepChips(macro.steps)
-        }
-    }
-}
-
-@Composable
-private fun StepChips(steps: List<MacroStep>) {
-    FlowRow(
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
-        itemVerticalAlignment = Alignment.CenterVertically,
-    ) {
-        steps.forEachIndexed { index, step ->
-            if (index > 0) {
-                Text("›", color = ZnKeyboardColors.Muted, style = MaterialTheme.typography.labelLarge)
-            }
-            Surface(color = ZnKeyboardColors.FunctionKey, shape = RoundedCornerShape(6.dp)) {
-                Text(
-                    text = macroStepLabel(step),
-                    style = MaterialTheme.typography.labelMedium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier
-                        .widthIn(max = 220.dp)
-                        .padding(horizontal = 8.dp, vertical = 4.dp),
-                )
-            }
-        }
-    }
-}
-
-@Composable
 private fun KeyPaletteSheet(
     rowLabel: String,
     keyIds: List<String>,
     maxKeys: Int,
-    macros: List<ShortcutMacro>,
-    canCreateMacro: Boolean,
     onToggle: (String) -> Unit,
-    onNewMacro: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     val full = keyIds.size >= maxKeys
@@ -628,23 +478,6 @@ private fun KeyPaletteSheet(
             PaletteSection(stringResource(R.string.shortcuts_actions), KeyboardSettings.ACTION_KEY_OPTIONS.map { it.id to shortcutOptionLabel(it.id, it.label) }, keyIds, full, onToggle)
             PaletteSection(stringResource(R.string.shortcuts_keys), KeyboardSettings.CONTROL_KEY_OPTIONS.map { it.id to it.label }, keyIds, full, onToggle)
             PaletteSection(stringResource(R.string.shortcuts_symbols), KeyboardSettings.SYMBOL_KEY_OPTIONS.map { it.id to it.label }, keyIds, full, onToggle)
-            PaletteSection(
-                title = stringResource(R.string.shortcuts_macros),
-                options = macros.map { it.keyId to it.displayLabel },
-                keyIds = keyIds,
-                full = full,
-                onToggle = onToggle,
-            ) {
-                FilterChip(
-                    selected = false,
-                    onClick = onNewMacro,
-                    enabled = canCreateMacro && !full,
-                    label = { Text(stringResource(R.string.macro_new)) },
-                    leadingIcon = {
-                        Icon(painterResource(R.drawable.ic_add_24), contentDescription = null, modifier = Modifier.size(18.dp))
-                    },
-                )
-            }
         }
     }
 }
@@ -656,7 +489,6 @@ private fun PaletteSection(
     keyIds: List<String>,
     full: Boolean,
     onToggle: (String) -> Unit,
-    trailing: (@Composable () -> Unit)? = null,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(title, color = ZnKeyboardColors.Muted, style = MaterialTheme.typography.labelLarge)
@@ -670,336 +502,11 @@ private fun PaletteSection(
                     label = { Text(label, maxLines = 1) },
                 )
             }
-            trailing?.invoke()
         }
     }
 }
 
 @Composable
-private fun MacroEditorScreen(
-    draft: MacroDraft,
-    onBack: () -> Unit,
-    onSave: (ShortcutMacro) -> Unit,
-    onDelete: () -> Unit,
-) {
-    var label by remember(draft) { mutableStateOf(draft.macro.label) }
-    var steps by remember(draft) { mutableStateOf(draft.macro.steps) }
-    // -1 appends a new step; any other value edits that step.
-    var keyPickerIndex by remember { mutableStateOf<Int?>(null) }
-    var textDialogIndex by remember { mutableStateOf<Int?>(null) }
-    var confirmDelete by remember { mutableStateOf(false) }
-    val canAddStep = steps.size < ShortcutMacros.MAX_STEPS
-
-    BackHandler(onBack = onBack)
-
-    fun putStep(index: Int, step: MacroStep) {
-        steps = if (index in steps.indices) {
-            steps.toMutableList().apply { set(index, step) }
-        } else {
-            steps + step
-        }
-    }
-
-    Scaffold(
-        containerColor = ZnKeyboardColors.Background,
-        topBar = {
-            TopAppBar(
-                title = { Text(stringResource(if (draft.isNew) R.string.macro_new else R.string.macro_edit)) },
-                navigationIcon = { BackIconButton(onBack) },
-                actions = {
-                    TextButton(
-                        onClick = {
-                            onSave(
-                                ShortcutMacro(
-                                    id = draft.macro.id,
-                                    label = ShortcutMacros.normalizeLabel(label),
-                                    steps = ShortcutMacros.normalizeSteps(steps),
-                                ),
-                            )
-                        },
-                        enabled = steps.isNotEmpty(),
-                    ) {
-                        Text(stringResource(R.string.action_save))
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = ZnKeyboardColors.Background),
-            )
-        },
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            SettingsSectionCard(verticalSpacing = 12.dp) {
-                val autoLabel = ShortcutMacros.autoLabel(steps)
-                Surface(
-                    color = ZnKeyboardColors.Background,
-                    shape = RoundedCornerShape(16.dp),
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Box(Modifier.padding(16.dp), contentAlignment = Alignment.Center) {
-                        KeyChip(label = label.trim().ifEmpty { autoLabel })
-                    }
-                }
-                OutlinedTextField(
-                    value = label,
-                    onValueChange = { label = it.take(ShortcutMacros.MAX_LABEL_CHARS) },
-                    label = { Text(stringResource(R.string.macro_key_label)) },
-                    placeholder = { Text(autoLabel) },
-                    supportingText = { Text(stringResource(R.string.macro_key_label_hint, autoLabel)) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-
-            SettingsSectionCard(verticalSpacing = 10.dp) {
-                SettingsSectionHeader(
-                    title = stringResource(R.string.macro_steps),
-                    subtitle = stringResource(R.string.macro_steps_desc),
-                    trailingText = "${steps.size}/${ShortcutMacros.MAX_STEPS}",
-                )
-
-                if (steps.isEmpty()) {
-                    Text(
-                        text = stringResource(R.string.macro_steps_empty),
-                        color = ZnKeyboardColors.Muted,
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                }
-
-                steps.forEachIndexed { index, step ->
-                    MacroStepRow(
-                        index = index,
-                        step = step,
-                        canMoveUp = index > 0,
-                        canMoveDown = index < steps.lastIndex,
-                        onEdit = {
-                            when (step) {
-                                is MacroStep.Key -> keyPickerIndex = index
-                                is MacroStep.Text -> textDialogIndex = index
-                            }
-                        },
-                        onMove = { delta ->
-                            steps = steps.toMutableList().apply { add(index + delta, removeAt(index)) }
-                        },
-                        onRemove = { steps = steps.toMutableList().apply { removeAt(index) } },
-                    )
-                }
-
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Button(
-                        onClick = { keyPickerIndex = -1 },
-                        enabled = canAddStep,
-                        modifier = Modifier.weight(1f),
-                    ) {
-                        SettingsIconTextButtonContent(R.drawable.ic_keyboard_24, stringResource(R.string.macro_key_combo))
-                    }
-                    OutlinedButton(
-                        onClick = { textDialogIndex = -1 },
-                        enabled = canAddStep,
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = ZnKeyboardColors.OnSurface),
-                    ) {
-                        SettingsIconTextButtonContent(R.drawable.ic_add_24, stringResource(R.string.macro_text))
-                    }
-                }
-            }
-
-            if (!draft.isNew) {
-                OutlinedButton(
-                    onClick = { confirmDelete = true },
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
-                ) {
-                    SettingsIconTextButtonContent(R.drawable.ic_delete_24, stringResource(R.string.macro_delete))
-                }
-            }
-        }
-    }
-
-    keyPickerIndex?.let { index ->
-        KeyComboSheet(
-            initial = steps.getOrNull(index) as? MacroStep.Key,
-            onPick = { step ->
-                putStep(index, step)
-                keyPickerIndex = null
-            },
-            onDismiss = { keyPickerIndex = null },
-        )
-    }
-
-    textDialogIndex?.let { index ->
-        TextStepDialog(
-            initial = (steps.getOrNull(index) as? MacroStep.Text)?.text.orEmpty(),
-            isNew = index !in steps.indices,
-            onConfirm = { text ->
-                putStep(index, MacroStep.Text(text))
-                textDialogIndex = null
-            },
-            onDismiss = { textDialogIndex = null },
-        )
-    }
-
-    if (confirmDelete) {
-        AlertDialog(
-            onDismissRequest = { confirmDelete = false },
-            title = { Text(stringResource(R.string.macro_delete_confirm)) },
-            text = { Text(stringResource(R.string.macro_delete_text)) },
-            confirmButton = {
-                TextButton(onClick = onDelete) { Text(stringResource(R.string.action_delete)) }
-            },
-            dismissButton = {
-                TextButton(onClick = { confirmDelete = false }) { Text(stringResource(R.string.action_cancel)) }
-            },
-        )
-    }
-}
-
-@Composable
-private fun MacroStepRow(
-    index: Int,
-    step: MacroStep,
-    canMoveUp: Boolean,
-    canMoveDown: Boolean,
-    onEdit: () -> Unit,
-    onMove: (Int) -> Unit,
-    onRemove: () -> Unit,
-) {
-    Surface(
-        onClick = onEdit,
-        color = ZnKeyboardColors.Key,
-        shape = RoundedCornerShape(SettingsUiDimensions.COMPACT_ITEM_CORNER_RADIUS),
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Row(
-            modifier = Modifier.padding(start = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = "${index + 1}",
-                color = ZnKeyboardColors.Muted,
-                style = MaterialTheme.typography.labelLarge,
-                modifier = Modifier.width(24.dp),
-            )
-            Text(
-                text = macroStepLabel(step),
-                style = MaterialTheme.typography.bodyMedium,
-                fontFamily = if (step is MacroStep.Key) FontFamily.Monospace else FontFamily.Default,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f),
-            )
-            IconButton(onClick = { onMove(-1) }, enabled = canMoveUp) {
-                Icon(painterResource(R.drawable.ic_chevron_left_24), stringResource(R.string.action_move_up), Modifier.rotate(90f))
-            }
-            IconButton(onClick = { onMove(1) }, enabled = canMoveDown) {
-                Icon(painterResource(R.drawable.ic_chevron_left_24), stringResource(R.string.action_move_down), Modifier.rotate(-90f))
-            }
-            IconButton(onClick = onRemove) {
-                Icon(painterResource(R.drawable.ic_close_24), stringResource(R.string.macro_remove_step), tint = ZnKeyboardColors.Muted)
-            }
-        }
-    }
-}
-
-@Composable
-private fun KeyComboSheet(
-    initial: MacroStep.Key?,
-    onPick: (MacroStep.Key) -> Unit,
-    onDismiss: () -> Unit,
-) {
-    var ctrl by remember { mutableStateOf(initial?.ctrl ?: false) }
-    var alt by remember { mutableStateOf(initial?.alt ?: false) }
-    var shift by remember { mutableStateOf(initial?.shift ?: false) }
-
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-    ) {
-        Column(
-            modifier = Modifier
-                .verticalScroll(rememberScrollState())
-                .padding(start = 20.dp, end = 20.dp, bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
-        ) {
-            Text(stringResource(R.string.macro_key_combo), style = MaterialTheme.typography.titleLarge)
-            Text(
-                text = stringResource(R.string.macro_combo_hint),
-                color = ZnKeyboardColors.Muted,
-                style = MaterialTheme.typography.bodySmall,
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(selected = ctrl, onClick = { ctrl = !ctrl }, label = { Text("Ctrl") })
-                FilterChip(selected = alt, onClick = { alt = !alt }, label = { Text("Alt") })
-                FilterChip(selected = shift, onClick = { shift = !shift }, label = { Text("Shift") })
-            }
-
-            MacroKeyGroup.entries.forEach { group ->
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(macroGroupLabel(group), color = ZnKeyboardColors.Muted, style = MaterialTheme.typography.labelLarge)
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp),
-                    ) {
-                        ShortcutMacros.KEYS.filter { it.group == group }.forEach { key ->
-                            val step = MacroStep.Key(key.id, ctrl = ctrl, alt = alt, shift = shift)
-                            KeyChip(
-                                label = if ((ctrl || alt || shift) && key.label.length == 1) {
-                                    key.label.uppercase()
-                                } else {
-                                    key.label
-                                },
-                                selected = initial == step,
-                                onClick = { onPick(step) },
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun TextStepDialog(
-    initial: String,
-    isNew: Boolean,
-    onConfirm: (String) -> Unit,
-    onDismiss: () -> Unit,
-) {
-    var text by remember { mutableStateOf(initial) }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(if (isNew) R.string.macro_add_text else R.string.macro_edit_text)) },
-        text = {
-            OutlinedTextField(
-                value = text,
-                onValueChange = { text = it.take(ShortcutMacros.MAX_TEXT_CHARS) },
-                label = { Text(stringResource(R.string.macro_text_to_type)) },
-                supportingText = { Text("${text.length}/${ShortcutMacros.MAX_TEXT_CHARS}") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
-        },
-        confirmButton = {
-            TextButton(onClick = { onConfirm(text) }, enabled = text.isNotEmpty()) {
-                Text(stringResource(if (isNew) R.string.action_add else R.string.action_update))
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
-        },
-    )
-}
-
-@Composable
-private fun shortcutKeyLabel(keyId: String, macros: List<ShortcutMacro>): String {
-    ShortcutMacros.macroIdOf(keyId)?.let { macroId ->
-        return macros.firstOrNull { it.id == macroId }?.displayLabel ?: "Macro"
-    }
+private fun shortcutKeyLabel(keyId: String): String {
     return shortcutOptionLabel(keyId, KeyboardSettings.labelForShortcutRowKey(keyId))
 }

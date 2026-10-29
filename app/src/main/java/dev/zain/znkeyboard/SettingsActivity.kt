@@ -98,6 +98,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -134,6 +135,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.PopupProperties
 import androidx.lifecycle.compose.LifecycleResumeEffect
+import dev.zain.znkeyboard.constants.UpdateDefaults
 import dev.zain.znkeyboard.constants.AgentDefaults
 import dev.zain.znkeyboard.constants.LiquidNavDimensions
 import dev.zain.znkeyboard.constants.SettingsBackupDefaults
@@ -216,6 +218,48 @@ private fun SettingsScreen(onOpenShortcuts: () -> Unit) {
         ?: SettingsDestination.Typing
     val destinationScrollState = rememberSaveable(selectedDestinationId, saver = ScrollState.Saver) { ScrollState(0) }
     val scope = rememberCoroutineScope()
+    val currentVersion = remember { UpdateChecker.currentVersion(context) }
+    var latestRelease by remember { mutableStateOf(KeyboardSettings.readLatestRelease(context)) }
+    var updateLastCheckedAt by remember { mutableLongStateOf(KeyboardSettings.readUpdateLastCheckedAt(context)) }
+    var dismissedUpdateVersion by remember { mutableStateOf(KeyboardSettings.readDismissedUpdateVersion(context)) }
+    var updateAutoCheck by remember { mutableStateOf(KeyboardSettings.readUpdateAutoCheck(context)) }
+    var checkingForUpdates by remember { mutableStateOf(false) }
+    var shownRelease by remember { mutableStateOf<UpdateChecker.Release?>(null) }
+    val availableRelease = latestRelease?.takeIf { UpdateChecker.isNewer(it.version, currentVersion) }
+
+    /** [manual]: the user tapped Check, so report the outcome; automatic checks stay silent. */
+    fun checkForUpdates(manual: Boolean) {
+        if (checkingForUpdates) return
+        checkingForUpdates = true
+        scope.launch {
+            val result = withContext(Dispatchers.IO) { runCatching { UpdateChecker.fetchLatest() } }
+            checkingForUpdates = false
+            result
+                .onSuccess { release ->
+                    val now = System.currentTimeMillis()
+                    KeyboardSettings.saveLatestRelease(context, release, now)
+                    latestRelease = release
+                    updateLastCheckedAt = now
+                    if (manual) {
+                        if (UpdateChecker.isNewer(release.version, currentVersion)) {
+                            shownRelease = release
+                        } else {
+                            Toast.makeText(context, context.getString(R.string.update_latest), Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }
+                .onFailure {
+                    if (manual) Toast.makeText(context, context.getString(R.string.update_failed), Toast.LENGTH_LONG).show()
+                }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        val due = System.currentTimeMillis() - updateLastCheckedAt >= UpdateDefaults.AUTO_CHECK_INTERVAL_MS
+        if (updateAutoCheck && due) checkForUpdates(manual = false)
+    }
+
+    shownRelease?.let { release -> UpdateDialog(release, onDismiss = { shownRelease = null }) }
 
     fun refreshSettingsFromStorage() {
         val nextProviderType = KeyboardSettings.readAgentProviderType(context)
@@ -341,6 +385,16 @@ private fun SettingsScreen(onOpenShortcuts: () -> Unit) {
         ) {
             when (selectedDestination) {
                 SettingsDestination.Typing -> {
+                    availableRelease?.takeIf { it.version != dismissedUpdateVersion }?.let { release ->
+                        UpdateBanner(
+                            version = release.version,
+                            onView = { shownRelease = release },
+                            onDismiss = {
+                                KeyboardSettings.saveDismissedUpdateVersion(context, release.version)
+                                dismissedUpdateVersion = release.version
+                            },
+                        )
+                    }
                     SetupStatusCard()
                     TryTypingField()
                     AdaptiveTouchSection()
@@ -479,6 +533,21 @@ private fun SettingsScreen(onOpenShortcuts: () -> Unit) {
                             clipboardHistoryCount = 0
                             Toast.makeText(context, context.getString(R.string.clipboard_cleared), Toast.LENGTH_SHORT).show()
                         },
+                    )
+
+                    AboutUpdateSection(
+                        currentVersion = currentVersion,
+                        availableRelease = availableRelease,
+                        lastCheckedAt = updateLastCheckedAt,
+                        checking = checkingForUpdates,
+                        autoCheck = updateAutoCheck,
+                        onAutoCheckChange = { enabled ->
+                            updateAutoCheck = enabled
+                            KeyboardSettings.saveUpdateAutoCheck(context, enabled)
+                            if (enabled) checkForUpdates(manual = false)
+                        },
+                        onCheck = { checkForUpdates(manual = true) },
+                        onView = { shownRelease = it },
                     )
                 }
             }

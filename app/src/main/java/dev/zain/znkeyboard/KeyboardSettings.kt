@@ -17,7 +17,6 @@ import org.json.JSONArray
 import org.json.JSONException
 import org.json.JSONObject
 import java.security.KeyStore
-import java.util.UUID
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
@@ -48,7 +47,7 @@ object KeyboardSettings {
     private const val KEY_AGENT_ROW_KEYS = "agent_row_keys"
     private const val KEY_SECOND_ROW_BUTTONS = "second_row_buttons"
     private const val KEY_KEYBOARD_ROW_ORDER = "keyboard_row_order"
-    private const val KEY_SHORTCUT_MACROS = "shortcut_macros"
+    private const val LEGACY_KEY_SHORTCUT_MACROS = "shortcut_macros"
     // Snippets were removed; these keys only exist to clean up what older versions stored.
     private const val LEGACY_KEY_SAVED_TEXT_PANEL_TAB = "saved_text_panel_tab"
     private const val LEGACY_KEY_TEXT_SNIPPETS = "text_snippets"
@@ -62,6 +61,13 @@ object KeyboardSettings {
     private const val KEY_PINYIN_LEARNING_ENABLED = "pinyin_learning_enabled"
     private const val KEY_PINYIN_LEARNING_GENERATION = "pinyin_learning_generation"
     private const val KEY_PINYIN_PREDICTIONS_ENABLED = "pinyin_predictions_enabled"
+    private const val KEY_UPDATE_AUTO_CHECK = "update_auto_check"
+    private const val KEY_UPDATE_LAST_CHECKED_AT = "update_last_checked_at"
+    private const val KEY_UPDATE_LATEST_VERSION = "update_latest_version"
+    private const val KEY_UPDATE_LATEST_NOTES = "update_latest_notes"
+    private const val KEY_UPDATE_LATEST_DOWNLOAD_URL = "update_latest_download_url"
+    private const val KEY_UPDATE_LATEST_PAGE_URL = "update_latest_page_url"
+    private const val KEY_UPDATE_DISMISSED_VERSION = "update_dismissed_version"
     private const val KEY_KEYBOARD_THEME = "keyboard_theme"
     private const val KEY_TYPING_MODEL_GENERATION = "typing_model_generation"
     private const val KEY_AGENT_MODE_ENABLED = "agent_mode_enabled"
@@ -227,6 +233,46 @@ object KeyboardSettings {
     fun savePinyinPredictionsEnabled(context: Context, enabled: Boolean) =
         saveFlag(context, KEY_PINYIN_PREDICTIONS_ENABLED, enabled)
 
+    /** Off by default: checking contacts GitHub, so the user opts in. */
+    fun readUpdateAutoCheck(context: Context) = readFlag(context, KEY_UPDATE_AUTO_CHECK, false)
+    fun saveUpdateAutoCheck(context: Context, enabled: Boolean) = saveFlag(context, KEY_UPDATE_AUTO_CHECK, enabled)
+
+    /** When GitHub last answered a check, or 0 if never. */
+    fun readUpdateLastCheckedAt(context: Context): Long =
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).getLong(KEY_UPDATE_LAST_CHECKED_AT, 0L)
+
+    /** The latest release from the last successful check, kept so the banner shows without checking again. */
+    fun readLatestRelease(context: Context): UpdateChecker.Release? {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val version = prefs.getString(KEY_UPDATE_LATEST_VERSION, null) ?: return null
+        return UpdateChecker.Release(
+            version = version,
+            notes = prefs.getString(KEY_UPDATE_LATEST_NOTES, null).orEmpty(),
+            downloadUrl = prefs.getString(KEY_UPDATE_LATEST_DOWNLOAD_URL, null) ?: return null,
+            pageUrl = prefs.getString(KEY_UPDATE_LATEST_PAGE_URL, null) ?: return null,
+        )
+    }
+
+    fun saveLatestRelease(context: Context, release: UpdateChecker.Release, checkedAt: Long) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
+            .putLong(KEY_UPDATE_LAST_CHECKED_AT, checkedAt)
+            .putString(KEY_UPDATE_LATEST_VERSION, release.version)
+            .putString(KEY_UPDATE_LATEST_NOTES, release.notes)
+            .putString(KEY_UPDATE_LATEST_DOWNLOAD_URL, release.downloadUrl)
+            .putString(KEY_UPDATE_LATEST_PAGE_URL, release.pageUrl)
+            .apply()
+    }
+
+    /** The version whose banner the user closed; a newer release shows the banner again. */
+    fun readDismissedUpdateVersion(context: Context): String? =
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).getString(KEY_UPDATE_DISMISSED_VERSION, null)
+
+    fun saveDismissedUpdateVersion(context: Context, version: String) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
+            .putString(KEY_UPDATE_DISMISSED_VERSION, version)
+            .apply()
+    }
+
     /** Bumped when settings clear or restore learned pinyin, so the keyboard reloads it. */
     fun readPinyinLearningGeneration(context: Context): Int =
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).getInt(KEY_PINYIN_LEARNING_GENERATION, 0)
@@ -256,6 +302,14 @@ object KeyboardSettings {
             .edit()
             .remove(LEGACY_KEY_TEXT_SNIPPETS)
             .remove(LEGACY_KEY_SAVED_TEXT_PANEL_TAB)
+            .apply()
+    }
+
+    /** Macros were removed; forget saved ones. Their keys drop out of the rows on the next read. */
+    fun deleteLegacyMacroData(context: Context) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .remove(LEGACY_KEY_SHORTCUT_MACROS)
             .apply()
     }
 
@@ -291,7 +345,7 @@ object KeyboardSettings {
     fun readUpperRowKeyIds(context: Context): List<String> {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val stored = prefs.getString(KEY_UPPER_ROW_KEYS, null) ?: return DEFAULT_UPPER_ROW_KEY_IDS
-        return dropMissingMacroKeys(context, parseUpperRowKeyIds(stored) ?: DEFAULT_UPPER_ROW_KEY_IDS)
+        return parseUpperRowKeyIds(stored) ?: DEFAULT_UPPER_ROW_KEY_IDS
     }
 
     fun saveUpperRowKeyIds(context: Context, keyIds: List<String>) {
@@ -309,33 +363,10 @@ object KeyboardSettings {
             .take(MAX_UPPER_ROW_KEYS)
     }
 
-    private fun normalizeShortcutRowKeyId(keyId: String): String? {
-        val id = ShortcutMacros.LEGACY_KEY_ID_ALIASES[keyId] ?: keyId
-        return id.takeIf { it in shortcutRowKeyOptionIds || ShortcutMacros.isMacroKeyId(it) }
-    }
-
-    private fun dropMissingMacroKeys(context: Context, keyIds: List<String>): List<String> {
-        if (keyIds.none(ShortcutMacros::isMacroKeyId)) return keyIds
-        val existing = readShortcutMacros(context).mapTo(HashSet()) { it.keyId }
-        return keyIds.filter { !ShortcutMacros.isMacroKeyId(it) || it in existing }
-    }
+    private fun normalizeShortcutRowKeyId(keyId: String): String? = keyId.takeIf { it in shortcutRowKeyOptionIds }
 
     /** Text typed by a symbol shortcut key, or null when [keyId] is not a symbol. */
     fun symbolForShortcutRowKey(keyId: String): String? = symbolTextByKeyId[keyId]
-
-    fun readShortcutMacros(context: Context): List<ShortcutMacro> {
-        val stored = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .getString(KEY_SHORTCUT_MACROS, null)
-            ?: return ShortcutMacros.DEFAULT_MACROS
-        return ShortcutMacros.parse(stored) ?: ShortcutMacros.DEFAULT_MACROS
-    }
-
-    fun saveShortcutMacros(context: Context, macros: List<ShortcutMacro>) {
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .edit()
-            .putString(KEY_SHORTCUT_MACROS, ShortcutMacros.toJson(macros).toString())
-            .apply()
-    }
 
     fun labelForUpperRowKey(keyId: String): String {
         return UPPER_ROW_KEY_OPTIONS.firstOrNull { it.id == keyId }?.label.orEmpty()
@@ -344,13 +375,13 @@ object KeyboardSettings {
     fun readSecondRowButtonIds(context: Context): List<String> {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         prefs.getString(KEY_SECOND_ROW_BUTTONS, null)?.let { stored ->
-            return dropMissingMacroKeys(context, parseSecondRowButtonIds(stored) ?: DEFAULT_SECOND_ROW_BUTTON_IDS)
+            return parseSecondRowButtonIds(stored) ?: DEFAULT_SECOND_ROW_BUTTON_IDS
         }
 
         val legacyAgentRow = prefs.getString(KEY_AGENT_ROW_KEYS, null)
             ?.let(::parseAgentRowKeyIds)
             ?: return DEFAULT_SECOND_ROW_BUTTON_IDS
-        return dropMissingMacroKeys(context, normalizeSecondRowButtonIds(listOf("rewrite") + legacyAgentRow))
+        return normalizeSecondRowButtonIds(listOf("rewrite") + legacyAgentRow)
     }
 
     /**
@@ -755,8 +786,7 @@ object KeyboardSettings {
                             .put("functionKeyBackgroundsEnabled", readFunctionKeyBackgroundsEnabled(context))
                             .put("shortcutRowAKeys", stringArrayJson(readUpperRowKeyIds(context)))
                             .put("shortcutRowBKeys", stringArrayJson(readSecondRowButtonIds(context)))
-                            .put("shortcutRowOrder", stringArrayJson(readKeyboardRowOrder(context)))
-                            .put("shortcutMacros", ShortcutMacros.toJson(readShortcutMacros(context))),
+                            .put("shortcutRowOrder", stringArrayJson(readKeyboardRowOrder(context))),
                     )
                     .put(
                         "rewrite",
@@ -830,7 +860,6 @@ object KeyboardSettings {
             "functionKeyBackgroundsEnabled",
             readFunctionKeyBackgroundsEnabled(context),
         )
-        val shortcutMacros = keyboard.optJSONArray("shortcutMacros")?.let(ShortcutMacros::fromJson)
         val upperRowKeys = keyboard.optStringList("shortcutRowAKeys")
             ?.let(::normalizeUpperRowKeyIds)
             ?: readUpperRowKeyIds(context)
@@ -887,7 +916,6 @@ object KeyboardSettings {
         saveAutoCapitalizeEnabled(context, autoCapitalize)
         saveDoubleSpacePeriodEnabled(context, doubleSpacePeriod)
         saveFunctionKeyBackgroundsEnabled(context, functionKeyBackgroundsEnabled)
-        shortcutMacros?.let { saveShortcutMacros(context, it) }
         saveUpperRowKeyIds(context, upperRowKeys)
         saveSecondRowButtonIds(context, secondRowButtons)
         saveKeyboardRowOrder(context, rowOrder)

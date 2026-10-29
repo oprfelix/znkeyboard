@@ -2,7 +2,7 @@
 
 A modern, privacy-respecting custom keyboard (input method editor) for Android, built with Kotlin and Jetpack Compose. ZnKeyboard pairs a fast custom typing surface with **Chinese pinyin input** and a built‑in **AI assistant** that polishes your text — or polishes and translates it for customers abroad — using your own API key — Google Gemini built in, or any OpenAI‑compatible endpoint.
 
-> This is a modified fork of [zainbits/zn-keyboard](https://github.com/zainbits/zn-keyboard). It adds pinyin input and AI polish and translate (润色 / 翻译), and removes the GIF, emoji and text-snippet features to keep the keyboard small (release APK ≈ 4.6 MB). Screenshots below are from upstream and predate these changes.
+> This is a modified fork of [zainbits/zn-keyboard](https://github.com/zainbits/zn-keyboard). It adds pinyin input and AI polish and translate (润色 / 翻译), and removes the GIF, emoji, text-snippet and macro features to keep the keyboard small (release APK ≈ 4.6 MB). Screenshots below are from upstream and predate these changes.
 
 ![Platform](https://img.shields.io/badge/platform-Android%2016%2B-3DDC84?logo=android&logoColor=white)
 ![Language](https://img.shields.io/badge/kotlin-2.3-7F52FF?logo=kotlin&logoColor=white)
@@ -10,8 +10,8 @@ A modern, privacy-respecting custom keyboard (input method editor) for Android, 
 ![License](https://img.shields.io/badge/license-GPL--3.0-blue)
 
 <p align="center">
-  <img src="docs/screenshot-keyboard.png" width="200" alt="ZnKeyboard with two shortcut rows, macros, and the Rewrite key">
-  <img src="docs/screenshot-shortcuts.png" width="200" alt="Shortcuts screen for arranging shortcut rows and macros">
+  <img src="docs/screenshot-keyboard.png" width="200" alt="ZnKeyboard with two shortcut rows and the Rewrite key">
+  <img src="docs/screenshot-shortcuts.png" width="200" alt="Shortcuts screen for arranging shortcut rows">
   <img src="docs/screenshot-settings.png" width="200" alt="Layout and rows settings with theme, height, and shortcut row preview">
   <img src="docs/screenshot-typing.png" width="200" alt="Typing settings with the adaptive touch map">
 </p>
@@ -67,9 +67,8 @@ ZnKeyboard learns how *your* thumbs actually hit each key and decodes every tap 
 Turn the keyboard into *your* keyboard. Add and arrange extra shortcut rows from a deep menu of keys most keyboards never give you:
 - **Cursor & navigation:** arrow keys, `Home`/`End`, `PgUp`/`PgDn`, `Del`.
 - **Modifiers & control:** `Ctrl`, `Alt`, `Tab`, `Esc` (latched only for the dispatched action).
-- **Custom macros:** chain any key combos (`Ctrl`/`Alt`/`Shift` + letters, digits, F-keys, arrows…) and typed text into one key, e.g. tmux `C-b n` or Vim `Esc` › `:wq` › `Enter`. tmux `C-b`, `C-b n`, `C-b p` ship as editable starters.
 - **Every symbol:** all ASCII punctuation plus `€`, `£`, `¥`, `•`.
-- **Defaults:** only the Rewrite row is shown, with `@ # & % ?`; the Esc/Tab/Ctrl/Alt/arrow row is opt‑in.
+- **Defaults:** only the Rewrite row is shown, with 📋 `@ & % ?`; the Esc/Tab/Ctrl/Alt/arrow row is opt‑in.
 - **Dedicated Shortcuts screen** with a live preview of both rows, a categorized key palette (tap to add, tap again to remove), swappable row order, and a confirmation before a row is reset to defaults.
 - Shortcut rows never change the height of the letter keys, so your muscle memory stays put.
 
@@ -113,7 +112,7 @@ Single‑module Android app (`:app`), package `dev.zain.znkeyboard`.
 | `ime/ClipboardPanelView`, `ime/ClipboardSearchView` | Clipboard history panel and its search. |
 | `SettingsActivity` (Jetpack Compose, Material 3) | Edge-to-edge settings app with a floating title pill and four tabs: Typing, Layout, Tools (AI), and Backup (with clipboard history). |
 | `liquidnav/` | Liquid nav bar: `LiquidNavModel` (pure-Kotlin springs and neck physics) and `LiquidNavBar` (Compose layout and AGSL shader). |
-| `ShortcutsScreen` + `ShortcutMacros` | Shortcut row editor, key palette, and macro definitions/dispatch. |
+| `ShortcutsScreen` | Shortcut row editor and key palette. |
 | `typing/` | Adaptive touch decoding (`TouchModel`, `CharLanguageModel`, `TouchDecoder`, `TypingLearner`) in pure Kotlin, wired up by `AdaptiveTypingEngine`. |
 | `KeyboardSettings` | Single source of truth for persisted settings and encrypted secrets. |
 | `constants/` | Centralized dimensions, colors, and defaults. |

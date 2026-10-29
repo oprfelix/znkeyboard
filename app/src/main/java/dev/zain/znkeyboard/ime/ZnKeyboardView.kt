@@ -21,9 +21,6 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
 import dev.zain.znkeyboard.KeyboardSettings
-import dev.zain.znkeyboard.MacroStep
-import dev.zain.znkeyboard.ShortcutMacro
-import dev.zain.znkeyboard.ShortcutMacros
 import dev.zain.znkeyboard.constants.AgentDefaults
 import dev.zain.znkeyboard.constants.ImeColors
 import dev.zain.znkeyboard.constants.ImeDimensions
@@ -126,7 +123,6 @@ class ZnKeyboardView @JvmOverloads constructor(
     private var upperRowKeyIds = KeyboardSettings.DEFAULT_UPPER_ROW_KEY_IDS
     private var secondRowButtonIds = KeyboardSettings.DEFAULT_SECOND_ROW_BUTTON_IDS
     private var keyboardRowOrder = KeyboardSettings.DEFAULT_KEYBOARD_ROW_ORDER
-    private var shortcutMacrosByKeyId: Map<String, ShortcutMacro> = emptyMap()
     private var shortcutRowState = ShortcutRowState(secondRowVisible = true)
     private var pinyinModeEnabled = false
     private var voiceIndicator: VoiceIndicator? = null
@@ -262,16 +258,6 @@ class ZnKeyboardView @JvmOverloads constructor(
         val normalizedRowIds = KeyboardSettings.normalizeKeyboardRowOrder(rowIds)
         if (keyboardRowOrder != normalizedRowIds) {
             keyboardRowOrder = normalizedRowIds
-            requestLayout()
-            refreshHitTargets()
-            invalidate()
-        }
-    }
-
-    fun setShortcutMacros(macros: List<ShortcutMacro>) {
-        val byKeyId = macros.associateBy(ShortcutMacro::keyId)
-        if (shortcutMacrosByKeyId != byKeyId) {
-            shortcutMacrosByKeyId = byKeyId
             requestLayout()
             refreshHitTargets()
             invalidate()
@@ -1664,9 +1650,7 @@ class ZnKeyboardView @JvmOverloads constructor(
             }
             KeyboardAction.Backspace -> learner.onBackspace()
             KeyboardAction.Enter -> learner.onCommitted('\n', null)
-            is KeyboardAction.KeyCode,
-            is KeyboardAction.Chord,
-            is KeyboardAction.Sequence -> learner.onContextChanged(null)
+            is KeyboardAction.KeyCode -> learner.onContextChanged(null)
         }
     }
 
@@ -2005,28 +1989,7 @@ class ZnKeyboardView @JvmOverloads constructor(
             "page_down" -> KeySpec(id, "PgDn", KeyIntent.Dispatch(KeyboardAction.KeyCode(KeyEvent.KEYCODE_PAGE_DOWN)), weight, KeyRole.Function, enabled = enabled)
             "backspace" -> KeySpec(id, "Del", KeyIntent.Dispatch(KeyboardAction.Backspace), weight, KeyRole.Function, icon = KeyIcon.Delete, enabled = enabled)
             else -> KeyboardSettings.symbolForShortcutRowKey(keyId)?.let { textUpperRowKey(id, it, weight, enabled) }
-                ?: macroKeySpec(id, keyId, weight, enabled)
         }
-    }
-
-    private fun macroKeySpec(id: String, keyId: String, weight: Float, enabled: Boolean): KeySpec? {
-        val macro = shortcutMacrosByKeyId[keyId] ?: return null
-        val steps = macro.steps.mapNotNull { step ->
-            when (step) {
-                is MacroStep.Key -> ShortcutMacros.key(step.keyId)?.let {
-                    KeyboardAction.Chord(it.keyCode, ctrl = step.ctrl, alt = step.alt, shift = step.shift)
-                }
-                is MacroStep.Text -> KeyboardAction.Text(step.text)
-            }
-        }
-        return KeySpec(
-            id,
-            macro.displayLabel,
-            KeyIntent.Dispatch(KeyboardAction.Sequence(steps)),
-            weight,
-            KeyRole.Function,
-            enabled = enabled,
-        )
     }
 
     private fun textUpperRowKey(id: String, value: String, weight: Float, enabled: Boolean): KeySpec {
@@ -2623,20 +2586,6 @@ data class ModifierState(
 sealed class KeyboardAction {
     data class Text(val value: String) : KeyboardAction()
     data class KeyCode(val keyCode: Int) : KeyboardAction()
-    /**
-     * Single key with fixed modifiers. Unlike [KeyCode], latched Ctrl/Alt on the keyboard
-     * are not applied — useful for one-tap chords such as tmux's prefix (Ctrl+B).
-     */
-    data class Chord(
-        val keyCode: Int,
-        val ctrl: Boolean = false,
-        val alt: Boolean = false,
-        val shift: Boolean = false,
-    ) : KeyboardAction()
-    /**
-     * Ordered user macro: [Chord] and [Text] steps played back in order, e.g. Ctrl+B then n.
-     */
-    data class Sequence(val steps: List<KeyboardAction>) : KeyboardAction()
     data object Backspace : KeyboardAction()
     data object Enter : KeyboardAction()
 }
