@@ -29,9 +29,13 @@ object AgentDefaults {
         TranslateLanguage("DE", "German"),
     )
     val DEFAULT_TRANSLATE_LANGUAGE = TRANSLATE_LANGUAGES.first()
+    // Shortcut-row labels follow the input mode: Chinese in 中, English in EN.
     const val TRANSLATE_REWRITE_LABEL = "AI 润译"
+    const val TRANSLATE_REWRITE_LABEL_EN = "AI Translate"
     const val TRANSLATE_REWRITE_LOADING_LABEL = "处理中…"
+    const val TRANSLATE_REWRITE_LOADING_LABEL_EN = "Working…"
     const val POLISH_ONLY_LABEL = "仅润色"
+    const val POLISH_ONLY_LABEL_EN = "Polish"
 
     /** Rewrite errors shown in Chinese while typing in pinyin mode; others stay as they are. */
     val CHINESE_ERROR_MESSAGES = mapOf(

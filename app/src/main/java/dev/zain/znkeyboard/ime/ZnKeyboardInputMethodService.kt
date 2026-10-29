@@ -575,16 +575,12 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         updateAutoShift()
     }
 
-    /** Chinese mode: "AI 润译" plus the round language key; English mode: plain "Rewrite". */
+    /** Both modes show polish | translate | the round target-language key, labelled in the mode's language. */
     private fun refreshRewriteLabel() {
-        if (pinyinModeEnabled) {
-            keyboardView?.setRewriteMode(
-                AgentDefaults.TRANSLATE_REWRITE_LABEL,
-                KeyboardSettings.readAgentTranslateTarget(this).code,
-            )
-        } else {
-            keyboardView?.setRewriteMode("Rewrite", languageCode = null)
-        }
+        keyboardView?.setRewriteMode(
+            if (pinyinModeEnabled) AgentDefaults.TRANSLATE_REWRITE_LABEL else AgentDefaults.TRANSLATE_REWRITE_LABEL_EN,
+            KeyboardSettings.readAgentTranslateTarget(this).code,
+        )
     }
 
     override fun onTranslateLanguageMenuRequested() {
@@ -1744,9 +1740,9 @@ class ZnKeyboardInputMethodService : InputMethodService(),
             appPromptAssetFor(currentEditorInfo?.packageName)?.let { assetPath ->
                 add(loadPromptAsset(assetPath, fallback = ""))
             }
-            // Translate only for AI 润译 while typing Chinese; 仅润色 and English mode just polish.
+            // AI 润译 translates in either input mode; 仅润色 just polishes.
             // Last, so it overrides the language-matching rules above.
-            if (pinyinModeEnabled && rewriteTranslates) {
+            if (rewriteTranslates) {
                 val translateTarget = KeyboardSettings.readAgentTranslateTarget(this@ZnKeyboardInputMethodService)
                 add(
                     loadPromptAsset(TRANSLATE_PROMPT_ASSET, fallback = "")

@@ -46,8 +46,7 @@ ZnKeyboard learns how *your* thumbs actually hit each key and decodes every tap 
 - Ranking comes straight from the dictionary's word frequencies: no prediction, no learning, nothing stored about what you type. Dictionary: 8,757 characters and the 150,000 most frequent words from [rime-ice](https://github.com/iDvel/rime-ice) (GPL‑3.0).
 
 ### 🌐 AI 润译: polish and translate
-- In **中 mode** the row starts **仅润色 | AI 润译 | (EN)**. **仅润色** only polishes your Chinese; **AI 润译** polishes it and translates it into the language on the round ink‑blue key — **EN, ES, JA, FR or DE**. Tap the round key to switch language while typing; Settings → Tools → *Translate to* sets the same choice.
-- In **EN mode** the key reads **Rewrite** and only polishes, keeping your language.
+- In both modes the row starts **仅润色 | AI 润译 | (EN)** — labelled **Polish | AI Translate** in EN mode. **仅润色** only polishes what you typed; **AI 润译** polishes it and translates it into the language on the round ink‑blue key — **EN, ES, JA, FR or DE** (text already in that language is just polished). Tap the round key to switch language while typing; Settings → Tools → *Translate to* sets the same choice.
 - In 中 mode the review panel and its errors are in Chinese (取消 / 应用 / 复制).
 
 ### ✍️ AI rewrite assistant ("agent mode")
@@ -157,8 +156,8 @@ Release builds are minified with R8 (code and resource shrinking), which takes t
 1. Open ZnKeyboard settings → **Tools** tab.
 2. Pick **Google Gemini** (endpoint built in; choose a model, `gemini-3.5-flash-lite` recommended) or **OpenAI compatible** (type the base URL and model), then paste your API key.
 3. The key is encrypted with the Android Keystore and stored only on your device.
-4. Turn on **Rewrite** at the top of the Tools tab, and pick a **Translate to** language for 中 mode.
-5. Tap **Rewrite** (EN mode), or **仅润色** / **AI 润译** (中 mode), on the shortcut row and review the suggestion before it's applied.
+4. Turn on **Rewrite** at the top of the Tools tab, and pick a **Translate to** language for AI 润译.
+5. Tap **仅润色** or **AI 润译** on the shortcut row and review the suggestion before it's applied.
 
 You are billed directly by your chosen provider for your own usage; ZnKeyboard never proxies requests.
 

@@ -1099,7 +1099,7 @@ private fun TranslateLanguageSelector(
             )
         }
         Text(
-            text = "In 中 mode, 仅润色 only polishes your Chinese; AI 润译 polishes and translates it into this language, and the round key beside it switches language while typing. In EN mode Rewrite only polishes.",
+            text = "仅润色 (Polish) only polishes what you typed; AI 润译 (AI Translate) polishes and translates it into this language. The round key beside them switches language while typing. Labels follow 中/EN mode.",
             color = ZnKeyboardColors.Muted,
             style = MaterialTheme.typography.bodySmall,
         )

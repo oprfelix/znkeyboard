@@ -1628,12 +1628,12 @@ class ZnKeyboardView @JvmOverloads constructor(
         val languageCode = translateLanguageCode
         val rewriteIndex = keys.indexOfFirst { it.intent == KeyIntent.AgentRewrite }
         if (languageCode != null && rewriteIndex >= 0) {
-            // In 中 mode: 仅润色 | AI 润译 | (EN). The first only polishes, the second also translates.
+            // 仅润色 | AI 润译 | (EN): the first only polishes, the second also translates.
             keys.add(
                 rewriteIndex,
                 KeySpec(
                     id = "second_polish_only",
-                    label = AgentDefaults.POLISH_ONLY_LABEL,
+                    label = if (pinyinModeEnabled) AgentDefaults.POLISH_ONLY_LABEL else AgentDefaults.POLISH_ONLY_LABEL_EN,
                     intent = KeyIntent.AgentPolishOnly,
                     weight = ImeDimensions.POLISH_ONLY_KEY_WEIGHT,
                     role = KeyRole.Function,
@@ -1680,7 +1680,8 @@ class ZnKeyboardView @JvmOverloads constructor(
                 id = id,
                 label = when {
                     !shortcutRowState.loading -> rewriteLabel
-                    translateLanguageCode != null -> AgentDefaults.TRANSLATE_REWRITE_LOADING_LABEL
+                    translateLanguageCode != null && pinyinModeEnabled -> AgentDefaults.TRANSLATE_REWRITE_LOADING_LABEL
+                    translateLanguageCode != null -> AgentDefaults.TRANSLATE_REWRITE_LOADING_LABEL_EN
                     else -> "Rewriting"
                 },
                 intent = KeyIntent.AgentRewrite,
