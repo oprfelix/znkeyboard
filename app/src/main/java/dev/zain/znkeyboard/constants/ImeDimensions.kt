@@ -39,11 +39,11 @@ object ImeDimensions {
 
     const val DEFAULT_KEY_WEIGHT = 1f
     const val EDGE_UPPER_ROW_KEY_WEIGHT = 1.4f
-    // In 中 mode the row starts 仅润色 | AI 润译 | round language key.
+    // The row starts 仅润色 | AI 润译 (EN); the language badge's slot is inside the translate pill.
     const val POLISH_ONLY_KEY_WEIGHT = 1.6f
     const val REWRITE_TRANSLATE_KEY_WEIGHT = 1.8f
-    const val TRANSLATE_LANGUAGE_KEY_WEIGHT = 1f
-    const val TRANSLATE_BADGE_SCALE = 0.86f
+    const val TRANSLATE_LANGUAGE_KEY_WEIGHT = 0.9f
+    const val TRANSLATE_BADGE_SCALE = 0.72f
     const val SIDE_FUNCTION_KEY_WEIGHT = 1.5f
     const val MODE_SWITCH_KEY_WEIGHT = 1.25f
     const val SPACE_KEY_WEIGHT = 5.1f

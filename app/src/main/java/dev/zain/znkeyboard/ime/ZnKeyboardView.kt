@@ -122,8 +122,9 @@ class ZnKeyboardView @JvmOverloads constructor(
     private var rewriteLabel = "Rewrite"
     // Shown on a round key beside Rewrite while it translates; null when it only polishes.
     private var translateLanguageCode: String? = null
-    // Reused by onDraw for round keys, which must not allocate.
+    // Reused by onDraw for round and merged keys, which must not allocate.
     private val circleKeyBounds = RectF()
+    private val mergedKeyBounds = RectF()
     private var keyHapticsEnabled = true
     private var keyPreviewEnabled = true
     private var autoShiftActive = false
@@ -347,8 +348,8 @@ class ZnKeyboardView @JvmOverloads constructor(
             refreshHitTargets()
         }
 
-        hitTargets.forEach { hit ->
-            drawKey(canvas, hit)
+        for (index in hitTargets.indices) {
+            drawKey(canvas, hitTargets[index], hitTargets.getOrNull(index + 1))
         }
         if (keyPreviewEnabled) {
             drawKeyPreviews(canvas)
@@ -434,6 +435,10 @@ class ZnKeyboardView @JvmOverloads constructor(
         }
         pointerQueue.remove(pointerId)
         pointerQueue.add(pointerId)
+        if (key?.mergesWithNext == true) {
+            // Fallback for a missed badge tap: long-press the translate key to pick the language.
+            scheduleLongPress(pointerId, key.id) { callback?.onTranslateLanguageMenuRequested() }
+        }
         when (key?.id) {
             "apostrophe" -> scheduleLongPress(pointerId, "apostrophe") {
                 handleKey(KeySpec("backtick_long_press", "`", KeyIntent.Dispatch(KeyboardAction.Text("`"))))
@@ -799,9 +804,16 @@ class ZnKeyboardView @JvmOverloads constructor(
         return (key.intent as? KeyIntent.Dispatch)?.action == KeyboardAction.Backspace
     }
 
-    private fun drawKey(canvas: Canvas, hit: KeyHit) {
+    /** [next] is the key drawn after this one; a [KeySpec.mergesWithNext] key stretches its pill over it. */
+    private fun drawKey(canvas: Canvas, hit: KeyHit, next: KeyHit? = null) {
         val key = hit.key
         val bounds = if (key.circle) circleBounds(hit.visualBounds) else hit.visualBounds
+        val backgroundBounds = if (key.mergesWithNext && next != null) {
+            mergedKeyBounds.set(bounds.left, bounds.top, next.visualBounds.right, bounds.bottom)
+            mergedKeyBounds
+        } else {
+            bounds
+        }
         val rewriteLoading = key.intent == KeyIntent.AgentRewrite && shortcutRowState.loading
         val pressed = isKeyPressed(key.id)
         val selected = key.active && !rewriteLoading
@@ -847,11 +859,11 @@ class ZnKeyboardView @JvmOverloads constructor(
         keyPaint.alpha = keyAlpha
 
         if (drawBackground) {
-            canvas.drawRoundRect(bounds, radius, radius, keyPaint)
+            canvas.drawRoundRect(backgroundBounds, radius, radius, keyPaint)
         }
 
         if (rewriteLoading) {
-            drawRewriteLoadingWash(canvas, bounds, radius)
+            drawRewriteLoadingWash(canvas, backgroundBounds, radius)
         }
 
         val contentAlpha = if (key.enabled || key.emphasizedWhenDisabled) 255 else DISABLED_CONTENT_ALPHA
@@ -1628,7 +1640,8 @@ class ZnKeyboardView @JvmOverloads constructor(
         val languageCode = translateLanguageCode
         val rewriteIndex = keys.indexOfFirst { it.intent == KeyIntent.AgentRewrite }
         if (languageCode != null && rewriteIndex >= 0) {
-            // 仅润色 | AI 润译 | (EN): the first only polishes, the second also translates.
+            // 仅润色 | AI 润译 (EN): the first only polishes, the second also translates. The language
+            // badge keeps its own tap target but sits inside the translate key's pill.
             keys.add(
                 rewriteIndex,
                 KeySpec(
@@ -1686,6 +1699,7 @@ class ZnKeyboardView @JvmOverloads constructor(
                 },
                 intent = KeyIntent.AgentRewrite,
                 weight = if (translateLanguageCode != null) maxOf(weight, ImeDimensions.REWRITE_TRANSLATE_KEY_WEIGHT) else weight,
+                mergesWithNext = translateLanguageCode != null,
                 role = KeyRole.Function,
                 active = shortcutRowState.loading,
                 enabled = enabled && shortcutRowState.rewriteEnabled && !shortcutRowState.loading,
@@ -2175,6 +2189,8 @@ class ZnKeyboardView @JvmOverloads constructor(
         val subLabelStyle: SubLabelStyle = SubLabelStyle.Small,
         /** Drawn as a circle centered in its slot, always with a background. */
         val circle: Boolean = false,
+        /** The pill also covers the next key's slot, so that key reads as a badge inside it. */
+        val mergesWithNext: Boolean = false,
     )
 
     private data class KeyHit(
