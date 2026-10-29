@@ -4,14 +4,11 @@ import android.content.Context
 import android.net.Uri
 import dev.zain.znkeyboard.constants.SettingsBackupDefaults
 import dev.zain.znkeyboard.constants.SettingsUiTimings
-import org.json.JSONArray
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.net.HttpURLConnection
-import java.net.URLEncoder
 import java.net.URL
-import java.nio.charset.StandardCharsets
 import java.time.LocalDateTime
 import java.util.Locale
 
@@ -43,44 +40,6 @@ internal fun fetchModelOptions(
     }
 }
 
-internal fun fetchOpenRouterProviderOptions(
-    baseUrl: String,
-    modelId: String,
-    apiKey: String,
-): Result<List<OpenRouterProviderOption>> {
-    return runCatching {
-        val providerDirectory = fetchOpenRouterProviderDirectory(baseUrl = baseUrl, apiKey = apiKey)
-            .associateBy { normalizeProviderName(it.name) }
-        val endpoints = getJsonObject(
-            endpoint = buildOpenRouterModelEndpointsUrl(baseUrl = baseUrl, modelId = modelId),
-            apiKey = apiKey,
-            failureMessage = "Could not load providers for this model",
-        )
-            .getJSONObject("data")
-            .getJSONArray("endpoints")
-
-        buildList {
-            for (index in 0 until endpoints.length()) {
-                val endpoint = endpoints.optJSONObject(index) ?: continue
-                val status = endpoint.optString("status").trim()
-                if (status.isNotBlank() && status != "0") {
-                    continue
-                }
-                val providerName = endpoint.optString("provider_name").trim()
-                val provider = providerDirectory[normalizeProviderName(providerName)] ?: continue
-                add(
-                    OpenRouterProviderOption(
-                        slug = provider.slug,
-                        name = provider.name,
-                    ),
-                )
-            }
-        }
-            .distinctBy { it.slug }
-            .sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.name })
-    }
-}
-
 private fun buildModelsUrl(baseUrl: String): URL {
     val normalizedBaseUrl = baseUrl.trim().trimEnd('/')
     val endpoint = URL("$normalizedBaseUrl/models")
@@ -88,54 +47,6 @@ private fun buildModelsUrl(baseUrl: String): URL {
         throw IOException("Use an HTTPS endpoint to load models.")
     }
     return endpoint
-}
-
-private fun buildProvidersUrl(baseUrl: String): URL {
-    val normalizedBaseUrl = baseUrl.trim().trimEnd('/')
-    val endpoint = URL("$normalizedBaseUrl/providers")
-    if (endpoint.protocol != "https") {
-        throw IOException("Use an HTTPS endpoint to load providers.")
-    }
-    return endpoint
-}
-
-private fun buildOpenRouterModelEndpointsUrl(baseUrl: String, modelId: String): URL {
-    val normalizedModelId = modelId.trim()
-    val parts = normalizedModelId.split("/", limit = 2)
-    val author = parts.getOrNull(0)?.trim().orEmpty()
-    val slug = parts.getOrNull(1)?.trim().orEmpty()
-    if (author.isBlank() || slug.isBlank()) {
-        throw IOException("Use an OpenRouter model ID like openai/gpt-4o to load providers.")
-    }
-
-    val normalizedBaseUrl = baseUrl.trim().trimEnd('/')
-    val endpoint = URL(
-        "$normalizedBaseUrl/models/${author.urlEncodePathSegment()}/${slug.urlEncodePathSegment()}/endpoints",
-    )
-    if (endpoint.protocol != "https") {
-        throw IOException("Use an HTTPS endpoint to load providers.")
-    }
-    return endpoint
-}
-
-private fun fetchOpenRouterProviderDirectory(
-    baseUrl: String,
-    apiKey: String,
-): List<OpenRouterProviderDirectoryEntry> {
-    val providers = getJsonObject(
-        endpoint = buildProvidersUrl(baseUrl),
-        apiKey = apiKey,
-        failureMessage = "Could not load OpenRouter providers",
-    ).getJSONArray("data")
-    return providers.toObjects { provider ->
-        val slug = provider.optString("slug").trim()
-        val name = provider.optString("name").trim()
-        if (slug.isBlank() || name.isBlank()) {
-            null
-        } else {
-            OpenRouterProviderDirectoryEntry(slug = slug, name = name)
-        }
-    }
 }
 
 private fun getJsonObject(
@@ -169,25 +80,23 @@ private fun getJsonObject(
     }
 }
 
-private fun JSONArray.toObjects(
-    transform: (JSONObject) -> OpenRouterProviderDirectoryEntry?,
-): List<OpenRouterProviderDirectoryEntry> {
-    return buildList {
-        for (index in 0 until length()) {
-            optJSONObject(index)?.let(transform)?.let(::add)
+/**
+ * Gemini's model list mixes in image, video, speech and embedding models; keep the ones that can
+ * rewrite text, without the "models/" prefix the OpenAI-compatible endpoint adds.
+ */
+internal fun List<ModelOption>.geminiTextModels(): List<ModelOption> {
+    return map { it.copy(id = it.id.removePrefix("models/")) }
+        .filter { option ->
+            val id = option.id.lowercase(Locale.US)
+            id.startsWith("gemini") && GEMINI_NON_TEXT_MARKERS.none { it in id }
         }
-    }
+        .distinctBy { it.id }
 }
 
-private fun normalizeProviderName(name: String): String {
-    return name.trim().lowercase(Locale.US)
-}
-
-private fun String.urlEncodePathSegment(): String {
-    return URLEncoder
-        .encode(this, StandardCharsets.UTF_8.toString())
-        .replace("+", "%20")
-}
+private val GEMINI_NON_TEXT_MARKERS = listOf(
+    "embedding", "image", "imagen", "tts", "audio", "live", "veo", "robotics", "computer-use", "aqa",
+    "transcribe", "nano-banana",
+)
 
 internal fun List<ModelOption>.filterForQuery(query: String): List<ModelOption> {
     val normalizedQuery = query.trim().lowercase(Locale.US)
@@ -269,16 +178,6 @@ private const val MAX_ENCRYPTED_BACKUP_BYTES = 32 * 1024 * 1024
 internal data class ModelOption(
     val id: String,
     val name: String?,
-)
-
-internal data class OpenRouterProviderOption(
-    val slug: String,
-    val name: String,
-)
-
-private data class OpenRouterProviderDirectoryEntry(
-    val slug: String,
-    val name: String,
 )
 
 internal data class PickerItem(

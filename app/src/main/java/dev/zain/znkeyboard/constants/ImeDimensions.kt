@@ -39,11 +39,10 @@ object ImeDimensions {
 
     const val DEFAULT_KEY_WEIGHT = 1f
     const val EDGE_UPPER_ROW_KEY_WEIGHT = 1.4f
-    // Room for "AI 润译" when Rewrite also translates; the round language key sits beside it.
-    const val REWRITE_TRANSLATE_KEY_WEIGHT = 2.2f
+    // In 中 mode the row starts 仅润色 | AI 润译 | round language key.
+    const val POLISH_ONLY_KEY_WEIGHT = 1.6f
+    const val REWRITE_TRANSLATE_KEY_WEIGHT = 1.8f
     const val TRANSLATE_LANGUAGE_KEY_WEIGHT = 1f
-    // The language key tucks under the right end of AI 润译 by this share of its diameter.
-    const val TRANSLATE_BADGE_OVERLAP_FRACTION = 0.3f
     const val TRANSLATE_BADGE_SCALE = 0.86f
     const val SIDE_FUNCTION_KEY_WEIGHT = 1.5f
     const val MODE_SWITCH_KEY_WEIGHT = 1.25f

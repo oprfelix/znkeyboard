@@ -5,7 +5,8 @@ data class TranslateLanguage(val code: String, val name: String)
 
 object AgentDefaults {
     const val DEFAULT_API_BASE_URL = "https://api.openai.com/v1"
-    const val OPENROUTER_API_BASE_URL = "https://openrouter.ai/api/v1"
+    const val GEMINI_API_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai"
+    const val DEFAULT_GEMINI_MODEL = "gemini-3.5-flash-lite"
     const val DEFAULT_MODEL = "gpt-4o-mini"
 
     const val MAX_REWRITE_SOURCE_CHARS = 12_000
@@ -29,7 +30,8 @@ object AgentDefaults {
     )
     val DEFAULT_TRANSLATE_LANGUAGE = TRANSLATE_LANGUAGES.first()
     const val TRANSLATE_REWRITE_LABEL = "AI 润译"
-    const val TRANSLATE_REWRITE_LOADING_LABEL = "润译中…"
+    const val TRANSLATE_REWRITE_LOADING_LABEL = "处理中…"
+    const val POLISH_ONLY_LABEL = "仅润色"
 
     /** Rewrite errors shown in Chinese while typing in pinyin mode; others stay as they are. */
     val CHINESE_ERROR_MESSAGES = mapOf(

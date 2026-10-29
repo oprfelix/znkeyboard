@@ -139,6 +139,7 @@ import kotlin.math.roundToInt
 class SettingsActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: android.os.Bundle?) {
         super.onCreate(savedInstanceState)
+        KeyboardSettings.migrateAgentProviders(this)
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.auto(AndroidColor.TRANSPARENT, AndroidColor.TRANSPARENT),
             navigationBarStyle = SystemBarStyle.auto(AndroidColor.TRANSPARENT, AndroidColor.TRANSPARENT),
@@ -189,13 +190,10 @@ private fun SettingsScreen(onOpenShortcuts: () -> Unit) {
     var agentApiBaseUrl by remember { mutableStateOf(KeyboardSettings.readAgentApiBaseUrl(context)) }
     var agentModel by remember { mutableStateOf(KeyboardSettings.readAgentModel(context)) }
     var agentTranslateTarget by remember { mutableStateOf(KeyboardSettings.readAgentTranslateTarget(context).code) }
-    var openRouterProviderSlug by remember { mutableStateOf(KeyboardSettings.readOpenRouterProviderSlug(context)) }
     var agentReasoningMode by remember { mutableStateOf(KeyboardSettings.readAgentReasoningMode(context)) }
     var agentReasoningTextEnabled by remember { mutableStateOf(KeyboardSettings.readAgentReasoningTextEnabled(context)) }
     var agentApiKey by remember { mutableStateOf(KeyboardSettings.readAgentApiKey(context, agentProviderType)) }
     var agentApiKeyLocked by remember { mutableStateOf(KeyboardSettings.readAgentApiKeyLocked(context, agentProviderType)) }
-    var agentProfiles by remember { mutableStateOf(KeyboardSettings.readAgentProfiles(context)) }
-    var activeAgentProfileId by remember { mutableStateOf(KeyboardSettings.readActiveAgentProfileId(context)) }
     var clipboardHistoryCount by remember { mutableStateOf(ClipboardHistoryStore.read(context).size) }
     var backupPasswordDialogMode by remember { mutableStateOf<BackupPasswordDialogMode?>(null) }
     var pendingExportPassword by remember { mutableStateOf<String?>(null) }
@@ -215,13 +213,10 @@ private fun SettingsScreen(onOpenShortcuts: () -> Unit) {
         agentProviderType = nextProviderType
         agentApiBaseUrl = KeyboardSettings.readAgentApiBaseUrl(context)
         agentModel = KeyboardSettings.readAgentModel(context)
-        openRouterProviderSlug = KeyboardSettings.readOpenRouterProviderSlug(context)
         agentReasoningMode = KeyboardSettings.readAgentReasoningMode(context)
         agentReasoningTextEnabled = KeyboardSettings.readAgentReasoningTextEnabled(context)
         agentApiKey = KeyboardSettings.readAgentApiKey(context, nextProviderType)
         agentApiKeyLocked = KeyboardSettings.readAgentApiKeyLocked(context, nextProviderType)
-        agentProfiles = KeyboardSettings.readAgentProfiles(context)
-        activeAgentProfileId = KeyboardSettings.readActiveAgentProfileId(context)
         clipboardHistoryCount = ClipboardHistoryStore.read(context).size
     }
 
@@ -407,13 +402,10 @@ private fun SettingsScreen(onOpenShortcuts: () -> Unit) {
                         agentApiBaseUrl = agentApiBaseUrl,
                         agentModel = agentModel,
                         agentTranslateTarget = agentTranslateTarget,
-                        openRouterProviderSlug = openRouterProviderSlug,
                         agentReasoningMode = agentReasoningMode,
                         agentReasoningTextEnabled = agentReasoningTextEnabled,
                         agentApiKey = agentApiKey,
                         agentApiKeyLocked = agentApiKeyLocked,
-                        agentProfiles = agentProfiles,
-                        activeAgentProfileId = activeAgentProfileId,
                         onAgentModeEnabledChange = {
                             agentModeEnabled = it
                             KeyboardSettings.saveAgentModeEnabled(context, it)
@@ -421,6 +413,7 @@ private fun SettingsScreen(onOpenShortcuts: () -> Unit) {
                         onAgentProviderTypeChange = {
                             agentProviderType = it
                             KeyboardSettings.saveAgentProviderType(context, it)
+                            agentModel = KeyboardSettings.readAgentModel(context, it)
                             agentApiKey = KeyboardSettings.readAgentApiKey(context, it)
                             agentApiKeyLocked = KeyboardSettings.readAgentApiKeyLocked(context, it)
                         },
@@ -430,15 +423,11 @@ private fun SettingsScreen(onOpenShortcuts: () -> Unit) {
                         },
                         onAgentModelChange = {
                             agentModel = it
-                            KeyboardSettings.saveAgentModel(context, it)
+                            KeyboardSettings.saveAgentModel(context, it, agentProviderType)
                         },
                         onAgentTranslateTargetChange = {
                             agentTranslateTarget = it
                             KeyboardSettings.saveAgentTranslateTarget(context, it)
-                        },
-                        onOpenRouterProviderSlugChange = {
-                            openRouterProviderSlug = it
-                            KeyboardSettings.saveOpenRouterProviderSlug(context, it)
                         },
                         onAgentReasoningModeChange = {
                             agentReasoningMode = it
@@ -458,26 +447,6 @@ private fun SettingsScreen(onOpenShortcuts: () -> Unit) {
                         onAgentApiKeyLockedChange = {
                             agentApiKeyLocked = it
                             KeyboardSettings.saveAgentApiKeyLocked(context, agentProviderType, it)
-                        },
-                        onCreateAgentProfile = { name ->
-                            val created = KeyboardSettings.createAgentProfile(context, name)
-                            agentProfiles = KeyboardSettings.readAgentProfiles(context)
-                            activeAgentProfileId = KeyboardSettings.readActiveAgentProfileId(context)
-                            created != null
-                        },
-                        onUpdateAgentProfile = {
-                            KeyboardSettings.updateAgentProfileFromCurrent(context, activeAgentProfileId)
-                            agentProfiles = KeyboardSettings.readAgentProfiles(context)
-                            activeAgentProfileId = KeyboardSettings.readActiveAgentProfileId(context)
-                        },
-                        onActivateAgentProfile = { profileId ->
-                            KeyboardSettings.activateAgentProfile(context, profileId)
-                            refreshSettingsFromStorage()
-                        },
-                        onDeleteAgentProfile = { profileId ->
-                            KeyboardSettings.deleteAgentProfile(context, profileId)
-                            agentProfiles = KeyboardSettings.readAgentProfiles(context)
-                            activeAgentProfileId = KeyboardSettings.readActiveAgentProfileId(context)
                         },
                     )
 
@@ -798,27 +767,19 @@ private fun AgentModeSection(
     agentApiBaseUrl: String,
     agentModel: String,
     agentTranslateTarget: String,
-    openRouterProviderSlug: String,
     agentReasoningMode: KeyboardSettings.AgentReasoningMode,
     agentReasoningTextEnabled: Boolean,
     agentApiKey: String,
     agentApiKeyLocked: Boolean,
-    agentProfiles: List<KeyboardSettings.AgentProfile>,
-    activeAgentProfileId: String,
     onAgentModeEnabledChange: (Boolean) -> Unit,
     onAgentProviderTypeChange: (KeyboardSettings.AgentProviderType) -> Unit,
     onAgentApiBaseUrlChange: (String) -> Unit,
     onAgentModelChange: (String) -> Unit,
     onAgentTranslateTargetChange: (String) -> Unit,
-    onOpenRouterProviderSlugChange: (String) -> Unit,
     onAgentReasoningModeChange: (KeyboardSettings.AgentReasoningMode) -> Unit,
     onAgentReasoningTextEnabledChange: (Boolean) -> Unit,
     onAgentApiKeyChange: (String) -> Unit,
     onAgentApiKeyLockedChange: (Boolean) -> Unit,
-    onCreateAgentProfile: (String) -> Boolean,
-    onUpdateAgentProfile: () -> Unit,
-    onActivateAgentProfile: (String) -> Unit,
-    onDeleteAgentProfile: (String) -> Unit,
 ) {
     SettingsSectionCard {
         SettingsSectionHeader(
@@ -838,73 +799,53 @@ private fun AgentModeSection(
             style = MaterialTheme.typography.bodySmall,
         )
 
-        AgentProfiles(
-            profiles = agentProfiles,
-            activeProfileId = activeAgentProfileId,
-            onCreateProfile = onCreateAgentProfile,
-            onUpdateProfile = onUpdateAgentProfile,
-            onActivateProfile = onActivateAgentProfile,
-            onDeleteProfile = onDeleteAgentProfile,
-        )
-
         ProviderTypeSelector(
             providerType = agentProviderType,
             onProviderTypeChange = onAgentProviderTypeChange,
         )
 
-        if (agentProviderType != KeyboardSettings.AgentProviderType.OpenRouter) {
-            OutlinedTextField(
-                value = agentApiBaseUrl,
-                onValueChange = onAgentApiBaseUrlChange,
-                label = { Text("API base URL") },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
-                modifier = Modifier.fillMaxWidth(),
+        val fixedBaseUrl = agentProviderType.fixedBaseUrl
+        // Built-in providers show their endpoint read-only; custom endpoints are typed in.
+        OutlinedTextField(
+            shape = SettingsCapsuleShape,
+            value = fixedBaseUrl ?: agentApiBaseUrl,
+            onValueChange = onAgentApiBaseUrlChange,
+            label = { Text("API base URL") },
+            singleLine = true,
+            enabled = fixedBaseUrl == null,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+            modifier = Modifier.fillMaxWidth(),
+        )
+
+        if (agentProviderType == KeyboardSettings.AgentProviderType.Gemini) {
+            GeminiModelSelector(
+                apiKey = agentApiKey,
+                value = agentModel,
+                onValueChange = onAgentModelChange,
             )
-            if (agentProviderType == KeyboardSettings.AgentProviderType.NanbeigeLlamaCpp) {
-                Text(
-                    text = "For the Nanbeige llama.cpp fork. Uses its compatible structured-output request format.",
-                    color = ZnKeyboardColors.Muted,
-                    style = MaterialTheme.typography.bodySmall,
-                )
-            }
         } else {
-            Text(
-                text = "OpenRouter endpoint is managed automatically. Pick a model first, then optionally pin a provider for that model.",
-                color = ZnKeyboardColors.Muted,
-                style = MaterialTheme.typography.bodySmall,
+            ModelSelectorField(
+                apiBaseUrl = agentApiBaseUrl,
+                apiKey = agentApiKey,
+                value = agentModel,
+                onValueChange = onAgentModelChange,
             )
         }
-
-        ModelSelectorField(
-            providerType = agentProviderType,
-            apiBaseUrl = agentApiBaseUrl,
-            apiKey = agentApiKey,
-            value = agentModel,
-            onValueChange = onAgentModelChange,
-        )
 
         TranslateLanguageSelector(
             value = agentTranslateTarget,
             onValueChange = onAgentTranslateTargetChange,
         )
 
-        if (agentProviderType == KeyboardSettings.AgentProviderType.OpenRouter) {
-            OpenRouterProviderSelector(
-                modelId = agentModel,
-                apiKey = agentApiKey,
-                value = openRouterProviderSlug,
-                onValueChange = onOpenRouterProviderSlugChange,
+        // Gemini always runs with reasoning off; only custom endpoints expose it.
+        if (agentProviderType == KeyboardSettings.AgentProviderType.OpenAiCompatible) {
+            ReasoningControls(
+                reasoningMode = agentReasoningMode,
+                reasoningTextEnabled = agentReasoningTextEnabled,
+                onReasoningModeChange = onAgentReasoningModeChange,
+                onReasoningTextEnabledChange = onAgentReasoningTextEnabledChange,
             )
         }
-
-        ReasoningControls(
-            providerType = agentProviderType,
-            reasoningMode = agentReasoningMode,
-            reasoningTextEnabled = agentReasoningTextEnabled,
-            onReasoningModeChange = onAgentReasoningModeChange,
-            onReasoningTextEnabledChange = onAgentReasoningTextEnabledChange,
-        )
 
         LockableSecretOutlinedTextField(
             value = agentApiKey,
@@ -919,312 +860,8 @@ private fun AgentModeSection(
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun AgentProfiles(
-    profiles: List<KeyboardSettings.AgentProfile>,
-    activeProfileId: String,
-    onCreateProfile: (String) -> Boolean,
-    onUpdateProfile: () -> Unit,
-    onActivateProfile: (String) -> Unit,
-    onDeleteProfile: (String) -> Unit,
-) {
-    var showingCreateDialog by remember { mutableStateOf(false) }
-    var pendingDeleteProfileId by remember { mutableStateOf<String?>(null) }
-    val activeProfile = profiles.firstOrNull { it.id == activeProfileId }
-
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = "Profiles",
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.SemiBold,
-            )
-            Text(
-                text = "${profiles.size}/${KeyboardSettings.MAX_AGENT_PROFILES}",
-                color = ZnKeyboardColors.Muted,
-                style = MaterialTheme.typography.labelMedium,
-            )
-        }
-
-        if (profiles.isEmpty()) {
-            Text(
-                text = "Save this configuration to switch providers and models with one tap.",
-                color = ZnKeyboardColors.Muted,
-                style = MaterialTheme.typography.bodySmall,
-            )
-        } else {
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                profiles.forEach { profile ->
-                    InputChip(
-                        selected = profile.id == activeProfileId,
-                        onClick = { onActivateProfile(profile.id) },
-                        label = {
-                            Text(
-                                text = profile.name,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        },
-                    )
-                }
-            }
-        }
-
-        FlowRow(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            Button(
-                onClick = { showingCreateDialog = true },
-                enabled = profiles.size < KeyboardSettings.MAX_AGENT_PROFILES,
-            ) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_add_24),
-                    contentDescription = null,
-                    modifier = Modifier.size(16.dp),
-                )
-                Spacer(Modifier.width(6.dp))
-                Text("Save new")
-            }
-
-            OutlinedButton(
-                onClick = onUpdateProfile,
-                enabled = activeProfile != null,
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = ZnKeyboardColors.OnSurface),
-            ) {
-                Text("Update")
-            }
-
-            TextButton(
-                onClick = { pendingDeleteProfileId = activeProfile?.id },
-                enabled = activeProfile != null,
-            ) {
-                Text(
-                    text = "Delete",
-                    color = if (activeProfile != null) {
-                        ZnKeyboardColors.DeleteContent
-                    } else {
-                        ZnKeyboardColors.Muted
-                    },
-                )
-            }
-        }
-
-        activeProfile?.let { profile ->
-            Text(
-                text = "${profile.providerType.label} · ${profile.model}",
-                color = ZnKeyboardColors.Muted,
-                style = MaterialTheme.typography.labelSmall,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-    }
-
-    if (showingCreateDialog) {
-        var name by remember { mutableStateOf("") }
-        var saveFailed by remember { mutableStateOf(false) }
-        val normalizedName = KeyboardSettings.normalizeAgentProfileName(name)
-        val duplicateName = profiles.any { it.name.equals(normalizedName, ignoreCase = true) }
-        val canSave = normalizedName.isNotBlank() && !duplicateName
-
-        AlertDialog(
-            onDismissRequest = { showingCreateDialog = false },
-            title = { Text("Save LLM profile") },
-            text = {
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = {
-                        name = it.take(KeyboardSettings.MAX_AGENT_PROFILE_NAME_CHARS)
-                        saveFailed = false
-                    },
-                    label = { Text("Profile name") },
-                    supportingText = {
-                        val message = when {
-                            duplicateName -> "A profile with this name already exists."
-                            saveFailed -> "Could not save this profile."
-                            else -> "Examples: Nanbeige, OpenRouter, Work"
-                        }
-                        Text(message)
-                    },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                    keyboardActions = KeyboardActions(
-                        onDone = {
-                            if (canSave) {
-                                if (onCreateProfile(normalizedName)) {
-                                    showingCreateDialog = false
-                                } else {
-                                    saveFailed = true
-                                }
-                            }
-                        },
-                    ),
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            },
-            dismissButton = {
-                TextButton(onClick = { showingCreateDialog = false }) {
-                    Text("Cancel")
-                }
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        if (onCreateProfile(normalizedName)) {
-                            showingCreateDialog = false
-                        } else {
-                            saveFailed = true
-                        }
-                    },
-                    enabled = canSave,
-                ) {
-                    Text("Save")
-                }
-            },
-        )
-    }
-
-    pendingDeleteProfileId?.let { profileId ->
-        val profile = profiles.firstOrNull { it.id == profileId }
-        if (profile != null) {
-            AlertDialog(
-                onDismissRequest = { pendingDeleteProfileId = null },
-                title = { Text("Delete ${profile.name}?") },
-                text = { Text("This removes the saved profile and its stored API key.") },
-                dismissButton = {
-                    TextButton(onClick = { pendingDeleteProfileId = null }) {
-                        Text("Cancel")
-                    }
-                },
-                confirmButton = {
-                    TextButton(
-                        onClick = {
-                            pendingDeleteProfileId = null
-                            onDeleteProfile(profile.id)
-                        },
-                    ) {
-                        Text("Delete", color = ZnKeyboardColors.DeleteContent)
-                    }
-                },
-            )
-        }
-    }
-}
-
-@Composable
-private fun OpenRouterProviderSelector(
-    modelId: String,
-    apiKey: String,
-    value: String,
-    onValueChange: (String) -> Unit,
-) {
-    var expanded by remember { mutableStateOf(false) }
-    var providerOptions by remember { mutableStateOf<List<OpenRouterProviderOption>>(emptyList()) }
-    var providerLoadStatus by remember { mutableStateOf("Pick a model to load OpenRouter providers.") }
-    val currentValue by rememberUpdatedState(value)
-    val currentOnValueChange by rememberUpdatedState(onValueChange)
-    val normalizedModelId = modelId.trim()
-
-    LaunchedEffect(normalizedModelId, apiKey) {
-        providerOptions = emptyList()
-        if (normalizedModelId.isBlank()) {
-            providerLoadStatus = "Pick a model to load OpenRouter providers."
-            return@LaunchedEffect
-        }
-        if (apiKey.isBlank()) {
-            providerLoadStatus = "Enter your OpenRouter API key to load providers."
-            return@LaunchedEffect
-        }
-        if (!normalizedModelId.contains("/")) {
-            providerLoadStatus = "Use an OpenRouter model ID like openai/gpt-4o to load providers."
-            return@LaunchedEffect
-        }
-
-        providerLoadStatus = "Loading providers..."
-        delay(MODEL_LOAD_DEBOUNCE_MS)
-        val result = withContext(Dispatchers.IO) {
-            fetchOpenRouterProviderOptions(
-                baseUrl = KeyboardSettings.OPENROUTER_API_BASE_URL,
-                modelId = normalizedModelId,
-                apiKey = apiKey,
-            )
-        }
-        result
-            .onSuccess { providers ->
-                providerOptions = providers
-                if (currentValue.isNotBlank() && providers.none { it.slug == currentValue }) {
-                    currentOnValueChange("")
-                }
-                providerLoadStatus = if (providers.isEmpty()) {
-                    "No provider pins found for this model. Automatic routing is still available."
-                } else {
-                    "Loaded ${providers.size} providers for this model."
-                }
-            }
-            .onFailure { error ->
-                providerLoadStatus = error.message?.takeIf { it.isNotBlank() }
-                    ?: "Could not load providers. Automatic routing is still available."
-            }
-    }
-
-    val selectedLabel = providerOptions.firstOrNull { it.slug == value }?.name
-        ?: value.takeIf { it.isNotBlank() }
-        ?: "Automatic routing"
-    val pickerItems = remember(providerOptions) {
-        listOf(
-            PickerItem(
-                id = "",
-                title = "Automatic routing",
-                subtitle = "Let OpenRouter choose the provider.",
-            ),
-        ) + providerOptions.map { option ->
-            PickerItem(
-                id = option.slug,
-                title = option.name,
-                subtitle = option.slug,
-            )
-        }
-    }
-
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Box(modifier = Modifier.fillMaxWidth()) {
-            SettingsPickerLauncherButton(
-                label = "OpenRouter provider",
-                value = selectedLabel,
-                onClick = { expanded = true },
-            )
-
-            FloatingPickerMenu(
-                expanded = expanded,
-                items = pickerItems,
-                onDismissRequest = { expanded = false },
-                onItemSelected = { item ->
-                    expanded = false
-                    onValueChange(item.id)
-                },
-            )
-        }
-
-        Text(
-            text = providerLoadStatus,
-            color = ZnKeyboardColors.Muted,
-            style = MaterialTheme.typography.bodySmall,
-        )
-    }
-}
-
 @Composable
 private fun ModelSelectorField(
-    providerType: KeyboardSettings.AgentProviderType,
     apiBaseUrl: String,
     apiKey: String,
     value: String,
@@ -1235,20 +872,12 @@ private fun ModelSelectorField(
     var modelOptions by remember { mutableStateOf<List<ModelOption>>(emptyList()) }
     var modelLoadStatus by remember { mutableStateOf("Loading models...") }
     var debouncedQuery by remember { mutableStateOf(value) }
-    val effectiveBaseUrl = when (providerType) {
-        KeyboardSettings.AgentProviderType.OpenRouter -> KeyboardSettings.OPENROUTER_API_BASE_URL
-        KeyboardSettings.AgentProviderType.NanbeigeLlamaCpp,
-        KeyboardSettings.AgentProviderType.OpenAiCompatible -> apiBaseUrl
-    }
+    val effectiveBaseUrl = apiBaseUrl
 
-    LaunchedEffect(providerType, effectiveBaseUrl, apiKey) {
+    LaunchedEffect(effectiveBaseUrl, apiKey) {
         modelOptions = emptyList()
         if (effectiveBaseUrl.isBlank()) {
             modelLoadStatus = "Enter a base URL to load models."
-            return@LaunchedEffect
-        }
-        if (providerType == KeyboardSettings.AgentProviderType.OpenRouter && apiKey.isBlank()) {
-            modelLoadStatus = "Enter your OpenRouter API key to load models."
             return@LaunchedEffect
         }
 
@@ -1288,6 +917,7 @@ private fun ModelSelectorField(
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Box(modifier = Modifier.fillMaxWidth()) {
         OutlinedTextField(
+            shape = SettingsCapsuleShape,
             value = value,
             onValueChange = {
                 onValueChange(it)
@@ -1352,6 +982,75 @@ private fun ModelSelectorField(
     }
 }
 
+/**
+ * Gemini model picker: the recommended lite model first, then the text models the user's key can
+ * reach, loaded live so new Gemini releases show up without an app update.
+ */
+@Composable
+private fun GeminiModelSelector(
+    apiKey: String,
+    value: String,
+    onValueChange: (String) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    var liveModels by remember { mutableStateOf<List<ModelOption>>(emptyList()) }
+    var loadStatus by remember { mutableStateOf("") }
+
+    LaunchedEffect(apiKey) {
+        liveModels = emptyList()
+        if (apiKey.isBlank()) {
+            loadStatus = "Enter your Gemini API key to see every model."
+            return@LaunchedEffect
+        }
+        loadStatus = "Loading Gemini models..."
+        delay(MODEL_LOAD_DEBOUNCE_MS)
+        val result = withContext(Dispatchers.IO) {
+            fetchModelOptions(baseUrl = AgentDefaults.GEMINI_API_BASE_URL, apiKey = apiKey)
+        }
+        result
+            .onSuccess { models ->
+                liveModels = models.geminiTextModels()
+                loadStatus = "${liveModels.size} Gemini text models available."
+            }
+            .onFailure { error ->
+                loadStatus = error.message?.takeIf { it.isNotBlank() } ?: "Could not load Gemini models."
+            }
+    }
+
+    val recommended = AgentDefaults.DEFAULT_GEMINI_MODEL
+    val items = buildList {
+        add(PickerItem(id = recommended, title = recommended, subtitle = "Recommended · fast and low cost"))
+        liveModels.filter { it.id != recommended }.forEach { add(PickerItem(id = it.id, title = it.id, subtitle = it.name)) }
+        // Keep a model chosen earlier visible even if the live list does not offer it.
+        if (value != recommended && none { it.id == value }) add(PickerItem(id = value, title = value))
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Box(modifier = Modifier.fillMaxWidth()) {
+            SettingsPickerLauncherButton(
+                label = "Model",
+                value = if (value == recommended) "$value (recommended)" else value,
+                onClick = { expanded = true },
+            )
+            FloatingPickerMenu(
+                expanded = expanded,
+                items = items,
+                onDismissRequest = { expanded = false },
+                onItemSelected = { item ->
+                    expanded = false
+                    onValueChange(item.id)
+                },
+                maxHeight = REASONING_PICKER_MAX_HEIGHT,
+            )
+        }
+        Text(
+            text = loadStatus,
+            color = ZnKeyboardColors.Muted,
+            style = MaterialTheme.typography.bodySmall,
+        )
+    }
+}
+
 /** Picks the customer's language (stored as its code); the keyboard can also switch it while typing. */
 @Composable
 private fun TranslateLanguageSelector(
@@ -1385,11 +1084,6 @@ private fun TranslateLanguageSelector(
                         style = MaterialTheme.typography.bodyLarge,
                     )
                 }
-                Text(
-                    text = "Change",
-                    color = ZnKeyboardColors.Accent,
-                    style = MaterialTheme.typography.labelLarge,
-                )
             }
 
             FloatingPickerMenu(
@@ -1405,7 +1099,7 @@ private fun TranslateLanguageSelector(
             )
         }
         Text(
-            text = "In 中 mode the AI 润译 key polishes your Chinese and translates it into this language; the round key beside it switches language while typing. In EN mode Rewrite only polishes.",
+            text = "In 中 mode, 仅润色 only polishes your Chinese; AI 润译 polishes and translates it into this language, and the round key beside it switches language while typing. In EN mode Rewrite only polishes.",
             color = ZnKeyboardColors.Muted,
             style = MaterialTheme.typography.bodySmall,
         )
@@ -1537,7 +1231,6 @@ private fun ProviderTypeSelector(
 
 @Composable
 private fun ReasoningControls(
-    providerType: KeyboardSettings.AgentProviderType,
     reasoningMode: KeyboardSettings.AgentReasoningMode,
     reasoningTextEnabled: Boolean,
     onReasoningModeChange: (KeyboardSettings.AgentReasoningMode) -> Unit,
@@ -1545,14 +1238,7 @@ private fun ReasoningControls(
 ) {
     var expanded by remember { mutableStateOf(false) }
     val showReasoningTextSwitch = reasoningMode != KeyboardSettings.AgentReasoningMode.Off
-    val providerHint = when (providerType) {
-        KeyboardSettings.AgentProviderType.OpenRouter ->
-            "OpenRouter supports the normalized reasoning object and can include or exclude returned reasoning text."
-        KeyboardSettings.AgentProviderType.NanbeigeLlamaCpp ->
-            "Nanbeige llama.cpp uses its fork-specific request format. Off disables template thinking for fast rewrites."
-        KeyboardSettings.AgentProviderType.OpenAiCompatible ->
-            "OpenAI-compatible servers vary. Effort values are sent manually as reasoning_effort only when selected."
-    }
+    val providerHint = "OpenAI-compatible servers vary. Effort values are sent manually as reasoning_effort only when selected."
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
@@ -1589,11 +1275,6 @@ private fun ReasoningControls(
                         style = MaterialTheme.typography.bodyLarge,
                     )
                 }
-                Text(
-                    text = "Change",
-                    color = ZnKeyboardColors.Accent,
-                    style = MaterialTheme.typography.labelLarge,
-                )
             }
 
             FloatingPickerMenu(

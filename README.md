@@ -1,6 +1,6 @@
 # ZnKeyboard
 
-A modern, privacy-respecting custom keyboard (input method editor) for Android, built with Kotlin and Jetpack Compose. ZnKeyboard pairs a fast custom typing surface with **Chinese pinyin input** and a built‑in **AI assistant** that polishes your text — or polishes and translates it for customers abroad — using your own OpenAI‑compatible API key (OpenAI, OpenRouter, Gemini, …).
+A modern, privacy-respecting custom keyboard (input method editor) for Android, built with Kotlin and Jetpack Compose. ZnKeyboard pairs a fast custom typing surface with **Chinese pinyin input** and a built‑in **AI assistant** that polishes your text — or polishes and translates it for customers abroad — using your own API key — Google Gemini built in, or any OpenAI‑compatible endpoint.
 
 > This is a modified fork of [zainbits/zn-keyboard](https://github.com/zainbits/zn-keyboard). It adds pinyin input and AI polish‑and‑translate (“AI 润译”), and removes the GIF, emoji and text-snippet features to keep the keyboard small (release APK ≈ 4.6 MB). Screenshots below are from upstream and predate these changes.
 
@@ -46,13 +46,13 @@ ZnKeyboard learns how *your* thumbs actually hit each key and decodes every tap 
 - Ranking comes straight from the dictionary's word frequencies: no prediction, no learning, nothing stored about what you type. Dictionary: 8,757 characters and the 150,000 most frequent words from [rime-ice](https://github.com/iDvel/rime-ice) (GPL‑3.0).
 
 ### 🌐 AI 润译: polish and translate
-- In **中 mode** the Rewrite key reads **AI 润译**: it polishes your Chinese and translates it into the language on the round ink‑blue key beside it — **EN, ES, JA, FR or DE**. Tap the round key to switch language while typing; Settings → Tools → *Translate to* sets the same choice.
+- In **中 mode** the row starts **仅润色 | AI 润译 | (EN)**. **仅润色** only polishes your Chinese; **AI 润译** polishes it and translates it into the language on the round ink‑blue key — **EN, ES, JA, FR or DE**. Tap the round key to switch language while typing; Settings → Tools → *Translate to* sets the same choice.
 - In **EN mode** the key reads **Rewrite** and only polishes, keeping your language.
 - In 中 mode the review panel and its errors are in Chinese (取消 / 应用 / 复制).
 
 ### ✍️ AI rewrite assistant ("agent mode")
 - Rewrite, polish, or restructure the text in the current field with one tap, then review the result before it replaces anything.
-- **Use your own provider:** OpenAI by default (`api.openai.com/v1`), or any OpenAI‑compatible endpoint such as **OpenRouter** or **Gemini** (`https://generativelanguage.googleapis.com/v1beta/openai`), with a configurable model (default `gpt-4o-mini`).
+- **Two providers:** **Google Gemini** with a built‑in endpoint and a model picker (recommended `gemini-3.5-flash-lite`; the rest of the list is loaded live with your key, text models only), or **OpenAI compatible** with your own base URL and model (OpenAI, OpenRouter, a local server, …). Each provider keeps its own key and model. Reasoning stays off for Gemini and is adjustable for custom endpoints.
 - **App‑aware prompts:** rewrites adapt to where you are typing — e.g. a dedicated WhatsApp profile that preserves casual Romanized Hindi/Urdu code‑switching instead of flattening it.
 - **Structured, safe output:** the model is constrained to a JSON `{ "text": ... }` contract, with optional reasoning modes for compatible models.
 - Encrypted key storage via the Android Keystore.
@@ -155,10 +155,10 @@ Release builds are minified with R8 (code and resource shrinking), which takes t
 ## Configure AI rewrite (optional)
 
 1. Open ZnKeyboard settings → **Tools** tab.
-2. Choose a provider (OpenAI, OpenRouter, or *OpenAI compatible* for others), paste your API key, and pick a model. For Gemini use *OpenAI compatible* with the base URL `https://generativelanguage.googleapis.com/v1beta/openai` and a model such as `gemini-3.1-flash-lite`.
+2. Pick **Google Gemini** (endpoint built in; choose a model, `gemini-3.5-flash-lite` recommended) or **OpenAI compatible** (type the base URL and model), then paste your API key.
 3. The key is encrypted with the Android Keystore and stored only on your device.
 4. Turn on **Rewrite** at the top of the Tools tab, and pick a **Translate to** language for 中 mode.
-5. Tap **Rewrite** (EN mode) or **AI 润译** (中 mode) on the shortcut row and review the suggestion before it's applied.
+5. Tap **Rewrite** (EN mode), or **仅润色** / **AI 润译** (中 mode), on the shortcut row and review the suggestion before it's applied.
 
 You are billed directly by your chosen provider for your own usage; ZnKeyboard never proxies requests.
 

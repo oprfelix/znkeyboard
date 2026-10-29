@@ -56,6 +56,7 @@ class ZnKeyboardView @JvmOverloads constructor(
         fun onAgentRewriteRequested()
         fun onPinyinModeToggled()
         fun onTranslateLanguageMenuRequested()
+        fun onAgentPolishOnlyRequested()
     }
 
     var callback: Callback? = null
@@ -346,12 +347,8 @@ class ZnKeyboardView @JvmOverloads constructor(
             refreshHitTargets()
         }
 
-        // Round keys first, so the key beside them overlaps and they read as tucked underneath.
         hitTargets.forEach { hit ->
-            if (hit.key.circle) drawKey(canvas, hit)
-        }
-        hitTargets.forEach { hit ->
-            if (!hit.key.circle) drawKey(canvas, hit)
+            drawKey(canvas, hit)
         }
         if (keyPreviewEnabled) {
             drawKeyPreviews(canvas)
@@ -817,7 +814,7 @@ class ZnKeyboardView @JvmOverloads constructor(
         val drawBackground = when {
             pressed || selected || rewriteLoading || isSpace || key.circle -> true
             // Shortcut rows read as a quiet toolbar: content only, with a pill on press / latch.
-            toolbar -> key.intent == KeyIntent.AgentRewrite
+            toolbar -> key.intent == KeyIntent.AgentRewrite || key.intent == KeyIntent.AgentPolishOnly
             key.role == KeyRole.Function -> functionKeyBackgroundsEnabled
             else -> true
         }
@@ -889,13 +886,10 @@ class ZnKeyboardView @JvmOverloads constructor(
         }
     }
 
-    /**
-     * Square for a round key, pulled left so it slips under the end of the key before it, as
-     * if growing out of it. With a toolbar's half-height radius it draws a circle.
-     */
+    /** Square centered in a round key's slot; with a toolbar's half-height radius it draws a circle. */
     private fun circleBounds(bounds: RectF): RectF {
         val side = min(bounds.width(), bounds.height()) * ImeDimensions.TRANSLATE_BADGE_SCALE
-        val left = bounds.left - side * ImeDimensions.TRANSLATE_BADGE_OVERLAP_FRACTION
+        val left = bounds.centerX() - side / 2f
         val top = bounds.centerY() - side / 2f
         circleKeyBounds.set(left, top, left + side, top + side)
         return circleKeyBounds
@@ -1363,6 +1357,7 @@ class ZnKeyboardView @JvmOverloads constructor(
             KeyIntent.ToggleCtrl -> ctrl = !ctrl
             KeyIntent.TogglePinyinMode -> callback?.onPinyinModeToggled()
             KeyIntent.ChooseTranslateLanguage -> callback?.onTranslateLanguageMenuRequested()
+            KeyIntent.AgentPolishOnly -> callback?.onAgentPolishOnlyRequested()
             KeyIntent.AgentRewrite -> callback?.onAgentRewriteRequested()
             is KeyIntent.Dispatch -> {
                 notifyLearner(intent.action, sample)
@@ -1633,8 +1628,20 @@ class ZnKeyboardView @JvmOverloads constructor(
         val languageCode = translateLanguageCode
         val rewriteIndex = keys.indexOfFirst { it.intent == KeyIntent.AgentRewrite }
         if (languageCode != null && rewriteIndex >= 0) {
+            // In 中 mode: 仅润色 | AI 润译 | (EN). The first only polishes, the second also translates.
             keys.add(
-                rewriteIndex + 1,
+                rewriteIndex,
+                KeySpec(
+                    id = "second_polish_only",
+                    label = AgentDefaults.POLISH_ONLY_LABEL,
+                    intent = KeyIntent.AgentPolishOnly,
+                    weight = ImeDimensions.POLISH_ONLY_KEY_WEIGHT,
+                    role = KeyRole.Function,
+                    enabled = shortcutRowState.rewriteEnabled && !shortcutRowState.loading,
+                ),
+            )
+            keys.add(
+                rewriteIndex + 2,
                 KeySpec(
                     id = "second_translate_language",
                     label = languageCode,
@@ -2225,6 +2232,7 @@ class ZnKeyboardView @JvmOverloads constructor(
         data object ToggleCtrl : KeyIntent()
         data object TogglePinyinMode : KeyIntent()
         data object ChooseTranslateLanguage : KeyIntent()
+        data object AgentPolishOnly : KeyIntent()
         data object AgentRewrite : KeyIntent()
         data class Dispatch(val action: KeyboardAction) : KeyIntent()
     }

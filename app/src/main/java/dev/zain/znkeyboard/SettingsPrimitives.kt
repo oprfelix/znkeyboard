@@ -119,6 +119,10 @@ internal fun SettingsIconTextButtonContent(
     Text(text)
 }
 
+/** Capsule outline shared by the settings text fields and pickers. */
+internal val SettingsCapsuleShape = RoundedCornerShape(percent = 50)
+
+/** A capsule that opens a picker when tapped anywhere on it. */
 @Composable
 internal fun SettingsPickerLauncherButton(
     label: String,
@@ -150,11 +154,6 @@ internal fun SettingsPickerLauncherButton(
                 style = MaterialTheme.typography.bodyLarge,
             )
         }
-        Text(
-            text = "Change",
-            color = ZnKeyboardColors.Accent,
-            style = MaterialTheme.typography.labelLarge,
-        )
     }
 }
 
@@ -172,6 +171,7 @@ internal fun LockableSecretOutlinedTextField(
 ) {
     val effectivelyLocked = locked && value.isNotBlank()
     OutlinedTextField(
+        shape = SettingsCapsuleShape,
         value = value,
         onValueChange = onValueChange,
         label = { Text(label) },

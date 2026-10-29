@@ -52,6 +52,8 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     private var pinyinDictionaryLoading = false
     private var pinyinComposing = ""
     private var pinyinCandidates: List<PinyinEngine.Candidate> = emptyList()
+    // Whether the rewrite in flight should also translate (AI 润译) or only polish (仅润色).
+    private var rewriteTranslates = true
     private var inputRoot: LinearLayout? = null
     private var keyboardContainer: FrameLayout? = null
     private var clipboardPanelView: ClipboardPanelView? = null
@@ -92,6 +94,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         }
         ClipboardHistoryStore.deleteLegacyRewriteHistory(this)
         KeyboardSettings.deleteLegacySnippetData(this)
+        KeyboardSettings.migrateAgentProviders(this)
         ClipboardLinkPreviewRepository.loadPersistedPreviews(this)
         registerClipboardListener()
         capturePrimaryClipboardText()
@@ -326,7 +329,14 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     }
 
     override fun onAgentRewriteRequested() {
+        rewriteTranslates = true
         // Rewrite reads the field, so turn pending pinyin into characters first.
+        commitPinyinWholeTop()
+        startRewriteFromCurrentEditor()
+    }
+
+    override fun onAgentPolishOnlyRequested() {
+        rewriteTranslates = false
         commitPinyinWholeTop()
         startRewriteFromCurrentEditor()
     }
@@ -1491,20 +1501,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     ): String {
         val endpoint = buildChatCompletionsUrl(providerSettings)
         var structuredOutputError: IOException? = null
-        val outputModes = when (providerSettings.providerType) {
-            KeyboardSettings.AgentProviderType.OpenRouter -> listOf(
-                StructuredOutputMode.StandardJsonSchema,
-                StructuredOutputMode.JsonObject,
-            )
-            KeyboardSettings.AgentProviderType.NanbeigeLlamaCpp -> listOf(
-                StructuredOutputMode.NanbeigeLlamaCppJsonSchema,
-                StructuredOutputMode.JsonObject,
-            )
-            KeyboardSettings.AgentProviderType.OpenAiCompatible -> listOf(
-                StructuredOutputMode.StandardJsonSchema,
-                StructuredOutputMode.JsonObject,
-            )
-        }
+        val outputModes = listOf(StructuredOutputMode.StandardJsonSchema, StructuredOutputMode.JsonObject)
 
         for (outputMode in outputModes) {
             try {
@@ -1557,9 +1554,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
             .put("temperature", 0.4)
             .put("max_tokens", maxTokensFor(text))
             .put("response_format", structuredResponseFormatFor(outputMode))
-            .applyOpenRouterProviderPreferences(providerSettings, outputMode)
             .applyReasoningSettings(providerSettings)
-            .applyLlamaCppCompatibility(providerSettings, outputMode)
 
         return try {
             connection.outputStream.writer(Charsets.UTF_8).use { writer ->
@@ -1700,12 +1695,6 @@ class ZnKeyboardInputMethodService : InputMethodService(),
             )
             .put("required", JSONArray().put(STRUCTURED_OUTPUT_TEXT_FIELD))
 
-        if (outputMode == StructuredOutputMode.NanbeigeLlamaCppJsonSchema) {
-            return JSONObject()
-                .put("type", "json_schema")
-                .put("schema", schema)
-        }
-
         return JSONObject()
             .put("type", "json_schema")
             .put(
@@ -1717,83 +1706,11 @@ class ZnKeyboardInputMethodService : InputMethodService(),
             )
     }
 
-    private fun JSONObject.applyOpenRouterProviderPreferences(
-        providerSettings: KeyboardSettings.AgentProviderSettings,
-        outputMode: StructuredOutputMode,
-    ): JSONObject {
-        if (providerSettings.providerType != KeyboardSettings.AgentProviderType.OpenRouter) return this
-
-        val provider = JSONObject()
-        if (outputMode == StructuredOutputMode.StandardJsonSchema) {
-            provider.put("require_parameters", true)
-        }
-        val providerSlug = providerSettings.openRouterProviderSlug.trim()
-        if (providerSlug.isNotBlank()) {
-            provider
-                .put("only", JSONArray().put(providerSlug))
-                .put("allow_fallbacks", false)
-        }
-
-        if (provider.length() == 0) return this
-
-        return put(
-            "provider",
-            provider,
-        )
-    }
-
     private fun JSONObject.applyReasoningSettings(
         providerSettings: KeyboardSettings.AgentProviderSettings,
     ): JSONObject {
-        val reasoningMode = providerSettings.reasoningMode
-        if (reasoningMode == KeyboardSettings.AgentReasoningMode.Off) {
-            if (providerSettings.providerType == KeyboardSettings.AgentProviderType.OpenRouter) {
-                put(
-                    "reasoning",
-                    JSONObject()
-                        .put("effort", "none")
-                        .put("exclude", true),
-                )
-            }
-            return this
-        }
-
-        return when (providerSettings.providerType) {
-            KeyboardSettings.AgentProviderType.OpenRouter -> applyOpenRouterReasoningSettings(providerSettings)
-            KeyboardSettings.AgentProviderType.NanbeigeLlamaCpp,
-            KeyboardSettings.AgentProviderType.OpenAiCompatible -> applyOpenAiCompatibleReasoningSettings(providerSettings)
-        }
-    }
-
-    private fun JSONObject.applyOpenRouterReasoningSettings(
-        providerSettings: KeyboardSettings.AgentProviderSettings,
-    ): JSONObject {
-        val reasoning = JSONObject()
-            .put("exclude", !providerSettings.reasoningTextEnabled)
-        val effort = providerSettings.reasoningMode.effort
-        if (effort != null) {
-            reasoning.put("effort", effort)
-        } else {
-            reasoning.put("enabled", true)
-        }
-
-        return put("reasoning", reasoning)
-    }
-
-    private fun JSONObject.applyLlamaCppCompatibility(
-        providerSettings: KeyboardSettings.AgentProviderSettings,
-        outputMode: StructuredOutputMode,
-    ): JSONObject {
-        if (
-            outputMode == StructuredOutputMode.NanbeigeLlamaCppJsonSchema &&
-            providerSettings.reasoningMode == KeyboardSettings.AgentReasoningMode.Off
-        ) {
-            put(
-                "chat_template_kwargs",
-                JSONObject().put("enable_thinking", false),
-            )
-        }
-        return this
+        if (providerSettings.reasoningMode == KeyboardSettings.AgentReasoningMode.Off) return this
+        return applyOpenAiCompatibleReasoningSettings(providerSettings)
     }
 
     private fun JSONObject.applyOpenAiCompatibleReasoningSettings(
@@ -1827,9 +1744,9 @@ class ZnKeyboardInputMethodService : InputMethodService(),
             appPromptAssetFor(currentEditorInfo?.packageName)?.let { assetPath ->
                 add(loadPromptAsset(assetPath, fallback = ""))
             }
-            // Translate only while typing Chinese; in English mode Rewrite just polishes.
+            // Translate only for AI 润译 while typing Chinese; 仅润色 and English mode just polish.
             // Last, so it overrides the language-matching rules above.
-            if (pinyinModeEnabled) {
+            if (pinyinModeEnabled && rewriteTranslates) {
                 val translateTarget = KeyboardSettings.readAgentTranslateTarget(this@ZnKeyboardInputMethodService)
                 add(
                     loadPromptAsset(TRANSLATE_PROMPT_ASSET, fallback = "")
@@ -2100,7 +2017,6 @@ class ZnKeyboardInputMethodService : InputMethodService(),
 
     private enum class StructuredOutputMode {
         StandardJsonSchema,
-        NanbeigeLlamaCppJsonSchema,
         JsonObject,
     }
 

@@ -30,13 +30,10 @@ object KeyboardSettings {
     const val MAX_BOTTOM_PADDING_DP = KeyboardDefaults.MAX_BOTTOM_PADDING_DP
     const val DEFAULT_BOTTOM_PADDING_DP = KeyboardDefaults.DEFAULT_BOTTOM_PADDING_DP
     const val DEFAULT_AGENT_API_BASE_URL = AgentDefaults.DEFAULT_API_BASE_URL
-    const val OPENROUTER_API_BASE_URL = AgentDefaults.OPENROUTER_API_BASE_URL
     const val DEFAULT_AGENT_MODEL = AgentDefaults.DEFAULT_MODEL
     const val MAX_UPPER_ROW_KEYS = KeyboardDefaults.MAX_UPPER_ROW_KEYS
     private const val LEGACY_MAX_AGENT_ROW_KEYS = 5
     const val MAX_SECOND_ROW_BUTTONS = KeyboardDefaults.MAX_SECOND_ROW_BUTTONS
-    const val MAX_AGENT_PROFILES = 8
-    const val MAX_AGENT_PROFILE_NAME_CHARS = 30
 
     private const val BACKUP_FORMAT = "dev.zain.znkeyboard.settings-backup"
     private const val BACKUP_SCHEMA_VERSION = 4
@@ -67,12 +64,18 @@ object KeyboardSettings {
     private const val KEY_AGENT_PROVIDER_TYPE = "agent_provider_type"
     private const val KEY_AGENT_API_BASE_URL = "agent_api_base_url"
     private const val KEY_AGENT_MODEL = "agent_model"
-    private const val KEY_OPENROUTER_PROVIDER_SLUG = "openrouter_provider_slug"
+    private const val KEY_GEMINI_MODEL = "gemini_model"
     private const val KEY_AGENT_REASONING_MODE = "agent_reasoning_mode"
     private const val KEY_AGENT_REASONING_TEXT_ENABLED = "agent_reasoning_text_enabled"
     private const val KEY_AGENT_TRANSLATE_TARGET = "agent_translate_target"
-    private const val KEY_AGENT_PROFILES = "agent_profiles"
-    private const val KEY_ACTIVE_AGENT_PROFILE_ID = "active_agent_profile_id"
+    private const val KEY_AGENT_PROVIDERS_MIGRATED = "agent_providers_migrated_v3"
+    // Removed providers and profiles; kept only so the migration can read and clear them.
+    private const val LEGACY_PROVIDER_OPENROUTER = "openrouter"
+    private const val LEGACY_PROVIDER_NANBEIGE = "nanbeige_llama_cpp"
+    private const val LEGACY_OPENROUTER_API_BASE_URL = "https://openrouter.ai/api/v1"
+    private const val LEGACY_KEY_OPENROUTER_PROVIDER_SLUG = "openrouter_provider_slug"
+    private const val LEGACY_KEY_AGENT_PROFILES = "agent_profiles"
+    private const val LEGACY_KEY_ACTIVE_AGENT_PROFILE_ID = "active_agent_profile_id"
     private const val KEY_AGENT_API_KEY_LEGACY = "agent_api_key"
     private const val KEY_AGENT_API_KEY_CIPHERTEXT = "agent_api_key_ciphertext"
     private const val KEY_AGENT_API_KEY_IV = "agent_api_key_iv"
@@ -399,7 +402,7 @@ object KeyboardSettings {
     fun readAgentProviderType(context: Context): AgentProviderType {
         val stored = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .getString(KEY_AGENT_PROVIDER_TYPE, null)
-        return AgentProviderType.entries.firstOrNull { it.id == stored } ?: AgentProviderType.OpenAiCompatible
+        return AgentProviderType.entries.firstOrNull { it.id == stored } ?: AgentProviderType.Gemini
     }
 
     fun saveAgentProviderType(context: Context, providerType: AgentProviderType) {
@@ -424,18 +427,96 @@ object KeyboardSettings {
             .apply()
     }
 
-    fun readAgentModel(context: Context): String {
+    /** Each provider keeps its own model, so switching back restores it. */
+    fun readAgentModel(
+        context: Context,
+        providerType: AgentProviderType = readAgentProviderType(context),
+    ): String {
+        val (key, default) = modelKeyAndDefault(providerType)
         return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .getString(KEY_AGENT_MODEL, DEFAULT_AGENT_MODEL)
+            .getString(key, default)
             ?.trim()
             ?.takeIf { it.isNotBlank() }
-            ?: DEFAULT_AGENT_MODEL
+            ?: default
     }
 
-    fun saveAgentModel(context: Context, model: String) {
+    fun saveAgentModel(
+        context: Context,
+        model: String,
+        providerType: AgentProviderType = readAgentProviderType(context),
+    ) {
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .edit()
-            .putString(KEY_AGENT_MODEL, model.trim())
+            .putString(modelKeyAndDefault(providerType).first, model.trim())
+            .apply()
+    }
+
+    private fun modelKeyAndDefault(providerType: AgentProviderType): Pair<String, String> = when (providerType) {
+        AgentProviderType.Gemini -> KEY_GEMINI_MODEL to AgentDefaults.DEFAULT_GEMINI_MODEL
+        AgentProviderType.OpenAiCompatible -> KEY_AGENT_MODEL to DEFAULT_AGENT_MODEL
+    }
+
+    /**
+     * One-time move to the Gemini / OpenAI-compatible provider list. An OpenAI-compatible setup
+     * pointed at Gemini becomes the Gemini provider; OpenRouter and Nanbeige setups become
+     * OpenAI-compatible ones. Keys move with them; profiles are dropped.
+     */
+    fun migrateAgentProviders(context: Context) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        if (prefs.getBoolean(KEY_AGENT_PROVIDERS_MIGRATED, false)) return
+        val secrets = context.getSharedPreferences(SECRET_PREFS_NAME, Context.MODE_PRIVATE)
+
+        fun moveSecret(fromProviderId: String, to: AgentProviderType) {
+            val ciphertext = secrets.getString("${fromProviderId}_$KEY_AGENT_API_KEY_CIPHERTEXT", null)
+            val iv = secrets.getString("${fromProviderId}_$KEY_AGENT_API_KEY_IV", null)
+            if (ciphertext.isNullOrBlank() || iv.isNullOrBlank()) return
+            if (readAgentApiKey(context, to).isNotBlank()) return
+            val apiKey = decryptAgentApiKey(ciphertext, iv).getOrNull().orEmpty()
+            if (apiKey.isBlank()) return
+            saveAgentApiKey(context, to, apiKey)
+            saveAgentApiKeyLocked(context, to, secrets.getBoolean("${fromProviderId}_$KEY_AGENT_API_KEY_LOCKED", false))
+        }
+
+        // Older versions defaulted to OpenAI compatible without storing it; an existing setup with
+        // no stored provider is that default, while a fresh install has nothing to move.
+        val compatibleId = AgentProviderType.OpenAiCompatible.id
+        val hasCompatibleSetup = prefs.contains(KEY_AGENT_API_BASE_URL) ||
+            secrets.contains("${compatibleId}_$KEY_AGENT_API_KEY_CIPHERTEXT")
+        val storedProvider = prefs.getString(KEY_AGENT_PROVIDER_TYPE, null)
+            ?: compatibleId.takeIf { hasCompatibleSetup }
+        when (val stored = storedProvider) {
+            LEGACY_PROVIDER_OPENROUTER -> {
+                moveSecret(stored, AgentProviderType.OpenAiCompatible)
+                saveAgentApiBaseUrl(context, LEGACY_OPENROUTER_API_BASE_URL)
+                saveAgentProviderType(context, AgentProviderType.OpenAiCompatible)
+            }
+            LEGACY_PROVIDER_NANBEIGE -> {
+                moveSecret(stored, AgentProviderType.OpenAiCompatible)
+                saveAgentProviderType(context, AgentProviderType.OpenAiCompatible)
+            }
+            AgentProviderType.OpenAiCompatible.id -> {
+                if (readAgentApiBaseUrl(context).contains(GEMINI_HOST)) {
+                    moveSecret(stored, AgentProviderType.Gemini)
+                    saveAgentModel(context, readAgentModel(context, AgentProviderType.OpenAiCompatible), AgentProviderType.Gemini)
+                    saveAgentProviderType(context, AgentProviderType.Gemini)
+                } else {
+                    // Pin it: the default is now Gemini.
+                    saveAgentProviderType(context, AgentProviderType.OpenAiCompatible)
+                }
+            }
+        }
+
+        val staleSecretKeys = secrets.all.keys.filter {
+            it.startsWith("profile_") ||
+                it.startsWith("${LEGACY_PROVIDER_OPENROUTER}_") ||
+                it.startsWith("${LEGACY_PROVIDER_NANBEIGE}_")
+        }
+        secrets.edit().apply { staleSecretKeys.forEach(::remove) }.apply()
+        prefs.edit()
+            .remove(LEGACY_KEY_OPENROUTER_PROVIDER_SLUG)
+            .remove(LEGACY_KEY_AGENT_PROFILES)
+            .remove(LEGACY_KEY_ACTIVE_AGENT_PROFILE_ID)
+            .putBoolean(KEY_AGENT_PROVIDERS_MIGRATED, true)
             .apply()
     }
 
@@ -452,20 +533,6 @@ object KeyboardSettings {
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .edit()
             .putString(KEY_AGENT_TRANSLATE_TARGET, code)
-            .apply()
-    }
-
-    fun readOpenRouterProviderSlug(context: Context): String {
-        return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .getString(KEY_OPENROUTER_PROVIDER_SLUG, "")
-            .orEmpty()
-            .trim()
-    }
-
-    fun saveOpenRouterProviderSlug(context: Context, providerSlug: String) {
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .edit()
-            .putString(KEY_OPENROUTER_PROVIDER_SLUG, providerSlug.trim())
             .apply()
     }
 
@@ -588,186 +655,17 @@ object KeyboardSettings {
         val providerType = readAgentProviderType(context)
         return AgentProviderSettings(
             providerType = providerType,
-            baseUrl = when (providerType) {
-                AgentProviderType.OpenRouter -> OPENROUTER_API_BASE_URL
-                AgentProviderType.NanbeigeLlamaCpp,
-                AgentProviderType.OpenAiCompatible -> readAgentApiBaseUrl(context)
-            },
-            model = readAgentModel(context),
+            baseUrl = providerType.fixedBaseUrl ?: readAgentApiBaseUrl(context),
+            model = readAgentModel(context, providerType),
             apiKey = readAgentApiKey(context, providerType),
-            openRouterProviderSlug = readOpenRouterProviderSlug(context),
-            reasoningMode = readAgentReasoningMode(context),
+            // Gemini rewrites stay fast; reasoning is only adjustable for custom endpoints.
+            reasoningMode = if (providerType == AgentProviderType.Gemini) {
+                AgentReasoningMode.Off
+            } else {
+                readAgentReasoningMode(context)
+            },
             reasoningTextEnabled = readAgentReasoningTextEnabled(context),
         )
-    }
-
-    fun readAgentProfiles(context: Context): List<AgentProfile> {
-        val stored = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .getString(KEY_AGENT_PROFILES, null)
-            ?: return emptyList()
-        return runCatching {
-            val array = JSONArray(stored)
-            buildList {
-                for (index in 0 until array.length()) {
-                    val item = array.optJSONObject(index) ?: continue
-                    val id = item.optString("id").trim()
-                    val name = normalizeAgentProfileName(item.optString("name"))
-                    if (!isValidAgentProfileId(id) || name.isBlank()) continue
-                    val providerType = AgentProviderType.entries.firstOrNull {
-                        it.id == item.optString("providerType")
-                    } ?: continue
-                    val reasoningMode = AgentReasoningMode.entries.firstOrNull {
-                        it.id == item.optString("reasoningMode")
-                    } ?: AgentReasoningMode.Off
-                    add(
-                        AgentProfile(
-                            id = id,
-                            name = name,
-                            providerType = providerType,
-                            baseUrl = item.optString("baseUrl").trim(),
-                            model = item.optString("model").trim(),
-                            openRouterProviderSlug = item.optString("openRouterProviderSlug").trim(),
-                            reasoningMode = reasoningMode,
-                            reasoningTextEnabled = item.optBoolean("reasoningTextEnabled", false),
-                            apiKey = readAgentProfileApiKey(context, id),
-                            apiKeyLocked = readAgentProfileApiKeyLocked(context, id),
-                        ),
-                    )
-                }
-            }
-                .distinctBy(AgentProfile::id)
-                .take(MAX_AGENT_PROFILES)
-        }.getOrDefault(emptyList())
-    }
-
-    fun readActiveAgentProfileId(context: Context): String {
-        val activeId = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .getString(KEY_ACTIVE_AGENT_PROFILE_ID, "")
-            .orEmpty()
-            .trim()
-        return activeId.takeIf { id -> readAgentProfiles(context).any { it.id == id } }.orEmpty()
-    }
-
-    fun createAgentProfile(context: Context, name: String): AgentProfile? {
-        val normalizedName = normalizeAgentProfileName(name)
-        val profiles = readAgentProfiles(context)
-        if (
-            normalizedName.isBlank() ||
-            profiles.size >= MAX_AGENT_PROFILES ||
-            profiles.any { it.name.equals(normalizedName, ignoreCase = true) }
-        ) {
-            return null
-        }
-
-        val profile = agentProfileFromCurrent(
-            context = context,
-            id = UUID.randomUUID().toString(),
-            name = normalizedName,
-        )
-        saveAgentProfiles(context, profiles + profile)
-        saveActiveAgentProfileId(context, profile.id)
-        return profile
-    }
-
-    fun updateAgentProfileFromCurrent(context: Context, profileId: String): AgentProfile? {
-        val profiles = readAgentProfiles(context)
-        val existing = profiles.firstOrNull { it.id == profileId } ?: return null
-        val updated = agentProfileFromCurrent(context, id = existing.id, name = existing.name)
-        saveAgentProfiles(
-            context,
-            profiles.map { profile -> if (profile.id == profileId) updated else profile },
-        )
-        saveActiveAgentProfileId(context, updated.id)
-        return updated
-    }
-
-    fun activateAgentProfile(context: Context, profileId: String): AgentProfile? {
-        val profile = readAgentProfiles(context).firstOrNull { it.id == profileId } ?: return null
-        saveAgentProviderType(context, profile.providerType)
-        saveAgentApiBaseUrl(context, profile.baseUrl)
-        saveAgentModel(context, profile.model)
-        saveOpenRouterProviderSlug(context, profile.openRouterProviderSlug)
-        saveAgentReasoningMode(context, profile.reasoningMode)
-        saveAgentReasoningTextEnabled(context, profile.reasoningTextEnabled)
-        saveAgentApiKey(context, profile.providerType, profile.apiKey)
-        saveAgentApiKeyLocked(context, profile.providerType, profile.apiKeyLocked)
-        saveActiveAgentProfileId(context, profile.id)
-        return profile
-    }
-
-    fun deleteAgentProfile(context: Context, profileId: String) {
-        val profiles = readAgentProfiles(context)
-        if (profiles.none { it.id == profileId }) return
-        val wasActive = readActiveAgentProfileId(context) == profileId
-        saveAgentProfiles(context, profiles.filterNot { it.id == profileId })
-        clearAgentProfileSecret(context, profileId)
-        if (wasActive) {
-            saveActiveAgentProfileId(context, "")
-        }
-    }
-
-    fun normalizeAgentProfileName(name: String): String {
-        return name.trim()
-            .replace(Regex("\\s+"), " ")
-            .take(MAX_AGENT_PROFILE_NAME_CHARS)
-    }
-
-    private fun agentProfileFromCurrent(
-        context: Context,
-        id: String,
-        name: String,
-    ): AgentProfile {
-        val settings = readAgentProviderSettings(context)
-        return AgentProfile(
-            id = id,
-            name = name,
-            providerType = settings.providerType,
-            baseUrl = settings.baseUrl,
-            model = settings.model,
-            openRouterProviderSlug = settings.openRouterProviderSlug,
-            reasoningMode = settings.reasoningMode,
-            reasoningTextEnabled = settings.reasoningTextEnabled,
-            apiKey = settings.apiKey,
-            apiKeyLocked = readAgentApiKeyLocked(context, settings.providerType),
-        )
-    }
-
-    private fun saveAgentProfiles(context: Context, profiles: List<AgentProfile>) {
-        val normalized = profiles
-            .filter { isValidAgentProfileId(it.id) && normalizeAgentProfileName(it.name).isNotBlank() }
-            .distinctBy(AgentProfile::id)
-            .take(MAX_AGENT_PROFILES)
-            .map { profile -> profile.copy(name = normalizeAgentProfileName(profile.name)) }
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .edit()
-            .putString(KEY_AGENT_PROFILES, agentProfilesJson(normalized).toString())
-            .apply()
-        normalized.forEach { profile ->
-            saveAgentProfileApiKey(context, profile.id, profile.apiKey)
-            saveAgentProfileApiKeyLocked(context, profile.id, profile.apiKeyLocked)
-        }
-    }
-
-    private fun replaceAgentProfiles(
-        context: Context,
-        profiles: List<AgentProfile>,
-        activeProfileId: String,
-    ) {
-        readAgentProfiles(context).forEach { profile ->
-            clearAgentProfileSecret(context, profile.id)
-        }
-        saveAgentProfiles(context, profiles)
-        saveActiveAgentProfileId(
-            context,
-            activeProfileId.takeIf { id -> profiles.any { it.id == id } }.orEmpty(),
-        )
-    }
-
-    private fun saveActiveAgentProfileId(context: Context, profileId: String) {
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .edit()
-            .putString(KEY_ACTIVE_AGENT_PROFILE_ID, profileId)
-            .apply()
     }
 
     /**
@@ -806,12 +704,10 @@ object KeyboardSettings {
                             .put("enabled", readAgentModeEnabled(context))
                             .put("providerType", readAgentProviderType(context).id)
                             .put("apiBaseUrl", readAgentApiBaseUrl(context))
-                            .put("model", readAgentModel(context))
-                            .put("openRouterProviderSlug", readOpenRouterProviderSlug(context))
+                            .put("model", readAgentModel(context, AgentProviderType.OpenAiCompatible))
+                            .put("geminiModel", readAgentModel(context, AgentProviderType.Gemini))
                             .put("reasoningMode", readAgentReasoningMode(context).id)
-                            .put("reasoningTextEnabled", readAgentReasoningTextEnabled(context))
-                            .put("profiles", agentProfilesJson(readAgentProfiles(context)))
-                            .put("activeProfileId", readActiveAgentProfileId(context)),
+                            .put("reasoningTextEnabled", readAgentReasoningTextEnabled(context)),
                     )
                     .put("clipboardHistory", clipboardHistoryJson(ClipboardHistoryStore.read(context)))
                     .put("learnedTyping", learnedTypingJson(AdaptiveTypingEngine.readLearnedData(context))),
@@ -831,8 +727,7 @@ object KeyboardSettings {
                                 )
                             }
                         },
-                    )
-                    .put("agentProfiles", agentProfileSecretsJson(readAgentProfiles(context))),
+                    ),
             )
 
         return backup.toString(BACKUP_JSON_INDENT)
@@ -903,42 +798,6 @@ object KeyboardSettings {
                 ),
             )
         }
-        val restoredAgentProfiles = rewrite.optJSONArray("profiles")?.let { profiles ->
-            val profileSecrets = secrets?.optJSONObject("agentProfiles")
-            buildList {
-                for (index in 0 until profiles.length()) {
-                    val item = profiles.optJSONObject(index) ?: continue
-                    val id = item.optString("id").trim()
-                    val name = normalizeAgentProfileName(item.optString("name"))
-                    if (!isValidAgentProfileId(id) || name.isBlank()) continue
-                    val profileProviderType = AgentProviderType.entries.firstOrNull {
-                        it.id == item.optString("providerType")
-                    } ?: continue
-                    val profileReasoningMode = AgentReasoningMode.entries.firstOrNull {
-                        it.id == item.optString("reasoningMode")
-                    } ?: AgentReasoningMode.Off
-                    val profileSecret = profileSecrets?.optJSONObject(id)
-                    add(
-                        AgentProfile(
-                            id = id,
-                            name = name,
-                            providerType = profileProviderType,
-                            baseUrl = item.optString("baseUrl").trim(),
-                            model = item.optString("model").trim(),
-                            openRouterProviderSlug = item.optString("openRouterProviderSlug").trim(),
-                            reasoningMode = profileReasoningMode,
-                            reasoningTextEnabled = item.optBoolean("reasoningTextEnabled", false),
-                            apiKey = profileSecret?.optString("value").orEmpty(),
-                            apiKeyLocked = profileSecret?.optBoolean("locked", false) ?: false,
-                        ),
-                    )
-                }
-            }
-                .distinctBy(AgentProfile::id)
-                .take(MAX_AGENT_PROFILES)
-        }
-        val restoredActiveProfileId = rewrite.optString("activeProfileId").trim()
-
         val providerType = rewrite.optById(
             key = "providerType",
             entries = AgentProviderType.entries,
@@ -968,10 +827,15 @@ object KeyboardSettings {
         saveAgentModeEnabled(context, rewrite.optBoolean("enabled", readAgentModeEnabled(context)))
         saveAgentProviderType(context, providerType)
         saveAgentApiBaseUrl(context, rewrite.optString("apiBaseUrl", readAgentApiBaseUrl(context)))
-        saveAgentModel(context, rewrite.optString("model", readAgentModel(context)))
-        saveOpenRouterProviderSlug(
+        saveAgentModel(
             context,
-            rewrite.optString("openRouterProviderSlug", readOpenRouterProviderSlug(context)),
+            rewrite.optString("model", readAgentModel(context, AgentProviderType.OpenAiCompatible)),
+            AgentProviderType.OpenAiCompatible,
+        )
+        saveAgentModel(
+            context,
+            rewrite.optString("geminiModel", readAgentModel(context, AgentProviderType.Gemini)),
+            AgentProviderType.Gemini,
         )
         saveAgentReasoningMode(context, reasoningMode)
         saveAgentReasoningTextEnabled(
@@ -986,9 +850,6 @@ object KeyboardSettings {
         restoredAgentSecrets.forEach { secret ->
             saveAgentApiKey(context, secret.providerType, secret.value)
             saveAgentApiKeyLocked(context, secret.providerType, secret.locked)
-        }
-        restoredAgentProfiles?.let { profiles ->
-            replaceAgentProfiles(context, profiles, restoredActiveProfileId)
         }
 
         return BackupRestoreResult(
@@ -1102,103 +963,10 @@ object KeyboardSettings {
         return prefs.getString(KEY_AGENT_API_KEY_LEGACY, "").orEmpty().trim()
     }
 
+    private const val GEMINI_HOST = "generativelanguage.googleapis.com"
+
     private fun providerSecretKey(providerType: AgentProviderType, key: String): String {
         return "${providerType.id}_$key"
-    }
-
-    private fun profileSecretKey(profileId: String, key: String): String {
-        return "profile_${profileId}_$key"
-    }
-
-    private fun readAgentProfileApiKey(context: Context, profileId: String): String {
-        val prefs = context.getSharedPreferences(SECRET_PREFS_NAME, Context.MODE_PRIVATE)
-        val ciphertext = prefs.getString(profileSecretKey(profileId, KEY_AGENT_API_KEY_CIPHERTEXT), null)
-        val iv = prefs.getString(profileSecretKey(profileId, KEY_AGENT_API_KEY_IV), null)
-        if (ciphertext.isNullOrBlank() || iv.isNullOrBlank()) return ""
-        return decryptAgentApiKey(ciphertext, iv).getOrElse { "" }
-    }
-
-    private fun saveAgentProfileApiKey(context: Context, profileId: String, apiKey: String) {
-        val prefs = context.getSharedPreferences(SECRET_PREFS_NAME, Context.MODE_PRIVATE)
-        val ciphertextKey = profileSecretKey(profileId, KEY_AGENT_API_KEY_CIPHERTEXT)
-        val ivKey = profileSecretKey(profileId, KEY_AGENT_API_KEY_IV)
-        val trimmedApiKey = apiKey.trim()
-        if (trimmedApiKey.isBlank()) {
-            prefs.edit()
-                .remove(ciphertextKey)
-                .remove(ivKey)
-                .apply()
-            return
-        }
-        encryptAgentApiKey(trimmedApiKey)
-            .onSuccess { encryptedValue ->
-                prefs.edit()
-                    .putString(ciphertextKey, encryptedValue.ciphertext)
-                    .putString(ivKey, encryptedValue.iv)
-                    .apply()
-            }
-            .onFailure {
-                prefs.edit()
-                    .remove(ciphertextKey)
-                    .remove(ivKey)
-                    .apply()
-            }
-    }
-
-    private fun readAgentProfileApiKeyLocked(context: Context, profileId: String): Boolean {
-        return context.getSharedPreferences(SECRET_PREFS_NAME, Context.MODE_PRIVATE)
-            .getBoolean(profileSecretKey(profileId, KEY_AGENT_API_KEY_LOCKED), false)
-    }
-
-    private fun saveAgentProfileApiKeyLocked(context: Context, profileId: String, locked: Boolean) {
-        context.getSharedPreferences(SECRET_PREFS_NAME, Context.MODE_PRIVATE)
-            .edit()
-            .putBoolean(profileSecretKey(profileId, KEY_AGENT_API_KEY_LOCKED), locked)
-            .apply()
-    }
-
-    private fun clearAgentProfileSecret(context: Context, profileId: String) {
-        context.getSharedPreferences(SECRET_PREFS_NAME, Context.MODE_PRIVATE)
-            .edit()
-            .remove(profileSecretKey(profileId, KEY_AGENT_API_KEY_CIPHERTEXT))
-            .remove(profileSecretKey(profileId, KEY_AGENT_API_KEY_IV))
-            .remove(profileSecretKey(profileId, KEY_AGENT_API_KEY_LOCKED))
-            .apply()
-    }
-
-    private fun isValidAgentProfileId(profileId: String): Boolean {
-        return profileId.length in 1..64 && profileId.all { it.isLetterOrDigit() || it == '-' || it == '_' }
-    }
-
-    private fun agentProfilesJson(profiles: List<AgentProfile>): JSONArray {
-        return JSONArray().apply {
-            profiles.forEach { profile ->
-                put(
-                    JSONObject()
-                        .put("id", profile.id)
-                        .put("name", profile.name)
-                        .put("providerType", profile.providerType.id)
-                        .put("baseUrl", profile.baseUrl)
-                        .put("model", profile.model)
-                        .put("openRouterProviderSlug", profile.openRouterProviderSlug)
-                        .put("reasoningMode", profile.reasoningMode.id)
-                        .put("reasoningTextEnabled", profile.reasoningTextEnabled),
-                )
-            }
-        }
-    }
-
-    private fun agentProfileSecretsJson(profiles: List<AgentProfile>): JSONObject {
-        return JSONObject().apply {
-            profiles.forEach { profile ->
-                put(
-                    profile.id,
-                    JSONObject()
-                        .put("value", profile.apiKey)
-                        .put("locked", profile.apiKeyLocked),
-                )
-            }
-        }
     }
 
     private fun stringArrayJson(values: List<String>): JSONArray {
@@ -1317,13 +1085,14 @@ object KeyboardSettings {
         Second("second", "Shortcut row B"),
     }
 
+    /** [fixedBaseUrl] is built in and not editable; null means the user supplies it. */
     enum class AgentProviderType(
         val id: String,
         val label: String,
+        val fixedBaseUrl: String?,
     ) {
-        OpenRouter("openrouter", "OpenRouter"),
-        NanbeigeLlamaCpp("nanbeige_llama_cpp", "Nanbeige llama.cpp"),
-        OpenAiCompatible("openai_compatible", "OpenAI compatible"),
+        Gemini("gemini", "Google Gemini", AgentDefaults.GEMINI_API_BASE_URL),
+        OpenAiCompatible("openai_compatible", "OpenAI compatible", null),
     }
 
     enum class AgentReasoningMode(
@@ -1381,26 +1150,12 @@ object KeyboardSettings {
         val baseUrl: String,
         val model: String,
         val apiKey: String,
-        val openRouterProviderSlug: String,
         val reasoningMode: AgentReasoningMode,
         val reasoningTextEnabled: Boolean,
     ) {
         val isConfigured: Boolean
             get() = baseUrl.isNotBlank() && model.isNotBlank() && apiKey.isNotBlank()
     }
-
-    data class AgentProfile(
-        val id: String,
-        val name: String,
-        val providerType: AgentProviderType,
-        val baseUrl: String,
-        val model: String,
-        val openRouterProviderSlug: String,
-        val reasoningMode: AgentReasoningMode,
-        val reasoningTextEnabled: Boolean,
-        val apiKey: String,
-        val apiKeyLocked: Boolean,
-    )
 
     private data class EncryptedValue(
         val ciphertext: String,
