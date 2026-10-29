@@ -50,6 +50,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -58,12 +59,12 @@ import dev.zain.znkeyboard.constants.ImeColors
 import dev.zain.znkeyboard.pinyin.PinyinFuzzyRule
 import dev.zain.znkeyboard.typing.AdaptiveTypingEngine
 import dev.zain.znkeyboard.typing.TouchModel
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 private data class ImeSetupStatus(val enabled: Boolean, val selected: Boolean)
 
@@ -114,18 +115,18 @@ internal fun SetupStatusCard() {
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(
                     text = when {
-                        !status.enabled -> "Turn on ZnKeyboard"
-                        !status.selected -> "Switch to ZnKeyboard"
-                        else -> "ZnKeyboard is active"
+                        !status.enabled -> stringResource(R.string.setup_turn_on)
+                        !status.selected -> stringResource(R.string.setup_switch)
+                        else -> stringResource(R.string.setup_active)
                     },
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
                 )
                 Text(
                     text = when {
-                        !status.enabled -> "Step 1 of 2 · enable it in system keyboard settings."
-                        !status.selected -> "Step 2 of 2 · pick it as your current keyboard."
-                        else -> "Try it below. It adapts to your typing as you go."
+                        !status.enabled -> stringResource(R.string.setup_step1)
+                        !status.selected -> stringResource(R.string.setup_step2)
+                        else -> stringResource(R.string.setup_try)
                     },
                     style = MaterialTheme.typography.bodySmall,
                 )
@@ -133,13 +134,13 @@ internal fun SetupStatusCard() {
             when {
                 !status.enabled -> Button(onClick = {
                     context.startActivity(Intent(Settings.ACTION_INPUT_METHOD_SETTINGS))
-                }) { Text("Enable") }
+                }) { Text(stringResource(R.string.action_enable)) }
                 !status.selected -> Button(onClick = {
                     context.getSystemService(InputMethodManager::class.java)?.showInputMethodPicker()
-                }) { Text("Choose") }
+                }) { Text(stringResource(R.string.action_choose)) }
                 else -> TextButton(onClick = {
                     context.getSystemService(InputMethodManager::class.java)?.showInputMethodPicker()
-                }) { Text("Switch") }
+                }) { Text(stringResource(R.string.action_switch)) }
             }
         }
     }
@@ -151,8 +152,8 @@ internal fun TryTypingField() {
     OutlinedTextField(
         value = text,
         onValueChange = { text = it },
-        label = { Text("Try it") },
-        placeholder = { Text("Type here to feel the difference") },
+        label = { Text(stringResource(R.string.try_it)) },
+        placeholder = { Text(stringResource(R.string.try_it_placeholder)) },
         minLines = 2,
         shape = MaterialTheme.shapes.medium,
         modifier = Modifier.fillMaxWidth(),
@@ -191,29 +192,32 @@ internal fun TypingFeelSection() {
     var preview by remember { mutableStateOf(KeyboardSettings.readKeyPreviewEnabled(context)) }
     var autoCaps by remember { mutableStateOf(KeyboardSettings.readAutoCapitalizeEnabled(context)) }
     var doubleSpace by remember { mutableStateOf(KeyboardSettings.readDoubleSpacePeriodEnabled(context)) }
-    SettingsSectionCard(verticalSpacing = 18.dp) {
-        SettingsSectionHeader(title = "Feel", iconResId = R.drawable.ic_touch_24)
+    CollapsibleSettingsSection(
+        title = stringResource(R.string.feel_title),
+        iconResId = R.drawable.ic_touch_24,
+        summary = stringResource(R.string.feel_summary),
+    ) {
         SettingsSwitchRow(
-            title = "Key haptics",
-            description = "A crisp tick the moment a key registers. Follows the system keyboard-vibration setting.",
+            title = stringResource(R.string.feel_haptics),
+            description = stringResource(R.string.feel_haptics_desc),
             checked = haptics,
             onCheckedChange = { haptics = it; KeyboardSettings.saveKeyHapticsEnabled(context, it) },
         )
         SettingsSwitchRow(
-            title = "Key popup",
-            description = "Shows the letter above your finger, since your finger hides the key it presses.",
+            title = stringResource(R.string.feel_popup),
+            description = stringResource(R.string.feel_popup_desc),
             checked = preview,
             onCheckedChange = { preview = it; KeyboardSettings.saveKeyPreviewEnabled(context, it) },
         )
         SettingsSwitchRow(
-            title = "Auto-capitalize",
-            description = "Shift turns on at the start of sentences when the app asks for it.",
+            title = stringResource(R.string.feel_autocaps),
+            description = stringResource(R.string.feel_autocaps_desc),
             checked = autoCaps,
             onCheckedChange = { autoCaps = it; KeyboardSettings.saveAutoCapitalizeEnabled(context, it) },
         )
         SettingsSwitchRow(
-            title = "Double-space period",
-            description = "Tap space twice quickly to end a sentence with \". \"",
+            title = stringResource(R.string.feel_double_space),
+            description = stringResource(R.string.feel_double_space_desc),
             checked = doubleSpace,
             onCheckedChange = { doubleSpace = it; KeyboardSettings.saveDoubleSpacePeriodEnabled(context, it) },
         )
@@ -224,17 +228,20 @@ internal fun TypingFeelSection() {
 internal fun PinyinSection() {
     val context = LocalContext.current
     var rules by remember { mutableStateOf(KeyboardSettings.readPinyinFuzzyRules(context)) }
-    SettingsSectionCard(verticalSpacing = 18.dp) {
-        SettingsSectionHeader(title = "Chinese pinyin", iconResId = R.drawable.ic_keyboard_24)
+    CollapsibleSettingsSection(
+        title = stringResource(R.string.pinyin_title),
+        iconResId = R.drawable.ic_keyboard_24,
+        summary = stringResource(R.string.pinyin_summary, rules.size, PinyinFuzzyRule.entries.size),
+    ) {
         Text(
-            text = "Tap the 中/EN key (left of space) to switch. Fuzzy sounds let either spelling of a pair find the same words.",
+            text = stringResource(R.string.pinyin_desc),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         PinyinFuzzyRule.entries.forEach { rule ->
             SettingsSwitchRow(
                 title = rule.label,
-                description = "Fuzzy sound",
+                description = stringResource(R.string.pinyin_fuzzy),
                 checked = rule in rules,
                 onCheckedChange = { enabled ->
                     rules = if (enabled) rules + rule else rules - rule
@@ -291,8 +298,8 @@ internal fun AdaptiveTouchSection() {
     if (confirmingReset) {
         AlertDialog(
             onDismissRequest = { confirmingReset = false },
-            title = { Text("Reset learned typing?") },
-            text = { Text("ZnKeyboard forgets how your taps land and the letter patterns it learned. It starts adapting again from your next keystroke.") },
+            title = { Text(stringResource(R.string.touch_reset_title)) },
+            text = { Text(stringResource(R.string.touch_reset_text)) },
             confirmButton = {
                 TextButton(onClick = {
                     confirmingReset = false
@@ -303,23 +310,21 @@ internal fun AdaptiveTouchSection() {
                         }
                         refreshTick++
                     }
-                }) { Text("Reset") }
+                }) { Text(stringResource(R.string.action_reset)) }
             },
-            dismissButton = { TextButton(onClick = { confirmingReset = false }) { Text("Cancel") } },
+            dismissButton = { TextButton(onClick = { confirmingReset = false }) { Text(stringResource(R.string.action_cancel)) } },
         )
     }
 
     SettingsSectionCard(verticalSpacing = 16.dp) {
         SettingsSectionHeader(
-            title = "Adaptive touch",
+            title = stringResource(R.string.touch_title),
             iconResId = R.drawable.ic_tune_24,
-            trailingText = if (summary.samples > 0) "${formatCount(summary.samples)} taps" else null,
+            trailingText = if (summary.samples > 0) stringResource(R.string.touch_taps, formatCount(summary.samples)) else null,
         )
         SettingsSwitchRow(
-            title = "Learn how I type",
-            description = "Reads each tap where you aimed, learns where your thumbs actually land on every key, " +
-                "and uses letter patterns only to settle taps that fall between keys. Learning stays on this " +
-                "device (and in your encrypted backups) and is skipped in password and incognito fields.",
+            title = stringResource(R.string.touch_learn),
+            description = stringResource(R.string.touch_learn_desc),
             checked = adaptive,
             onCheckedChange = { adaptive = it; KeyboardSettings.saveAdaptiveTouchEnabled(context, it) },
         )
@@ -332,32 +337,32 @@ internal fun AdaptiveTouchSection() {
         OutlinedButton(
             onClick = { confirmingReset = true },
             enabled = summary.samples > 0,
-        ) { Text("Reset learned typing") }
+        ) { Text(stringResource(R.string.touch_reset)) }
     }
 }
 
+@Composable
 private fun touchInsight(summary: TouchSummary): String {
     if (summary.samples < MIN_SAMPLES_FOR_INSIGHT) {
-        return "Keep typing. After about $MIN_SAMPLES_FOR_INSIGHT taps this map shows where your touches really land; " +
-            "each dot is a key's learned centre and the ring is your usual spread."
+        return stringResource(R.string.touch_insight_keep_typing, MIN_SAMPLES_FOR_INSIGHT)
     }
     val mmY = summary.meanYDp * MM_PER_DP
     val mmX = summary.meanXDp * MM_PER_DP
     val vertical = when {
         abs(mmY) < 0.2f -> null
-        mmY > 0 -> "%.1f mm below".format(mmY)
-        else -> "%.1f mm above".format(-mmY)
+        mmY > 0 -> stringResource(R.string.touch_below, mmY)
+        else -> stringResource(R.string.touch_above, -mmY)
     }
     val horizontal = when {
         abs(mmX) < 0.2f -> null
-        mmX > 0 -> "%.1f mm right of".format(mmX)
-        else -> "%.1f mm left of".format(-mmX)
+        mmX > 0 -> stringResource(R.string.touch_right, mmX)
+        else -> stringResource(R.string.touch_left, -mmX)
     }
-    val where = listOfNotNull(vertical, horizontal).joinToString(" and ")
+    val where = listOfNotNull(vertical, horizontal).joinToString(stringResource(R.string.touch_and))
     return if (where.isEmpty()) {
-        "Your taps land close to key centres on average. ZnKeyboard still corrects per key."
+        stringResource(R.string.touch_centred)
     } else {
-        "On average your taps land $where key centres. ZnKeyboard now compensates for that, key by key."
+        stringResource(R.string.touch_offset, where)
     }
 }
 
@@ -370,6 +375,7 @@ private fun formatCount(count: Int): String = when {
 /** Mini QWERTY showing each key's learned touch centre (dot) and 1σ spread (ring). */
 @Composable
 private fun TouchHeatmap(model: TouchModel?, modifier: Modifier = Modifier) {
+    val mapDescription = stringResource(R.string.touch_map_desc)
     val keyColor = MaterialTheme.colorScheme.surfaceContainerHighest
     val centerColor = MaterialTheme.colorScheme.outline
     val dotColor = MaterialTheme.colorScheme.primary
@@ -378,7 +384,7 @@ private fun TouchHeatmap(model: TouchModel?, modifier: Modifier = Modifier) {
     Canvas(
         modifier = modifier
             .aspectRatio(2.6f)
-            .semantics { contentDescription = "Map of where your taps land on each letter key" },
+            .semantics { contentDescription = mapDescription },
     ) {
         val rows = listOf("qwertyuiop", "asdfghjkl", "zxcvbnm")
         val offsets = listOf(0f, 0.5f, 1.5f)
@@ -426,7 +432,7 @@ internal fun KeyboardThemeSelector() {
     val context = LocalContext.current
     var style by remember { mutableStateOf(KeyboardSettings.readKeyboardTheme(context)) }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("Keyboard theme", style = MaterialTheme.typography.bodyLarge)
+        Text(stringResource(R.string.theme_title), style = MaterialTheme.typography.bodyLarge)
         SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
             ImeColors.Style.entries.forEachIndexed { index, option ->
                 SegmentedButton(
@@ -436,13 +442,13 @@ internal fun KeyboardThemeSelector() {
                         KeyboardSettings.saveKeyboardTheme(context, option)
                     },
                     shape = SegmentedButtonDefaults.itemShape(index, ImeColors.Style.entries.size),
-                ) { Text(option.label) }
+                ) { Text(themeLabel(option)) }
             }
         }
         Text(
             text = when (style) {
-                ImeColors.Style.MaterialYou -> "Follows your wallpaper colors and light/dark mode."
-                ImeColors.Style.ClassicBlack -> "True black for OLED, with your accent color on the action key."
+                ImeColors.Style.MaterialYou -> stringResource(R.string.theme_material_you_desc)
+                ImeColors.Style.ClassicBlack -> stringResource(R.string.theme_classic_black_desc)
             },
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -466,15 +472,15 @@ internal fun LabeledSlider(
     if (confirmingReset && onReset != null) {
         AlertDialog(
             onDismissRequest = { confirmingReset = false },
-            title = { Text("Reset ${title.lowercase()}?") },
-            text = { Text("Set it back to the default of $defaultLabel.") },
+            title = { Text(stringResource(R.string.slider_reset_title, title)) },
+            text = { Text(stringResource(R.string.slider_reset_text, defaultLabel.orEmpty())) },
             confirmButton = {
                 TextButton(onClick = {
                     confirmingReset = false
                     onReset()
-                }) { Text("Reset") }
+                }) { Text(stringResource(R.string.action_reset)) }
             },
-            dismissButton = { TextButton(onClick = { confirmingReset = false }) { Text("Cancel") } },
+            dismissButton = { TextButton(onClick = { confirmingReset = false }) { Text(stringResource(R.string.action_cancel)) } },
         )
     }
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -488,7 +494,7 @@ internal fun LabeledSlider(
                 ) {
                     Icon(
                         painter = painterResource(R.drawable.ic_restart_24),
-                        contentDescription = "Reset $title to default",
+                        contentDescription = stringResource(R.string.slider_reset_desc, title),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = if (isDefault) 0.25f else 0.6f),
                         modifier = Modifier.size(18.dp),
                     )

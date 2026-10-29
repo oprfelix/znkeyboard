@@ -58,6 +58,10 @@ object ImeColors {
     val TRANSLATE_BADGE = Color.rgb(35, 64, 128)
     val ON_TRANSLATE_BADGE = Color.WHITE
 
+    // Space key while it records speech: the familiar recording red, fixed across themes.
+    val VOICE_RECORDING = Color.rgb(179, 38, 30)
+    val ON_VOICE_RECORDING = Color.WHITE
+
     var MUTED_TEXT = Color.rgb(230, 230, 230)
         private set
     var DISABLED_TEXT = Color.rgb(130, 130, 130)

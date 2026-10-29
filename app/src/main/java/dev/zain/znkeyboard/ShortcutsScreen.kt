@@ -52,6 +52,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -93,9 +95,9 @@ internal fun ShortcutsSummaryCard(onOpen: () -> Unit) {
             .clickable(onClick = onOpen),
     ) {
         SettingsSectionHeader(
-            title = "Shortcut rows & macros",
+            title = stringResource(R.string.shortcuts_card_title),
             iconResId = R.drawable.ic_keyboard_24,
-            subtitle = "$keyCount keys · ${macros.size} ${if (macros.size == 1) "macro" else "macros"}",
+            subtitle = pluralStringResource(R.plurals.shortcuts_card_summary, macros.size, keyCount, macros.size),
             trailingContent = {
                 Icon(
                     painter = painterResource(R.drawable.ic_chevron_left_24),
@@ -112,7 +114,7 @@ internal fun ShortcutsSummaryCard(onOpen: () -> Unit) {
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
                     if (keyIds.isEmpty()) {
-                        MiniKey(label = "Empty row", muted = true, modifier = Modifier.weight(1f))
+                        MiniKey(label = stringResource(R.string.shortcuts_empty_row), muted = true, modifier = Modifier.weight(1f))
                     }
                     keyIds.forEach { keyId ->
                         MiniKey(label = shortcutKeyLabel(keyId, macros), modifier = Modifier.weight(1f))
@@ -224,7 +226,7 @@ internal fun ShortcutsScreen(onBack: () -> Unit) {
         containerColor = ZnKeyboardColors.Background,
         topBar = {
             TopAppBar(
-                title = { Text("Shortcuts") },
+                title = { Text(stringResource(R.string.shortcuts_title)) },
                 navigationIcon = { BackIconButton(onBack) },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = ZnKeyboardColors.Background),
             )
@@ -240,9 +242,9 @@ internal fun ShortcutsScreen(onBack: () -> Unit) {
         ) {
             SettingsSectionCard(verticalSpacing = 12.dp) {
                 SettingsSectionHeader(
-                    title = "Shortcut rows",
+                    title = stringResource(R.string.shortcuts_rows),
                     iconResId = R.drawable.ic_keyboard_24,
-                    subtitle = "Shown top to bottom, as on the keyboard. Tap a key to move or remove it.",
+                    subtitle = stringResource(R.string.shortcuts_rows_desc),
                 )
 
                 rowOrder.forEachIndexed { position, rowId ->
@@ -254,18 +256,18 @@ internal fun ShortcutsScreen(onBack: () -> Unit) {
                             },
                             modifier = Modifier.align(Alignment.CenterHorizontally),
                         ) {
-                            Text("⇅  Swap rows")
+                            Text(stringResource(R.string.shortcuts_swap_rows))
                         }
                     }
                     val otherRowId = if (rowId == UPPER) SECOND else UPPER
                     ShortcutRowEditor(
-                        title = KeyboardSettings.labelForKeyboardRow(rowId),
+                        title = keyboardRowLabel(rowId),
                         keyIds = keysFor(rowId),
                         maxKeys = maxKeysFor(rowId),
                         canReset = keysFor(rowId) != defaultKeysFor(rowId),
                         macros = macros,
                         selectedIndex = selection?.takeIf { it.rowId == rowId }?.index,
-                        otherRowLabel = KeyboardSettings.labelForKeyboardRow(otherRowId),
+                        otherRowLabel = keyboardRowLabel(otherRowId),
                         canMoveToOtherRow = keysFor(otherRowId).size < maxKeysFor(otherRowId),
                         onSelect = { index ->
                             selection = if (selection == KeySelection(rowId, index)) null else KeySelection(rowId, index)
@@ -302,15 +304,15 @@ internal fun ShortcutsScreen(onBack: () -> Unit) {
 
             SettingsSectionCard(verticalSpacing = 12.dp) {
                 SettingsSectionHeader(
-                    title = "Macros",
+                    title = stringResource(R.string.shortcuts_macros),
                     iconResId = R.drawable.ic_tune_24,
-                    subtitle = "Chain key combos and text into a single key.",
+                    subtitle = stringResource(R.string.shortcuts_macros_desc),
                     trailingText = "${macros.size}/${ShortcutMacros.MAX_MACROS}",
                 )
 
                 if (macros.isEmpty()) {
                     Text(
-                        text = "No macros yet. Try Ctrl + B then n for tmux, or Esc then “:wq” then Enter for Vim.",
+                        text = stringResource(R.string.shortcuts_no_macros),
                         color = ZnKeyboardColors.Muted,
                         style = MaterialTheme.typography.bodySmall,
                     )
@@ -319,10 +321,10 @@ internal fun ShortcutsScreen(onBack: () -> Unit) {
                 macros.forEach { macro ->
                     val rowsUsing = listOf(UPPER, SECOND)
                         .filter { macro.keyId in keysFor(it) }
-                        .map(KeyboardSettings::labelForKeyboardRow)
+                        .map { keyboardRowLabel(it) }
                     MacroCard(
                         macro = macro,
-                        usage = rowsUsing.joinToString().ifEmpty { "Not on a row" },
+                        usage = rowsUsing.joinToString().ifEmpty { stringResource(R.string.shortcuts_not_on_row) },
                         onClick = { draft = MacroDraft(macro, isNew = false) },
                     )
                 }
@@ -332,7 +334,7 @@ internal fun ShortcutsScreen(onBack: () -> Unit) {
                     enabled = macros.size < ShortcutMacros.MAX_MACROS,
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    SettingsIconTextButtonContent(R.drawable.ic_add_24, "New macro")
+                    SettingsIconTextButtonContent(R.drawable.ic_add_24, stringResource(R.string.macro_new))
                 }
             }
         }
@@ -340,7 +342,7 @@ internal fun ShortcutsScreen(onBack: () -> Unit) {
 
     paletteRowId?.let { rowId ->
         KeyPaletteSheet(
-            rowLabel = KeyboardSettings.labelForKeyboardRow(rowId),
+            rowLabel = keyboardRowLabel(rowId),
             keyIds = keysFor(rowId),
             maxKeys = maxKeysFor(rowId),
             macros = macros,
@@ -355,18 +357,18 @@ internal fun ShortcutsScreen(onBack: () -> Unit) {
     }
 
     confirmingResetRowId?.let { rowId ->
-        val rowLabel = KeyboardSettings.labelForKeyboardRow(rowId)
+        val rowLabel = keyboardRowLabel(rowId)
         AlertDialog(
             onDismissRequest = { confirmingResetRowId = null },
-            title = { Text("Reset $rowLabel?") },
-            text = { Text("Your keys and their order in this row will be replaced with the defaults. Macros themselves are kept.") },
+            title = { Text(stringResource(R.string.slider_reset_title, rowLabel)) },
+            text = { Text(stringResource(R.string.shortcuts_reset_row_text)) },
             confirmButton = {
                 TextButton(onClick = {
                     setKeys(rowId, defaultKeysFor(rowId))
                     confirmingResetRowId = null
-                }) { Text("Reset") }
+                }) { Text(stringResource(R.string.action_reset)) }
             },
-            dismissButton = { TextButton(onClick = { confirmingResetRowId = null }) { Text("Cancel") } },
+            dismissButton = { TextButton(onClick = { confirmingResetRowId = null }) { Text(stringResource(R.string.action_cancel)) } },
         )
     }
 }
@@ -376,7 +378,7 @@ private fun BackIconButton(onBack: () -> Unit) {
     IconButton(onClick = onBack) {
         Icon(
             painter = painterResource(R.drawable.ic_chevron_left_24),
-            contentDescription = "Back",
+            contentDescription = stringResource(R.string.action_back),
         )
     }
 }
@@ -412,7 +414,7 @@ private fun ShortcutRowEditor(
                 style = MaterialTheme.typography.labelLarge,
             )
             TextButton(onClick = onReset, enabled = canReset) {
-                Text("Reset")
+                Text(stringResource(R.string.action_reset))
             }
         }
 
@@ -447,12 +449,12 @@ private fun ShortcutRowEditor(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 IconButton(onClick = { onMove(index, index - 1) }, enabled = index > 0) {
-                    Icon(painterResource(R.drawable.ic_chevron_left_24), contentDescription = "Move left")
+                    Icon(painterResource(R.drawable.ic_chevron_left_24), contentDescription = stringResource(R.string.action_move_left))
                 }
                 IconButton(onClick = { onMove(index, index + 1) }, enabled = index < keyIds.lastIndex) {
                     Icon(
                         painterResource(R.drawable.ic_chevron_left_24),
-                        contentDescription = "Move right",
+                        contentDescription = stringResource(R.string.action_move_right),
                         modifier = Modifier.rotate(180f),
                     )
                 }
@@ -462,12 +464,12 @@ private fun ShortcutRowEditor(
                     modifier = Modifier.weight(1f),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = ZnKeyboardColors.OnSurface),
                 ) {
-                    Text("To $otherRowLabel", maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(stringResource(R.string.shortcuts_move_to_row, otherRowLabel), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
                 IconButton(onClick = { onRemove(index) }) {
                     Icon(
                         painterResource(R.drawable.ic_delete_24),
-                        contentDescription = "Remove key",
+                        contentDescription = stringResource(R.string.shortcuts_remove_key),
                         tint = MaterialTheme.colorScheme.error,
                     )
                 }
@@ -527,7 +529,7 @@ private fun AddKeyChip(onClick: () -> Unit) {
         ) {
             Icon(
                 painter = painterResource(R.drawable.ic_add_24),
-                contentDescription = "Add key",
+                contentDescription = stringResource(R.string.shortcuts_add_key),
                 tint = ZnKeyboardColors.Accent,
                 modifier = Modifier.size(20.dp),
             )
@@ -576,7 +578,7 @@ private fun StepChips(steps: List<MacroStep>) {
             }
             Surface(color = ZnKeyboardColors.FunctionKey, shape = RoundedCornerShape(6.dp)) {
                 Text(
-                    text = ShortcutMacros.stepLabel(step),
+                    text = macroStepLabel(step),
                     style = MaterialTheme.typography.labelMedium,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -613,9 +615,9 @@ private fun KeyPaletteSheet(
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text("Add to $rowLabel", style = MaterialTheme.typography.titleLarge)
+                    Text(stringResource(R.string.shortcuts_add_to_row, rowLabel), style = MaterialTheme.typography.titleLarge)
                     Text(
-                        text = if (full) "Row is full. Tap a selected key to remove it." else "Tap to add, tap again to remove.",
+                        text = stringResource(if (full) R.string.shortcuts_row_full else R.string.shortcuts_tap_to_add),
                         color = ZnKeyboardColors.Muted,
                         style = MaterialTheme.typography.bodySmall,
                     )
@@ -623,11 +625,11 @@ private fun KeyPaletteSheet(
                 Text("${keyIds.size}/$maxKeys", color = ZnKeyboardColors.Muted, style = MaterialTheme.typography.labelLarge)
             }
 
-            PaletteSection("Actions", KeyboardSettings.ACTION_KEY_OPTIONS.map { it.id to it.label }, keyIds, full, onToggle)
-            PaletteSection("Keys", KeyboardSettings.CONTROL_KEY_OPTIONS.map { it.id to it.label }, keyIds, full, onToggle)
-            PaletteSection("Symbols", KeyboardSettings.SYMBOL_KEY_OPTIONS.map { it.id to it.label }, keyIds, full, onToggle)
+            PaletteSection(stringResource(R.string.shortcuts_actions), KeyboardSettings.ACTION_KEY_OPTIONS.map { it.id to shortcutOptionLabel(it.id, it.label) }, keyIds, full, onToggle)
+            PaletteSection(stringResource(R.string.shortcuts_keys), KeyboardSettings.CONTROL_KEY_OPTIONS.map { it.id to it.label }, keyIds, full, onToggle)
+            PaletteSection(stringResource(R.string.shortcuts_symbols), KeyboardSettings.SYMBOL_KEY_OPTIONS.map { it.id to it.label }, keyIds, full, onToggle)
             PaletteSection(
-                title = "Macros",
+                title = stringResource(R.string.shortcuts_macros),
                 options = macros.map { it.keyId to it.displayLabel },
                 keyIds = keyIds,
                 full = full,
@@ -637,7 +639,7 @@ private fun KeyPaletteSheet(
                     selected = false,
                     onClick = onNewMacro,
                     enabled = canCreateMacro && !full,
-                    label = { Text("New macro") },
+                    label = { Text(stringResource(R.string.macro_new)) },
                     leadingIcon = {
                         Icon(painterResource(R.drawable.ic_add_24), contentDescription = null, modifier = Modifier.size(18.dp))
                     },
@@ -702,7 +704,7 @@ private fun MacroEditorScreen(
         containerColor = ZnKeyboardColors.Background,
         topBar = {
             TopAppBar(
-                title = { Text(if (draft.isNew) "New macro" else "Edit macro") },
+                title = { Text(stringResource(if (draft.isNew) R.string.macro_new else R.string.macro_edit)) },
                 navigationIcon = { BackIconButton(onBack) },
                 actions = {
                     TextButton(
@@ -717,7 +719,7 @@ private fun MacroEditorScreen(
                         },
                         enabled = steps.isNotEmpty(),
                     ) {
-                        Text("Save")
+                        Text(stringResource(R.string.action_save))
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = ZnKeyboardColors.Background),
@@ -746,9 +748,9 @@ private fun MacroEditorScreen(
                 OutlinedTextField(
                     value = label,
                     onValueChange = { label = it.take(ShortcutMacros.MAX_LABEL_CHARS) },
-                    label = { Text("Key label") },
+                    label = { Text(stringResource(R.string.macro_key_label)) },
                     placeholder = { Text(autoLabel) },
-                    supportingText = { Text("Leave blank to show “$autoLabel”") },
+                    supportingText = { Text(stringResource(R.string.macro_key_label_hint, autoLabel)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -756,14 +758,14 @@ private fun MacroEditorScreen(
 
             SettingsSectionCard(verticalSpacing = 10.dp) {
                 SettingsSectionHeader(
-                    title = "Steps",
-                    subtitle = "Played in order when you tap the key.",
+                    title = stringResource(R.string.macro_steps),
+                    subtitle = stringResource(R.string.macro_steps_desc),
                     trailingText = "${steps.size}/${ShortcutMacros.MAX_STEPS}",
                 )
 
                 if (steps.isEmpty()) {
                     Text(
-                        text = "Add a key combo such as Ctrl + B, or text to type.",
+                        text = stringResource(R.string.macro_steps_empty),
                         color = ZnKeyboardColors.Muted,
                         style = MaterialTheme.typography.bodySmall,
                     )
@@ -794,7 +796,7 @@ private fun MacroEditorScreen(
                         enabled = canAddStep,
                         modifier = Modifier.weight(1f),
                     ) {
-                        SettingsIconTextButtonContent(R.drawable.ic_keyboard_24, "Key combo")
+                        SettingsIconTextButtonContent(R.drawable.ic_keyboard_24, stringResource(R.string.macro_key_combo))
                     }
                     OutlinedButton(
                         onClick = { textDialogIndex = -1 },
@@ -802,7 +804,7 @@ private fun MacroEditorScreen(
                         modifier = Modifier.weight(1f),
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = ZnKeyboardColors.OnSurface),
                     ) {
-                        SettingsIconTextButtonContent(R.drawable.ic_add_24, "Text")
+                        SettingsIconTextButtonContent(R.drawable.ic_add_24, stringResource(R.string.macro_text))
                     }
                 }
             }
@@ -813,7 +815,7 @@ private fun MacroEditorScreen(
                     modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
                 ) {
-                    SettingsIconTextButtonContent(R.drawable.ic_delete_24, "Delete macro")
+                    SettingsIconTextButtonContent(R.drawable.ic_delete_24, stringResource(R.string.macro_delete))
                 }
             }
         }
@@ -845,13 +847,13 @@ private fun MacroEditorScreen(
     if (confirmDelete) {
         AlertDialog(
             onDismissRequest = { confirmDelete = false },
-            title = { Text("Delete macro?") },
-            text = { Text("It will also be removed from your shortcut rows.") },
+            title = { Text(stringResource(R.string.macro_delete_confirm)) },
+            text = { Text(stringResource(R.string.macro_delete_text)) },
             confirmButton = {
-                TextButton(onClick = onDelete) { Text("Delete") }
+                TextButton(onClick = onDelete) { Text(stringResource(R.string.action_delete)) }
             },
             dismissButton = {
-                TextButton(onClick = { confirmDelete = false }) { Text("Cancel") }
+                TextButton(onClick = { confirmDelete = false }) { Text(stringResource(R.string.action_cancel)) }
             },
         )
     }
@@ -884,7 +886,7 @@ private fun MacroStepRow(
                 modifier = Modifier.width(24.dp),
             )
             Text(
-                text = ShortcutMacros.stepLabel(step),
+                text = macroStepLabel(step),
                 style = MaterialTheme.typography.bodyMedium,
                 fontFamily = if (step is MacroStep.Key) FontFamily.Monospace else FontFamily.Default,
                 maxLines = 2,
@@ -892,13 +894,13 @@ private fun MacroStepRow(
                 modifier = Modifier.weight(1f),
             )
             IconButton(onClick = { onMove(-1) }, enabled = canMoveUp) {
-                Icon(painterResource(R.drawable.ic_chevron_left_24), "Move up", Modifier.rotate(90f))
+                Icon(painterResource(R.drawable.ic_chevron_left_24), stringResource(R.string.action_move_up), Modifier.rotate(90f))
             }
             IconButton(onClick = { onMove(1) }, enabled = canMoveDown) {
-                Icon(painterResource(R.drawable.ic_chevron_left_24), "Move down", Modifier.rotate(-90f))
+                Icon(painterResource(R.drawable.ic_chevron_left_24), stringResource(R.string.action_move_down), Modifier.rotate(-90f))
             }
             IconButton(onClick = onRemove) {
-                Icon(painterResource(R.drawable.ic_close_24), "Remove step", tint = ZnKeyboardColors.Muted)
+                Icon(painterResource(R.drawable.ic_close_24), stringResource(R.string.macro_remove_step), tint = ZnKeyboardColors.Muted)
             }
         }
     }
@@ -924,9 +926,9 @@ private fun KeyComboSheet(
                 .padding(start = 20.dp, end = 20.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            Text("Key combo", style = MaterialTheme.typography.titleLarge)
+            Text(stringResource(R.string.macro_key_combo), style = MaterialTheme.typography.titleLarge)
             Text(
-                text = "Hold modifiers, then tap a key.",
+                text = stringResource(R.string.macro_combo_hint),
                 color = ZnKeyboardColors.Muted,
                 style = MaterialTheme.typography.bodySmall,
             )
@@ -938,7 +940,7 @@ private fun KeyComboSheet(
 
             MacroKeyGroup.entries.forEach { group ->
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(group.label, color = ZnKeyboardColors.Muted, style = MaterialTheme.typography.labelLarge)
+                    Text(macroGroupLabel(group), color = ZnKeyboardColors.Muted, style = MaterialTheme.typography.labelLarge)
                     FlowRow(
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                         verticalArrangement = Arrangement.spacedBy(6.dp),
@@ -972,12 +974,12 @@ private fun TextStepDialog(
     var text by remember { mutableStateOf(initial) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (isNew) "Add text" else "Edit text") },
+        title = { Text(stringResource(if (isNew) R.string.macro_add_text else R.string.macro_edit_text)) },
         text = {
             OutlinedTextField(
                 value = text,
                 onValueChange = { text = it.take(ShortcutMacros.MAX_TEXT_CHARS) },
-                label = { Text("Text to type") },
+                label = { Text(stringResource(R.string.macro_text_to_type)) },
                 supportingText = { Text("${text.length}/${ShortcutMacros.MAX_TEXT_CHARS}") },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
@@ -985,18 +987,19 @@ private fun TextStepDialog(
         },
         confirmButton = {
             TextButton(onClick = { onConfirm(text) }, enabled = text.isNotEmpty()) {
-                Text(if (isNew) "Add" else "Update")
+                Text(stringResource(if (isNew) R.string.action_add else R.string.action_update))
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
         },
     )
 }
 
+@Composable
 private fun shortcutKeyLabel(keyId: String, macros: List<ShortcutMacro>): String {
     ShortcutMacros.macroIdOf(keyId)?.let { macroId ->
         return macros.firstOrNull { it.id == macroId }?.displayLabel ?: "Macro"
     }
-    return KeyboardSettings.labelForShortcutRowKey(keyId)
+    return shortcutOptionLabel(keyId, KeyboardSettings.labelForShortcutRowKey(keyId))
 }

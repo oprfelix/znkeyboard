@@ -5,6 +5,7 @@ import android.content.ClipDescription
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.Manifest
 import android.content.pm.PackageManager
 import android.inputmethodservice.InputMethodService
 import android.os.Handler
@@ -12,6 +13,7 @@ import android.os.Looper
 import android.os.PersistableBundle
 import android.os.SystemClock
 import android.text.InputType
+import android.util.Base64
 import android.util.Log
 import android.view.KeyCharacterMap
 import android.view.KeyEvent
@@ -61,6 +63,10 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     private var agentReviewView: AgentReviewView? = null
     private var currentEditorInfo: EditorInfo? = null
     private val mainHandler = Handler(Looper.getMainLooper())
+    private var voiceRecorder: VoiceRecorder? = null
+    private var voiceProcessing = false
+    private var voiceGeneration = 0
+    private var voiceHintRunnable: Runnable? = null
     private lateinit var typingEngine: AdaptiveTypingEngine
     private var appliedThemeSignature: String? = null
     private var autoCapitalizeEnabled = true
@@ -95,6 +101,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         ClipboardHistoryStore.deleteLegacyRewriteHistory(this)
         KeyboardSettings.deleteLegacySnippetData(this)
         KeyboardSettings.migrateAgentProviders(this)
+        KeyboardSettings.migrateSecondRowClipboard(this)
         ClipboardLinkPreviewRepository.loadPersistedPreviews(this)
         registerClipboardListener()
         capturePrimaryClipboardText()
@@ -193,6 +200,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     }
 
     override fun onFinishInputView(finishingInput: Boolean) {
+        cancelVoiceInput()
         commitPinyinRaw()
         typingEngine.save()
         keyboardView?.clearLatchedModifiers()
@@ -202,6 +210,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     }
 
     override fun onDestroy() {
+        cancelVoiceInput()
         requestGeneration++
         unregisterClipboardListener()
         typingEngine.shutdown()
@@ -339,6 +348,36 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         rewriteTranslates = false
         commitPinyinWholeTop()
         startRewriteFromCurrentEditor()
+    }
+
+    override fun onVoiceInputStarted(): Boolean {
+        if (!KeyboardSettings.readVoiceInputEnabled(this) || voiceProcessing) return false
+        voiceInputProblem()?.let { problem ->
+            showVoiceHint(problem)
+            return false
+        }
+        val recorder = VoiceRecorder(
+            maxDurationMs = AgentDefaults.MAX_VOICE_CLIP_MS,
+            onLevel = { level, elapsedMs ->
+                if (voiceRecorder != null) {
+                    keyboardView?.setVoiceIndicator(ZnKeyboardView.VoiceIndicator.Recording(level, elapsedMs))
+                }
+            },
+            onLimitReached = { finishVoiceInput(cancelled = false) },
+        )
+        if (!recorder.start()) {
+            showVoiceHint(if (pinyinModeEnabled) "麦克风正被占用。" else "The microphone is busy.")
+            return false
+        }
+        // The spoken text lands at the cursor, so settle any pending pinyin first.
+        commitPinyinWholeTop()
+        voiceRecorder = recorder
+        keyboardView?.setVoiceIndicator(ZnKeyboardView.VoiceIndicator.Recording(0f, 0L))
+        return true
+    }
+
+    override fun onVoiceInputFinished(cancelled: Boolean) {
+        finishVoiceInput(cancelled)
     }
 
     override fun onAgentReviewApply() {
@@ -1272,6 +1311,129 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         clipboardSearchView?.setClipboardEntries(entries)
     }
 
+    /** Why voice input can't start in this field right now, or null when it can. */
+    private fun voiceInputProblem(): String? {
+        val chinese = pinyinModeEnabled
+        val providerSettings = KeyboardSettings.readAgentProviderSettings(this)
+        return when {
+            isSensitiveEditor(currentEditorInfo) ->
+                if (chinese) "密码框里不能用语音输入。" else "Voice input is off in password fields."
+            checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED ->
+                if (chinese) "请先在设置 → Tools 里开启语音输入。" else "Turn on voice input in Settings → Tools."
+            providerSettings.providerType != KeyboardSettings.AgentProviderType.Gemini ->
+                if (chinese) "语音输入目前只支持 Gemini。" else "Voice input needs the Gemini provider."
+            !providerSettings.isConfigured ->
+                if (chinese) "请先在设置里填好 Gemini API Key。" else "Add your Gemini API key in Settings first."
+            else -> null
+        }
+    }
+
+    private fun finishVoiceInput(cancelled: Boolean) {
+        val recorder = voiceRecorder ?: return
+        voiceRecorder = null
+        val clip = recorder.stop()
+        if (cancelled || clip.durationMs < AgentDefaults.MIN_VOICE_CLIP_MS) {
+            keyboardView?.setVoiceIndicator(null)
+            return
+        }
+        if (clip.wav.size <= WAV_HEADER_BYTES) {
+            showVoiceHint(if (pinyinModeEnabled) "没有听到声音。" else "Didn't hear anything.")
+            return
+        }
+
+        val providerSettings = KeyboardSettings.readAgentProviderSettings(this)
+        val systemPrompt = voiceSystemPrompt()
+        val userContent = JSONArray()
+            .put(JSONObject().put("type", "text").put("text", "Here is my recording."))
+            .put(
+                JSONObject()
+                    .put("type", "input_audio")
+                    .put(
+                        "input_audio",
+                        JSONObject()
+                            .put("data", Base64.encodeToString(clip.wav, Base64.NO_WRAP))
+                            .put("format", "wav"),
+                    ),
+            )
+        val generation = ++voiceGeneration
+        voiceProcessing = true
+        keyboardView?.setVoiceIndicator(ZnKeyboardView.VoiceIndicator.Processing)
+        Log.d(TAG, "Starting voice request for ${clip.durationMs} ms of audio")
+
+        Thread {
+            val result = runCatching {
+                requestChatCompletion(
+                    providerSettings = providerSettings,
+                    systemPrompt = systemPrompt,
+                    userContent = userContent,
+                    maxTokens = AgentDefaults.MAX_VOICE_LLM_TOKENS,
+                )
+            }
+            mainHandler.post {
+                if (generation != voiceGeneration) return@post
+                voiceProcessing = false
+                keyboardView?.setVoiceIndicator(null)
+                result
+                    .onSuccess(::commitVoiceText)
+                    .onFailure { error ->
+                        if (error is EmptyModelTextException) {
+                            showVoiceHint(if (pinyinModeEnabled) "没听清，请再说一次。" else "Didn't catch that. Try again.")
+                        } else {
+                            showAgentError(error.message ?: "Voice input failed.")
+                        }
+                    }
+            }
+        }.apply {
+            name = "ZnKeyboardVoiceRequest"
+            start()
+        }
+    }
+
+    private fun cancelVoiceInput() {
+        voiceRecorder?.cancel()
+        voiceRecorder = null
+        voiceGeneration++
+        voiceProcessing = false
+        voiceHintRunnable?.let(mainHandler::removeCallbacks)
+        voiceHintRunnable = null
+        keyboardView?.setVoiceIndicator(null)
+    }
+
+    private fun commitVoiceText(text: String) {
+        val inputConnection = currentInputConnection ?: return
+        val before = inputConnection.getTextBeforeCursor(1, 0)?.toString().orEmpty()
+        // Dictated English after a word needs a separating space; CJK text never does.
+        val needsSpace = before.isNotEmpty() &&
+            before.last().let { it.isLetterOrDigit() && it.code < CJK_START } &&
+            text.first().let { it.isLetterOrDigit() && it.code < CJK_START }
+        inputConnection.commitText(if (needsSpace) " $text" else text, 1)
+    }
+
+    private fun showVoiceHint(message: String) {
+        voiceHintRunnable?.let(mainHandler::removeCallbacks)
+        keyboardView?.setVoiceIndicator(ZnKeyboardView.VoiceIndicator.Message(message))
+        voiceHintRunnable = Runnable {
+            voiceHintRunnable = null
+            if (voiceRecorder == null && !voiceProcessing) keyboardView?.setVoiceIndicator(null)
+        }.also { mainHandler.postDelayed(it, VOICE_HINT_DURATION_MS) }
+    }
+
+    /** 中 mode writes down what was said; EN mode also translates it, like AI 润译. */
+    private fun voiceSystemPrompt(): String {
+        return buildList {
+            add(loadPromptAsset(VOICE_PROMPT_ASSET, fallback = ""))
+            if (!pinyinModeEnabled) {
+                val translateTarget = KeyboardSettings.readAgentTranslateTarget(this@ZnKeyboardInputMethodService)
+                add(
+                    loadPromptAsset(TRANSLATE_PROMPT_ASSET, fallback = "")
+                        .replace(AgentDefaults.TRANSLATE_LANGUAGE_PLACEHOLDER, translateTarget.name),
+                )
+            }
+        }
+            .filter { it.isNotBlank() }
+            .joinToString(separator = "\n\n---\n\n")
+    }
+
     private fun startRewriteFromCurrentEditor() {
         val target = captureRewriteTarget() ?: return
         startLlmRequest(
@@ -1462,12 +1624,15 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         activeRequestTarget = target
         Log.d(TAG, "Starting rewrite request for ${requestText.length} chars")
         renderSecondRow()
+        val systemPrompt = rewriteSystemPrompt()
 
         Thread {
             val result = runCatching {
                 requestChatCompletion(
                     providerSettings = providerSettings,
-                    text = requestText,
+                    systemPrompt = systemPrompt,
+                    userContent = requestText,
+                    maxTokens = maxTokensFor(requestText),
                 )
             }
 
@@ -1491,9 +1656,12 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         }
     }
 
+    /** [userContent] is the user message: plain text, or a JSONArray of content parts (text, audio). */
     private fun requestChatCompletion(
         providerSettings: KeyboardSettings.AgentProviderSettings,
-        text: String,
+        systemPrompt: String,
+        userContent: Any,
+        maxTokens: Int,
     ): String {
         val endpoint = buildChatCompletionsUrl(providerSettings)
         var structuredOutputError: IOException? = null
@@ -1504,7 +1672,9 @@ class ZnKeyboardInputMethodService : InputMethodService(),
                 return executeChatCompletionRequest(
                     endpoint = endpoint,
                     providerSettings = providerSettings,
-                    text = text,
+                    systemPrompt = systemPrompt,
+                    userContent = userContent,
+                    maxTokens = maxTokens,
                     outputMode = outputMode,
                 )
             } catch (error: LlmHttpException) {
@@ -1526,7 +1696,9 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     private fun executeChatCompletionRequest(
         endpoint: URL,
         providerSettings: KeyboardSettings.AgentProviderSettings,
-        text: String,
+        systemPrompt: String,
+        userContent: Any,
+        maxTokens: Int,
         outputMode: StructuredOutputMode,
     ): String {
         val connection = (endpoint.openConnection() as HttpURLConnection).apply {
@@ -1544,11 +1716,11 @@ class ZnKeyboardInputMethodService : InputMethodService(),
             .put(
                 "messages",
                 JSONArray()
-                    .put(JSONObject().put("role", "system").put("content", rewriteSystemPrompt()))
-                    .put(JSONObject().put("role", "user").put("content", text)),
+                    .put(JSONObject().put("role", "system").put("content", systemPrompt))
+                    .put(JSONObject().put("role", "user").put("content", userContent)),
             )
             .put("temperature", 0.4)
-            .put("max_tokens", maxTokensFor(text))
+            .put("max_tokens", maxTokens)
             .put("response_format", structuredResponseFormatFor(outputMode))
             .applyReasoningSettings(providerSettings)
 
@@ -1605,7 +1777,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
 
         if (text.isBlank() || text.equals("null", ignoreCase = true)) {
             val finishReason = choice.optString("finish_reason", "unknown")
-            throw IOException("No text returned by the model. Finish reason: $finishReason.")
+            throw EmptyModelTextException("No text returned by the model. Finish reason: $finishReason.")
         }
 
         return text
@@ -1993,6 +2165,8 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         Review,
     }
 
+    private class EmptyModelTextException(message: String) : IOException(message)
+
     private class LlmHttpException(
         val responseCode: Int,
         val responseText: String,
@@ -2047,6 +2221,11 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         const val REWRITE_BASE_PROMPT_ASSET = AgentDefaults.REWRITE_BASE_PROMPT_ASSET
         const val WHATSAPP_PROMPT_ASSET = AgentDefaults.WHATSAPP_PROMPT_ASSET
         const val TRANSLATE_PROMPT_ASSET = AgentDefaults.TRANSLATE_PROMPT_ASSET
+        const val VOICE_PROMPT_ASSET = AgentDefaults.VOICE_PROMPT_ASSET
+        const val VOICE_HINT_DURATION_MS = 2_500L
+        const val WAV_HEADER_BYTES = 44
+        // CJK scripts start at U+2E80; text from there on is written without word spaces.
+        const val CJK_START = 0x2E80
         const val WHATSAPP_PACKAGE_NAME = "com.whatsapp"
         const val WHATSAPP_BUSINESS_PACKAGE_NAME = "com.whatsapp.w4b"
         val SELECTION_WRAP_SYMBOLS = mapOf(

@@ -57,6 +57,16 @@ class ZnKeyboardView @JvmOverloads constructor(
         fun onPinyinModeToggled()
         fun onTranslateLanguageMenuRequested()
         fun onAgentPolishOnlyRequested()
+        /** Hold-space voice input; false when it can't start (the service shows why). */
+        fun onVoiceInputStarted(): Boolean
+        fun onVoiceInputFinished(cancelled: Boolean)
+    }
+
+    /** What the space key shows for voice input. */
+    sealed class VoiceIndicator {
+        data class Recording(val level: Float, val elapsedMs: Long) : VoiceIndicator()
+        data object Processing : VoiceIndicator()
+        data class Message(val text: String) : VoiceIndicator()
     }
 
     var callback: Callback? = null
@@ -119,6 +129,8 @@ class ZnKeyboardView @JvmOverloads constructor(
     private var shortcutMacrosByKeyId: Map<String, ShortcutMacro> = emptyMap()
     private var shortcutRowState = ShortcutRowState(secondRowVisible = true)
     private var pinyinModeEnabled = false
+    private var voiceIndicator: VoiceIndicator? = null
+    private var voiceCancelArmed = false
     private var rewriteLabel = "Rewrite"
     // Shown on a round key beside Rewrite while it translates; null when it only polishes.
     private var translateLanguageCode: String? = null
@@ -286,6 +298,14 @@ class ZnKeyboardView @JvmOverloads constructor(
         }
     }
 
+    fun setVoiceIndicator(indicator: VoiceIndicator?) {
+        if (voiceIndicator != indicator) {
+            if (indicator !is VoiceIndicator.Recording) voiceCancelArmed = false
+            voiceIndicator = indicator
+            invalidate()
+        }
+    }
+
     /** [languageCode] adds the round target-language key (e.g. "EN") next to Rewrite. */
     fun setRewriteMode(label: String, languageCode: String?) {
         if (rewriteLabel != label || translateLanguageCode != languageCode) {
@@ -354,7 +374,8 @@ class ZnKeyboardView @JvmOverloads constructor(
         if (keyPreviewEnabled) {
             drawKeyPreviews(canvas)
         }
-        if (shortcutRowState.loading) {
+        (voiceIndicator as? VoiceIndicator.Recording)?.let { drawVoiceOverlay(canvas, it) }
+        if (shortcutRowState.loading || voiceIndicator == VoiceIndicator.Processing) {
             postInvalidateOnAnimation()
         }
     }
@@ -447,7 +468,7 @@ class ZnKeyboardView @JvmOverloads constructor(
                 handleKey(KeySpec("phone_slash_long_press", "/", KeyIntent.Dispatch(KeyboardAction.Text("/"))))
             }
             "space" -> scheduleLongPress(pointerId, "space") {
-                callback?.onClipboardPanelRequested()
+                startVoiceTouch(pointerId)
             }
         }
         if (key?.id == "space") {
@@ -476,6 +497,16 @@ class ZnKeyboardView @JvmOverloads constructor(
             val touch = activeTouches.get(pointerId) ?: continue
             val x = event.getX(pointerIndex)
             val y = event.getY(pointerIndex)
+            touch.voice?.let { voice ->
+                // Sliding into the overlay's cancel zone arms cancel; back down re-arms sending.
+                val armed = y < (voiceCancelBoundaryY() ?: (voice.startY - dp(VOICE_CANCEL_SLIDE_DP)))
+                if (armed != voiceCancelArmed) {
+                    voiceCancelArmed = armed
+                    if (keyHapticsEnabled) performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                    changed = true
+                }
+                continue
+            }
             if (updateBackspaceGesture(pointerId, touch, x, y)) {
                 changed = true
                 continue
@@ -647,9 +678,28 @@ class ZnKeyboardView @JvmOverloads constructor(
                 return
             }
         }
+        finishVoiceTouch(activeTouches.get(pointerId), cancelled = false)
         activeTouches.remove(pointerId)
         cancelLongPressFor(pointerId)
         cancelBackspaceRepeatFor(pointerId)
+    }
+
+    private fun startVoiceTouch(pointerId: Int) {
+        val touch = activeTouches.get(pointerId) ?: return
+        if (callback?.onVoiceInputStarted() != true) return
+        // Once recording, the finger only arms cancel; it no longer moves the cursor.
+        touch.spaceCursorDrag = null
+        touch.voice = VoiceTouch(startY = touch.downY)
+        voiceCancelArmed = false
+        performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+    }
+
+    private fun finishVoiceTouch(touch: ActiveTouch?, cancelled: Boolean) {
+        touch?.voice ?: return
+        touch.voice = null
+        val cancel = cancelled || voiceCancelArmed
+        voiceCancelArmed = false
+        callback?.onVoiceInputFinished(cancelled = cancel)
     }
 
     /** Key-code keys (arrows, Home, Tab…) tapped while Shift is physically held get Shift applied. */
@@ -672,6 +722,9 @@ class ZnKeyboardView @JvmOverloads constructor(
     }
 
     private fun cancelActiveTouches() {
+        for (index in 0 until activeTouches.size()) {
+            finishVoiceTouch(activeTouches.valueAt(index), cancelled = true)
+        }
         cancelPendingLongPress()
         cancelBackspaceRepeat()
         cancelBackspaceGestures()
@@ -858,6 +911,13 @@ class ZnKeyboardView @JvmOverloads constructor(
         }
         keyPaint.alpha = keyAlpha
 
+        if (key.id == "space") {
+            voiceIndicator?.let { indicator ->
+                drawVoiceSpace(canvas, indicator, bounds, radius)
+                return
+            }
+        }
+
         if (drawBackground) {
             canvas.drawRoundRect(backgroundBounds, radius, radius, keyPaint)
         }
@@ -896,6 +956,154 @@ class ZnKeyboardView @JvmOverloads constructor(
         if (key.id == "shift" && shiftState == ShiftState.Locked) {
             drawShiftLockIndicator(canvas, bounds, contentColor)
         }
+    }
+
+    /** The space key during voice input: red while recording, then a status line. */
+    private fun drawVoiceSpace(canvas: Canvas, indicator: VoiceIndicator, bounds: RectF, radius: Float) {
+        val chinese = pinyinModeEnabled
+        val recording = indicator as? VoiceIndicator.Recording
+        val surface = when {
+            recording != null && voiceCancelArmed -> PALETTE.function
+            recording != null -> ImeColors.VOICE_RECORDING
+            indicator == VoiceIndicator.Processing -> PALETTE.aiLoadingSurface
+            else -> PALETTE.key
+        }
+        keyPaint.style = Paint.Style.FILL
+        keyPaint.color = surface
+        keyPaint.alpha = 255
+        canvas.drawRoundRect(bounds, radius, radius, keyPaint)
+        if (indicator == VoiceIndicator.Processing) {
+            drawRewriteLoadingWash(canvas, bounds, radius)
+        }
+
+        val label = when (indicator) {
+            is VoiceIndicator.Recording -> when {
+                voiceCancelArmed -> if (chinese) "松开取消" else "Release to cancel"
+                else -> if (chinese) "录音中" else "Recording"
+            }
+            VoiceIndicator.Processing -> if (chinese) "识别中…" else "Transcribing…"
+            is VoiceIndicator.Message -> indicator.text
+        }
+        val contentColor = if (recording != null && !voiceCancelArmed) ImeColors.ON_VOICE_RECORDING else PALETTE.text
+        textPaint.typeface = labelTypeface
+        textPaint.textSize = fitTextSize(label, bounds, KeyRole.Function)
+        textPaint.color = contentColor
+        textPaint.alpha = 255
+        val metrics = textPaint.fontMetrics
+        val baseline = bounds.centerY() - (metrics.ascent + metrics.descent) / 2f
+        canvas.drawText(label, bounds.centerX(), baseline, textPaint)
+        textPaint.typeface = letterTypeface
+    }
+
+    /**
+     * Recording panel over the keys above the space row: the finger covers the space key, so the
+     * hints live up here. Its top part is the cancel zone the finger slides into.
+     */
+    private fun voiceOverlayBounds(): RectF? {
+        val space = hitTargets.firstOrNull { it.key.id == "space" } ?: return null
+        val inset = dp(VOICE_OVERLAY_INSET_DP)
+        val bottom = space.visualBounds.top - inset
+        if (bottom - inset < dp(VOICE_OVERLAY_MIN_HEIGHT_DP)) return null
+        return RectF(inset, inset, width - inset, bottom)
+    }
+
+    private fun voiceCancelBoundaryY(): Float? {
+        val bounds = voiceOverlayBounds() ?: return null
+        return bounds.top + bounds.height() * VOICE_CANCEL_ZONE_FRACTION
+    }
+
+    private fun drawVoiceOverlay(canvas: Canvas, recording: VoiceIndicator.Recording) {
+        val bounds = voiceOverlayBounds() ?: return
+        val chinese = pinyinModeEnabled
+        val armed = voiceCancelArmed
+        val radius = dp(VOICE_OVERLAY_RADIUS_DP)
+        keyPaint.style = Paint.Style.FILL
+        keyPaint.color = if (armed) ImeColors.VOICE_RECORDING else PALETTE.key
+        keyPaint.alpha = VOICE_OVERLAY_ALPHA
+        canvas.drawRoundRect(bounds, radius, radius, keyPaint)
+
+        val zoneBottom = bounds.top + bounds.height() * VOICE_CANCEL_ZONE_FRACTION
+        val textColor = if (armed) ImeColors.ON_VOICE_RECORDING else PALETTE.text
+        textPaint.typeface = labelTypeface
+        textPaint.alpha = 255
+
+        if (armed) {
+            // The whole panel says one thing: lifting now cancels.
+            val centerY = bounds.centerY()
+            iconPaint.style = Paint.Style.STROKE
+            iconPaint.color = textColor
+            iconPaint.alpha = 255
+            iconPaint.strokeWidth = dp(3f)
+            val half = dp(14f)
+            val crossY = centerY - dp(18f)
+            canvas.drawLine(bounds.centerX() - half, crossY - half, bounds.centerX() + half, crossY + half, iconPaint)
+            canvas.drawLine(bounds.centerX() + half, crossY - half, bounds.centerX() - half, crossY + half, iconPaint)
+            drawOverlayText(canvas, if (chinese) "松开取消" else "Release to cancel", bounds.centerX(), centerY + dp(28f), dp(20f), textColor)
+            textPaint.typeface = letterTypeface
+            return
+        }
+
+        // Cancel zone: a quieter band at the top with the slide-up hint.
+        keyPaint.color = PALETTE.function
+        keyPaint.alpha = VOICE_OVERLAY_ALPHA
+        canvas.save()
+        canvas.clipRect(bounds.left, bounds.top, bounds.right, zoneBottom)
+        canvas.drawRoundRect(bounds, radius, radius, keyPaint)
+        canvas.restore()
+        drawOverlayText(
+            canvas,
+            if (chinese) "↑ 上滑到这里取消" else "↑ Slide up here to cancel",
+            bounds.centerX(),
+            (bounds.top + zoneBottom) / 2f,
+            dp(15f),
+            PALETTE.mutedText,
+        )
+
+        // Main area: a large level meter with the timer, then the release hint.
+        val mainTop = zoneBottom
+        val meterY = mainTop + (bounds.bottom - mainTop) * 0.4f
+        val barWidth = dp(5f)
+        val gap = dp(5f)
+        val maxHeight = min(dp(44f), (bounds.bottom - mainTop) * 0.4f)
+        val barsWidth = VOICE_OVERLAY_BARS * barWidth + (VOICE_OVERLAY_BARS - 1) * gap
+        textPaint.textSize = dp(17f)
+        val timer = formatVoiceTime(recording.elapsedMs)
+        val timerWidth = textPaint.measureText(timer)
+        val groupLeft = bounds.centerX() - (barsWidth + dp(14f) + timerWidth) / 2f
+        iconPaint.style = Paint.Style.FILL
+        iconPaint.color = ImeColors.VOICE_RECORDING
+        iconPaint.alpha = 255
+        for (bar in 0 until VOICE_OVERLAY_BARS) {
+            val shape = VOICE_OVERLAY_SHAPE[bar]
+            val height = max(barWidth, maxHeight * (0.2f + 0.8f * recording.level) * shape)
+            val left = groupLeft + bar * (barWidth + gap)
+            canvas.drawRoundRect(left, meterY - height / 2f, left + barWidth, meterY + height / 2f, barWidth / 2f, barWidth / 2f, iconPaint)
+        }
+        iconPaint.style = Paint.Style.STROKE
+        drawOverlayText(canvas, timer, groupLeft + barsWidth + dp(14f) + timerWidth / 2f, meterY, dp(17f), textColor)
+        drawOverlayText(
+            canvas,
+            if (chinese) "松开发送" else "Release to send",
+            bounds.centerX(),
+            mainTop + (bounds.bottom - mainTop) * 0.78f,
+            dp(20f),
+            textColor,
+        )
+        textPaint.typeface = letterTypeface
+    }
+
+    /** Draws [text] centered on ([centerX], [centerY]). */
+    private fun drawOverlayText(canvas: Canvas, text: String, centerX: Float, centerY: Float, size: Float, color: Int) {
+        textPaint.textSize = size
+        textPaint.color = color
+        textPaint.alpha = 255
+        val metrics = textPaint.fontMetrics
+        canvas.drawText(text, centerX, centerY - (metrics.ascent + metrics.descent) / 2f, textPaint)
+    }
+
+    private fun formatVoiceTime(elapsedMs: Long): String {
+        val seconds = elapsedMs / 1000
+        return "%d:%02d".format(seconds / 60, seconds % 60)
     }
 
     /** Square centered in a round key's slot; with a toolbar's half-height radius it draws a circle. */
@@ -1164,6 +1372,7 @@ class ZnKeyboardView @JvmOverloads constructor(
             KeyIcon.Search -> drawSearchIcon(canvas)
             KeyIcon.Enter -> drawEnterIcon(canvas)
             KeyIcon.Space -> drawSpaceIcon(canvas)
+            KeyIcon.Clipboard -> drawClipboardIcon(canvas)
         }
         canvas.restore()
     }
@@ -1244,6 +1453,26 @@ class ZnKeyboardView @JvmOverloads constructor(
         }
         canvas.drawPath(outline, iconPaint)
         canvas.drawPath(cross, iconPaint)
+    }
+
+    private fun drawClipboardIcon(canvas: Canvas) {
+        val board = Path().apply {
+            moveTo(8.5f, 5f)
+            lineTo(6f, 5f)
+            lineTo(6f, 21f)
+            lineTo(18f, 21f)
+            lineTo(18f, 5f)
+            lineTo(15.5f, 5f)
+        }
+        canvas.drawPath(board, iconPaint)
+        canvas.drawRoundRect(8.5f, 3f, 15.5f, 7f, 1.5f, 1.5f, iconPaint)
+        val lines = Path().apply {
+            moveTo(9f, 12f)
+            lineTo(15f, 12f)
+            moveTo(9f, 16f)
+            lineTo(13f, 16f)
+        }
+        canvas.drawPath(lines, iconPaint)
     }
 
     private fun drawSearchIcon(canvas: Canvas) {
@@ -1370,6 +1599,7 @@ class ZnKeyboardView @JvmOverloads constructor(
             KeyIntent.TogglePinyinMode -> callback?.onPinyinModeToggled()
             KeyIntent.ChooseTranslateLanguage -> callback?.onTranslateLanguageMenuRequested()
             KeyIntent.AgentPolishOnly -> callback?.onAgentPolishOnlyRequested()
+            KeyIntent.OpenClipboard -> callback?.onClipboardPanelRequested()
             KeyIntent.AgentRewrite -> callback?.onAgentRewriteRequested()
             is KeyIntent.Dispatch -> {
                 notifyLearner(intent.action, sample)
@@ -1705,6 +1935,7 @@ class ZnKeyboardView @JvmOverloads constructor(
                 enabled = enabled && shortcutRowState.rewriteEnabled && !shortcutRowState.loading,
                 emphasizedWhenDisabled = shortcutRowState.loading,
             )
+            "clipboard" -> KeySpec(id, "Clipboard", KeyIntent.OpenClipboard, weight, KeyRole.Function, icon = KeyIcon.Clipboard, enabled = enabled)
             "ctrl" -> KeySpec(id, "Ctrl", KeyIntent.ToggleCtrl, weight, KeyRole.Function, ctrl, enabled = enabled)
             "alt" -> KeySpec(id, "Alt", KeyIntent.ToggleAlt, weight, KeyRole.Function, alt, enabled = enabled)
             "tab" -> KeySpec(id, "Tab", KeyIntent.Dispatch(KeyboardAction.KeyCode(KeyEvent.KEYCODE_TAB)), weight, KeyRole.Function, enabled = enabled)
@@ -1960,7 +2191,7 @@ class ZnKeyboardView @JvmOverloads constructor(
                 KeyIntent.Dispatch(KeyboardAction.Text(" ")),
                 4.7f,
                 KeyRole.Function,
-                longPressHint = "clipboard",
+                longPressHint = if (pinyinModeEnabled) "语音" else "voice",
             )
         }
         keys += KeySpec(
@@ -2003,7 +2234,7 @@ class ZnKeyboardView @JvmOverloads constructor(
                 KeyIntent.Dispatch(KeyboardAction.Text(" ")),
                 ImeDimensions.SPACE_KEY_WEIGHT,
                 KeyRole.Function,
-                longPressHint = "clipboard",
+                longPressHint = if (pinyinModeEnabled) "语音" else "voice",
             )
             keys += KeySpec(
                 "numeric_layout_toggle",
@@ -2029,7 +2260,7 @@ class ZnKeyboardView @JvmOverloads constructor(
                 KeyIntent.Dispatch(KeyboardAction.Text(" ")),
                 ImeDimensions.SPACE_KEY_WEIGHT,
                 KeyRole.Function,
-                longPressHint = "clipboard",
+                longPressHint = if (pinyinModeEnabled) "语音" else "voice",
             )
             keys += KeySpec(
                 "bottom_period",
@@ -2151,6 +2382,7 @@ class ZnKeyboardView @JvmOverloads constructor(
         Search,
         Enter,
         Space,
+        Clipboard,
     }
 
     private enum class ArrowDirection {
@@ -2218,7 +2450,10 @@ class ZnKeyboardView @JvmOverloads constructor(
         var heldAsModifier: Boolean = false,
         var backspaceGesture: BackspaceGestureTouch? = null,
         var spaceCursorDrag: SpaceCursorDragTouch? = null,
+        var voice: VoiceTouch? = null,
     )
+
+    private class VoiceTouch(val startY: Float)
 
     private data class BackspaceGestureTouch(
         val key: KeySpec,
@@ -2251,6 +2486,7 @@ class ZnKeyboardView @JvmOverloads constructor(
         data object ChooseTranslateLanguage : KeyIntent()
         data object AgentPolishOnly : KeyIntent()
         data object AgentRewrite : KeyIntent()
+        data object OpenClipboard : KeyIntent()
         data class Dispatch(val action: KeyboardAction) : KeyIntent()
     }
 
@@ -2286,6 +2522,15 @@ class ZnKeyboardView @JvmOverloads constructor(
         const val SPACE_CURSOR_DRAG_VISIBLE_STEPS = 28f
         const val SPACE_CURSOR_DRAG_MAX_CHARS = 120
         const val AI_LOADING_CYCLE_MS = 2200L
+        const val VOICE_CANCEL_SLIDE_DP = 56f
+        const val VOICE_OVERLAY_INSET_DP = 6f
+        const val VOICE_OVERLAY_MIN_HEIGHT_DP = 120f
+        const val VOICE_OVERLAY_RADIUS_DP = 20f
+        const val VOICE_OVERLAY_ALPHA = 245
+        // The top share of the panel is the cancel zone.
+        const val VOICE_CANCEL_ZONE_FRACTION = 0.4f
+        const val VOICE_OVERLAY_BARS = 7
+        val VOICE_OVERLAY_SHAPE = floatArrayOf(0.35f, 0.6f, 0.85f, 1f, 0.85f, 0.6f, 0.35f)
         const val TWO_PI = 6.2831855f
         const val PHONE_PAD_PRIMARY_MAX_HEIGHT_FRACTION = 0.44f
         const val PHONE_PAD_SUB_LABEL_TEXT_SIZE_SP = 8f

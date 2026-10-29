@@ -1,9 +1,13 @@
 package dev.zain.znkeyboard
 
+import android.Manifest
+import android.app.LocaleManager
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.Color as AndroidColor
 import android.net.Uri
+import android.os.LocaleList
 import android.provider.Settings
 import android.view.inputmethod.InputMethodManager
 import android.widget.Toast
@@ -13,28 +17,30 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.StringRes
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.snap
-import androidx.compose.animation.core.spring
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
-import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -72,6 +78,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -94,9 +101,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -110,6 +117,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -118,9 +128,11 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.PopupProperties
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import dev.zain.znkeyboard.constants.AgentDefaults
 import dev.zain.znkeyboard.constants.LiquidNavDimensions
 import dev.zain.znkeyboard.constants.SettingsBackupDefaults
@@ -130,11 +142,11 @@ import dev.zain.znkeyboard.constants.SettingsUiTimings
 import dev.zain.znkeyboard.ime.ClipboardHistoryStore
 import dev.zain.znkeyboard.liquidnav.LiquidNavBar
 import dev.zain.znkeyboard.liquidnav.LiquidNavItem
+import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlin.math.roundToInt
 
 class SettingsActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: android.os.Bundle?) {
@@ -231,9 +243,9 @@ private fun SettingsScreen(onOpenShortcuts: () -> Unit) {
                 runCatching { writeEncryptedSettingsBackup(context, uri, password.toCharArray()) }
             }
             val message = result.fold(
-                onSuccess = { "Encrypted backup exported" },
+                onSuccess = { context.getString(R.string.backup_exported) },
                 onFailure = { error ->
-                    error.message?.takeIf { it.isNotBlank() } ?: "Could not export settings"
+                    localizedError(context, error.message) ?: context.getString(R.string.backup_export_failed)
                 },
             )
             Toast.makeText(
@@ -282,14 +294,14 @@ private fun SettingsScreen(onOpenShortcuts: () -> Unit) {
                                 refreshSettingsFromStorage()
                                 Toast.makeText(
                                     context,
-                                    "Backup restored (${restoreResult.clipboardEntryCount} clipboard items)",
+                                    context.getString(R.string.backup_restored, restoreResult.clipboardEntryCount),
                                     Toast.LENGTH_SHORT,
                                 ).show()
                             }
                             .onFailure { error ->
                                 Toast.makeText(
                                     context,
-                                    error.message?.takeIf { it.isNotBlank() } ?: "Could not import settings",
+                                    localizedError(context, error.message) ?: context.getString(R.string.backup_import_failed),
                                     Toast.LENGTH_LONG,
                                 ).show()
                             }
@@ -338,14 +350,14 @@ private fun SettingsScreen(onOpenShortcuts: () -> Unit) {
                 SettingsDestination.Keyboard -> {
                     SettingsSectionCard(verticalSpacing = 18.dp) {
                         SettingsSectionHeader(
-                            title = "Look & size",
+                            title = stringResource(R.string.layout_look_title),
                             iconResId = R.drawable.ic_palette_24,
                         )
 
                         KeyboardThemeSelector()
 
                         LabeledSlider(
-                            title = "Key height",
+                            title = stringResource(R.string.layout_key_height),
                             valueLabel = "${(heightScale * 100f).roundToInt()}%",
                             value = heightScale,
                             valueRange = KeyboardSettings.MIN_HEIGHT_SCALE..KeyboardSettings.MAX_HEIGHT_SCALE,
@@ -363,7 +375,7 @@ private fun SettingsScreen(onOpenShortcuts: () -> Unit) {
                         )
 
                         LabeledSlider(
-                            title = "Space below keys",
+                            title = stringResource(R.string.layout_bottom_space),
                             valueLabel = "$bottomPaddingDp dp",
                             value = bottomPaddingDp.toFloat(),
                             valueRange = KeyboardSettings.MIN_BOTTOM_PADDING_DP.toFloat()..KeyboardSettings.MAX_BOTTOM_PADDING_DP.toFloat(),
@@ -382,8 +394,8 @@ private fun SettingsScreen(onOpenShortcuts: () -> Unit) {
                         )
 
                         SettingsSwitchRow(
-                            title = "Modifier key backgrounds",
-                            description = "Fill Shift, Delete, !?# and 中/EN keys. Turn off for a lighter look.",
+                            title = stringResource(R.string.layout_modifier_bg_title),
+                            description = stringResource(R.string.layout_modifier_bg_desc),
                             checked = functionKeyBackgroundsEnabled,
                             onCheckedChange = {
                                 functionKeyBackgroundsEnabled = it
@@ -450,6 +462,7 @@ private fun SettingsScreen(onOpenShortcuts: () -> Unit) {
                         },
                     )
 
+                    VoiceInputSection()
                 }
 
                 SettingsDestination.Backup -> {
@@ -463,7 +476,7 @@ private fun SettingsScreen(onOpenShortcuts: () -> Unit) {
                         onClearConfirmed = {
                             ClipboardHistoryStore.clear(context)
                             clipboardHistoryCount = 0
-                            Toast.makeText(context, "Clipboard history cleared", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, context.getString(R.string.clipboard_cleared), Toast.LENGTH_SHORT).show()
                         },
                     )
                 }
@@ -471,7 +484,7 @@ private fun SettingsScreen(onOpenShortcuts: () -> Unit) {
         }
 
         SettingsTitlePill(
-            title = selectedDestination.title,
+            title = stringResource(selectedDestination.titleRes),
             modifier = Modifier
                 .align(Alignment.TopStart)
                 .windowInsetsPadding(
@@ -484,8 +497,21 @@ private fun SettingsScreen(onOpenShortcuts: () -> Unit) {
                 ),
         )
 
+        LanguageSwitch(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .windowInsetsPadding(
+                    WindowInsets.statusBars.union(WindowInsets.displayCutout)
+                        .only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal),
+                )
+                .padding(
+                    end = SettingsShellDimensions.TITLE_PILL_START_MARGIN,
+                    top = SettingsShellDimensions.TITLE_PILL_TOP_GAP,
+                ),
+        )
+
         LiquidNavBar(
-            items = settingsNavItems,
+            items = SettingsDestination.entries.map { LiquidNavItem(stringResource(it.labelRes), it.iconResId) },
             selectedIndex = selectedDestination.ordinal,
             onSelect = { index ->
                 focusManager.clearFocus()
@@ -503,6 +529,74 @@ private fun SettingsScreen(onOpenShortcuts: () -> Unit) {
                     bottom = LiquidNavDimensions.BOTTOM_GAP,
                 ),
         )
+    }
+}
+
+/**
+ * Top-right 文/A pill: the settings screen's language. It sets Android's per-app language, so it
+ * matches Settings → Apps → ZnKeyboard → Language and the screen reloads in the new language.
+ */
+@Composable
+private fun LanguageSwitch(modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val localeManager = remember { context.getSystemService(LocaleManager::class.java) }
+    val currentTag = remember { localeManager.applicationLocales.toLanguageTags() }
+    var expanded by remember { mutableStateOf(false) }
+    val options = listOf(
+        "" to R.string.language_system,
+        "zh-CN" to R.string.language_zh,
+        "en" to R.string.language_english,
+    )
+    val selectedTag = options.firstOrNull { (tag, _) ->
+        tag.isNotEmpty() && currentTag.startsWith(tag.substringBefore('-'))
+    }?.first.orEmpty()
+    val description = stringResource(R.string.language_title)
+
+    Box(modifier = modifier) {
+        Surface(
+            onClick = { expanded = true },
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            border = BorderStroke(SettingsShellDimensions.TITLE_PILL_BORDER_WIDTH, MaterialTheme.colorScheme.outlineVariant),
+            modifier = Modifier.semantics { contentDescription = description },
+        ) {
+            Box(
+                modifier = Modifier
+                    .height(SettingsShellDimensions.TITLE_PILL_HEIGHT)
+                    .padding(horizontal = 16.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = "文/A",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = ZnKeyboardColors.OnSurface,
+                )
+            }
+        }
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            shape = RoundedCornerShape(PICKER_CORNER_RADIUS),
+            containerColor = ZnKeyboardColors.Key,
+        ) {
+            options.forEach { (tag, labelRes) ->
+                DropdownMenuItem(
+                    text = { Text(stringResource(labelRes)) },
+                    trailingIcon = if (tag == selectedTag) {
+                        { Text("✓", color = ZnKeyboardColors.Accent) }
+                    } else {
+                        null
+                    },
+                    onClick = {
+                        expanded = false
+                        if (tag != selectedTag) {
+                            localeManager.applicationLocales =
+                                if (tag.isEmpty()) LocaleList.getEmptyLocaleList() else LocaleList.forLanguageTags(tag)
+                        }
+                    },
+                )
+            }
+        }
     }
 }
 
@@ -544,7 +638,6 @@ private fun SettingsTitlePill(title: String, modifier: Modifier = Modifier) {
     }
 }
 
-private val settingsNavItems = SettingsDestination.entries.map { LiquidNavItem(it.label, it.iconResId) }
 
 @Composable
 private fun ClipboardHistorySettingsSection(
@@ -555,13 +648,13 @@ private fun ClipboardHistorySettingsSection(
 
     SettingsSectionCard {
         SettingsSectionHeader(
-            title = "Clipboard history",
+            title = stringResource(R.string.clipboard_title),
             iconResId = R.drawable.ic_history_24,
             trailingText = "$entryCount/${ClipboardHistoryStore.MAX_HISTORY}",
         )
 
         Text(
-            text = "Long-press space on the keyboard to open clipboard history. Clearing it requires confirmation here.",
+            text = stringResource(R.string.clipboard_desc),
             color = ZnKeyboardColors.Muted,
             style = MaterialTheme.typography.bodySmall,
         )
@@ -573,20 +666,20 @@ private fun ClipboardHistorySettingsSection(
             colors = ButtonDefaults.outlinedButtonColors(contentColor = ZnKeyboardColors.DeleteContent),
             border = BorderStroke(1.dp, ZnKeyboardColors.DeleteContent.copy(alpha = 0.55f)),
         ) {
-            SettingsIconTextButtonContent(R.drawable.ic_delete_24, "Clear clipboard history")
+            SettingsIconTextButtonContent(R.drawable.ic_delete_24, stringResource(R.string.clipboard_clear))
         }
     }
 
     if (confirmingClear) {
         AlertDialog(
             onDismissRequest = { confirmingClear = false },
-            title = { Text("Clear clipboard history?") },
+            title = { Text(stringResource(R.string.clipboard_clear_confirm_title)) },
             text = {
-                Text("This removes $entryCount saved clipboard item${if (entryCount == 1) "" else "s"} from this keyboard.")
+                Text(pluralStringResource(R.plurals.clipboard_clear_confirm_text, entryCount, entryCount))
             },
             dismissButton = {
                 TextButton(onClick = { confirmingClear = false }) {
-                    Text("Cancel")
+                    Text(stringResource(R.string.action_cancel))
                 }
             },
             confirmButton = {
@@ -597,7 +690,7 @@ private fun ClipboardHistorySettingsSection(
                     },
                 ) {
                     Text(
-                        text = "Clear",
+                        text = stringResource(R.string.action_clear),
                         color = ZnKeyboardColors.DeleteContent,
                     )
                 }
@@ -613,13 +706,13 @@ private fun BackupRestoreSection(
 ) {
     SettingsSectionCard {
         SettingsSectionHeader(
-            title = "Backup & restore",
+            title = stringResource(R.string.backup_title),
             iconResId = R.drawable.ic_download_24,
-            trailingText = "Encrypted",
+            trailingText = stringResource(R.string.backup_encrypted),
         )
 
         Text(
-            text = "Password-encrypted backups include settings, clipboard history, learned typing, and configured API keys.",
+            text = stringResource(R.string.backup_desc),
             color = ZnKeyboardColors.Muted,
             style = MaterialTheme.typography.bodySmall,
         )
@@ -632,7 +725,7 @@ private fun BackupRestoreSection(
                 onClick = onExport,
                 modifier = Modifier.weight(1f),
             ) {
-                SettingsIconTextButtonContent(R.drawable.ic_download_24, "Export")
+                SettingsIconTextButtonContent(R.drawable.ic_download_24, stringResource(R.string.action_export))
             }
 
             OutlinedButton(
@@ -640,7 +733,7 @@ private fun BackupRestoreSection(
                 modifier = Modifier.weight(1f),
                 colors = ButtonDefaults.outlinedButtonColors(contentColor = ZnKeyboardColors.OnSurface),
             ) {
-                SettingsIconTextButtonContent(R.drawable.ic_upload_24, "Import")
+                SettingsIconTextButtonContent(R.drawable.ic_upload_24, stringResource(R.string.action_import))
             }
         }
     }
@@ -648,14 +741,14 @@ private fun BackupRestoreSection(
 
 private enum class SettingsDestination(
     val id: String,
-    val label: String,
-    val title: String,
+    @StringRes val labelRes: Int,
+    @StringRes val titleRes: Int,
     val iconResId: Int,
 ) {
-    Typing("typing", "Typing", "Typing", R.drawable.ic_touch_24),
-    Keyboard("keyboard", "Layout", "Layout & rows", R.drawable.ic_keyboard_24),
-    Tools("tools", "Tools", "Tools", R.drawable.ic_tune_24),
-    Backup("backup", "Backup", "Backup & clipboard", R.drawable.ic_download_24),
+    Typing("typing", R.string.nav_typing, R.string.nav_typing, R.drawable.ic_touch_24),
+    Keyboard("keyboard", R.string.nav_layout, R.string.nav_layout_title, R.drawable.ic_keyboard_24),
+    Tools("tools", R.string.nav_tools, R.string.nav_tools, R.drawable.ic_tune_24),
+    Backup("backup", R.string.nav_backup, R.string.nav_backup_title, R.drawable.ic_download_24),
 }
 
 private enum class BackupPasswordDialogMode {
@@ -674,10 +767,10 @@ private fun BackupPasswordDialog(
     var confirmation by remember { mutableStateOf("") }
     val validationMessage = when {
         password.length < EncryptedBackupCodec.MIN_PASSWORD_LENGTH -> {
-            "Use at least ${EncryptedBackupCodec.MIN_PASSWORD_LENGTH} characters."
+            stringResource(R.string.backup_password_too_short, EncryptedBackupCodec.MIN_PASSWORD_LENGTH)
         }
 
-        isExport && password != confirmation -> "Passwords do not match."
+        isExport && password != confirmation -> stringResource(R.string.backup_password_mismatch)
         else -> null
     }
 
@@ -698,15 +791,15 @@ private fun BackupPasswordDialog(
     AlertDialog(
         onDismissRequest = ::dismiss,
         title = {
-            Text(if (isExport) "Encrypt backup" else "Unlock backup")
+            Text(if (isExport) stringResource(R.string.backup_encrypt_title) else stringResource(R.string.backup_unlock_title))
         },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
                     text = if (isExport) {
-                        "This backup includes clipboard history and configured API keys. Enter a new password for this export."
+                        stringResource(R.string.backup_export_prompt)
                     } else {
-                        "Enter the password used to encrypt this backup."
+                        stringResource(R.string.backup_import_prompt)
                     },
                     style = MaterialTheme.typography.bodyMedium,
                 )
@@ -715,7 +808,7 @@ private fun BackupPasswordDialog(
                     onValueChange = { password = it },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
-                    label = { Text("Backup password") },
+                    label = { Text(stringResource(R.string.backup_password)) },
                     visualTransformation = PasswordVisualTransformation(),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                 )
@@ -725,13 +818,13 @@ private fun BackupPasswordDialog(
                         onValueChange = { confirmation = it },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
-                        label = { Text("Confirm password") },
+                        label = { Text(stringResource(R.string.backup_password_confirm)) },
                         visualTransformation = PasswordVisualTransformation(),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                     )
                 }
                 Text(
-                    text = "This password is not saved and cannot be recovered.",
+                    text = stringResource(R.string.backup_password_note),
                     color = ZnKeyboardColors.Muted,
                     style = MaterialTheme.typography.bodySmall,
                 )
@@ -749,15 +842,64 @@ private fun BackupPasswordDialog(
                 onClick = ::submit,
                 enabled = validationMessage == null,
             ) {
-                Text(if (isExport) "Export" else "Restore")
+                Text(if (isExport) stringResource(R.string.action_export) else stringResource(R.string.action_restore))
             }
         },
         dismissButton = {
             TextButton(onClick = ::dismiss) {
-                Text("Cancel")
+                Text(stringResource(R.string.action_cancel))
             }
         },
     )
+}
+
+/**
+ * Hold space to dictate. Turning it on asks for the microphone here, since a keyboard can't show
+ * the permission prompt itself.
+ */
+@Composable
+private fun VoiceInputSection() {
+    val context = LocalContext.current
+    fun micGranted() = context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+    var enabled by remember { mutableStateOf(KeyboardSettings.readVoiceInputEnabled(context)) }
+    var granted by remember { mutableStateOf(micGranted()) }
+    val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { result ->
+        granted = result
+        if (result) {
+            enabled = true
+            KeyboardSettings.saveVoiceInputEnabled(context, true)
+        }
+    }
+    // The permission can be revoked in system settings while this screen is in the background.
+    LifecycleResumeEffect(Unit) {
+        granted = micGranted()
+        onPauseOrDispose {}
+    }
+
+    SettingsSectionCard {
+        SettingsSectionHeader(
+            title = stringResource(R.string.voice_title),
+            subtitle = stringResource(R.string.voice_subtitle),
+            trailingContent = {
+                Switch(
+                    checked = enabled && granted,
+                    onCheckedChange = { checked ->
+                        if (checked && !granted) {
+                            permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                        } else {
+                            enabled = checked
+                            KeyboardSettings.saveVoiceInputEnabled(context, checked)
+                        }
+                    },
+                )
+            },
+        )
+        Text(
+            text = stringResource(R.string.voice_desc),
+            color = ZnKeyboardColors.Muted,
+            style = MaterialTheme.typography.bodySmall,
+        )
+    }
 }
 
 @Composable
@@ -783,8 +925,8 @@ private fun AgentModeSection(
 ) {
     SettingsSectionCard {
         SettingsSectionHeader(
-            title = "Rewrite",
-            subtitle = "Controls the Rewrite button in the tools row.",
+            title = stringResource(R.string.rewrite_title),
+            subtitle = stringResource(R.string.rewrite_subtitle),
             trailingContent = {
                 Switch(
                     checked = agentModeEnabled,
@@ -794,7 +936,7 @@ private fun AgentModeSection(
         )
 
         Text(
-            text = "Text is sent directly from this keyboard to your configured provider. Rewrite is disabled in password fields.",
+            text = stringResource(R.string.rewrite_desc),
             color = ZnKeyboardColors.Muted,
             style = MaterialTheme.typography.bodySmall,
         )
@@ -810,7 +952,7 @@ private fun AgentModeSection(
             shape = SettingsCapsuleShape,
             value = fixedBaseUrl ?: agentApiBaseUrl,
             onValueChange = onAgentApiBaseUrlChange,
-            label = { Text("API base URL") },
+            label = { Text(stringResource(R.string.api_base_url)) },
             singleLine = true,
             enabled = fixedBaseUrl == null,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
@@ -850,12 +992,12 @@ private fun AgentModeSection(
         LockableSecretOutlinedTextField(
             value = agentApiKey,
             onValueChange = onAgentApiKeyChange,
-            label = "API key",
+            label = stringResource(R.string.api_key),
             locked = agentApiKeyLocked,
             onLockedChange = onAgentApiKeyLockedChange,
-            emptySupportingText = "Enter your provider's API key.",
-            lockContentDescription = "Lock API key",
-            unlockContentDescription = "Unlock API key",
+            emptySupportingText = stringResource(R.string.api_key_empty),
+            lockContentDescription = stringResource(R.string.api_key_lock),
+            unlockContentDescription = stringResource(R.string.api_key_unlock),
         )
     }
 }
@@ -870,18 +1012,19 @@ private fun ModelSelectorField(
     var fieldFocused by remember { mutableStateOf(false) }
     var suggestionsExpanded by remember { mutableStateOf(false) }
     var modelOptions by remember { mutableStateOf<List<ModelOption>>(emptyList()) }
-    var modelLoadStatus by remember { mutableStateOf("Loading models...") }
+    val context = LocalContext.current
+    var modelLoadStatus by remember { mutableStateOf(context.getString(R.string.models_loading)) }
     var debouncedQuery by remember { mutableStateOf(value) }
     val effectiveBaseUrl = apiBaseUrl
 
     LaunchedEffect(effectiveBaseUrl, apiKey) {
         modelOptions = emptyList()
         if (effectiveBaseUrl.isBlank()) {
-            modelLoadStatus = "Enter a base URL to load models."
+            modelLoadStatus = context.getString(R.string.models_need_base_url)
             return@LaunchedEffect
         }
 
-        modelLoadStatus = "Loading models..."
+        modelLoadStatus = context.getString(R.string.models_loading)
         delay(MODEL_LOAD_DEBOUNCE_MS)
         val result = withContext(Dispatchers.IO) {
             fetchModelOptions(
@@ -893,14 +1036,14 @@ private fun ModelSelectorField(
             .onSuccess { models ->
                 modelOptions = models
                 modelLoadStatus = if (models.isEmpty()) {
-                    "No models returned. You can still type a custom model ID."
+                    context.getString(R.string.models_none)
                 } else {
-                    "Loaded ${models.size} models. Type to filter or pick one."
+                    context.getString(R.string.models_loaded, models.size)
                 }
             }
             .onFailure { error ->
                 modelLoadStatus = error.message?.takeIf { it.isNotBlank() }
-                    ?: "Could not load models. You can still type a custom model ID."
+                    ?: context.getString(R.string.models_failed)
             }
     }
 
@@ -915,7 +1058,7 @@ private fun ModelSelectorField(
     val showSuggestions = fieldFocused && suggestionsExpanded && filteredOptions.isNotEmpty()
 
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Box(modifier = Modifier.fillMaxWidth()) {
+        BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
         OutlinedTextField(
             shape = SettingsCapsuleShape,
             value = value,
@@ -923,11 +1066,11 @@ private fun ModelSelectorField(
                 onValueChange(it)
                 suggestionsExpanded = true
             },
-            label = { Text("Model") },
+            label = { Text(stringResource(R.string.model)) },
             singleLine = true,
             trailingIcon = {
                 Text(
-                    text = if (modelOptions.isEmpty()) "Custom" else "${modelOptions.size}",
+                    text = if (modelOptions.isEmpty()) stringResource(R.string.model_custom) else "${modelOptions.size}",
                     color = ZnKeyboardColors.Muted,
                     style = MaterialTheme.typography.labelSmall,
                     modifier = Modifier.padding(end = 12.dp),
@@ -942,6 +1085,7 @@ private fun ModelSelectorField(
         )
 
             FloatingPickerMenu(
+                menuWidth = maxWidth,
                 expanded = showSuggestions,
                 focusable = false,
                 items = filteredOptions.map { option ->
@@ -966,7 +1110,7 @@ private fun ModelSelectorField(
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Text(
-                    text = "No matching models. Keep typing to use a custom model ID.",
+                    text = stringResource(R.string.models_no_match),
                     color = ZnKeyboardColors.Muted,
                     style = MaterialTheme.typography.bodySmall,
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
@@ -994,15 +1138,16 @@ private fun GeminiModelSelector(
 ) {
     var expanded by remember { mutableStateOf(false) }
     var liveModels by remember { mutableStateOf<List<ModelOption>>(emptyList()) }
+    val context = LocalContext.current
     var loadStatus by remember { mutableStateOf("") }
 
     LaunchedEffect(apiKey) {
         liveModels = emptyList()
         if (apiKey.isBlank()) {
-            loadStatus = "Enter your Gemini API key to see every model."
+            loadStatus = context.getString(R.string.gemini_need_key)
             return@LaunchedEffect
         }
-        loadStatus = "Loading Gemini models..."
+        loadStatus = context.getString(R.string.gemini_loading)
         delay(MODEL_LOAD_DEBOUNCE_MS)
         val result = withContext(Dispatchers.IO) {
             fetchModelOptions(baseUrl = AgentDefaults.GEMINI_API_BASE_URL, apiKey = apiKey)
@@ -1010,29 +1155,30 @@ private fun GeminiModelSelector(
         result
             .onSuccess { models ->
                 liveModels = models.geminiTextModels()
-                loadStatus = "${liveModels.size} Gemini text models available."
+                loadStatus = context.getString(R.string.gemini_loaded, liveModels.size)
             }
             .onFailure { error ->
-                loadStatus = error.message?.takeIf { it.isNotBlank() } ?: "Could not load Gemini models."
+                loadStatus = error.message?.takeIf { it.isNotBlank() } ?: context.getString(R.string.gemini_failed)
             }
     }
 
     val recommended = AgentDefaults.DEFAULT_GEMINI_MODEL
     val items = buildList {
-        add(PickerItem(id = recommended, title = recommended, subtitle = "Recommended · fast and low cost"))
+        add(PickerItem(id = recommended, title = recommended, subtitle = stringResource(R.string.gemini_recommended_subtitle)))
         liveModels.filter { it.id != recommended }.forEach { add(PickerItem(id = it.id, title = it.id, subtitle = it.name)) }
         // Keep a model chosen earlier visible even if the live list does not offer it.
         if (value != recommended && none { it.id == value }) add(PickerItem(id = value, title = value))
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Box(modifier = Modifier.fillMaxWidth()) {
+        BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
             SettingsPickerLauncherButton(
-                label = "Model",
-                value = if (value == recommended) "$value (recommended)" else value,
+                label = stringResource(R.string.model),
+                value = if (value == recommended) stringResource(R.string.gemini_recommended_value, value) else value,
                 onClick = { expanded = true },
             )
             FloatingPickerMenu(
+                menuWidth = maxWidth,
                 expanded = expanded,
                 items = items,
                 onDismissRequest = { expanded = false },
@@ -1059,7 +1205,7 @@ private fun TranslateLanguageSelector(
 ) {
     var expanded by remember { mutableStateOf(false) }
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Box(modifier = Modifier.fillMaxWidth()) {
+        BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
             OutlinedButton(
                 onClick = { expanded = true },
                 modifier = Modifier.fillMaxWidth(),
@@ -1071,14 +1217,14 @@ private fun TranslateLanguageSelector(
                     horizontalAlignment = Alignment.Start,
                 ) {
                     Text(
-                        text = "Translate to",
+                        text = stringResource(R.string.translate_to),
                         color = ZnKeyboardColors.Muted,
                         style = MaterialTheme.typography.labelSmall,
                     )
                     val language = AgentDefaults.TRANSLATE_LANGUAGES.firstOrNull { it.code == value }
                         ?: AgentDefaults.DEFAULT_TRANSLATE_LANGUAGE
                     Text(
-                        text = "${language.code} · ${language.name}",
+                        text = "${language.code} · ${translateLanguageName(language)}",
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         style = MaterialTheme.typography.bodyLarge,
@@ -1087,9 +1233,10 @@ private fun TranslateLanguageSelector(
             }
 
             FloatingPickerMenu(
+                menuWidth = maxWidth,
                 expanded = expanded,
                 items = AgentDefaults.TRANSLATE_LANGUAGES.map { language ->
-                    PickerItem(id = language.code, title = language.code, subtitle = language.name)
+                    PickerItem(id = language.code, title = language.code, subtitle = translateLanguageName(language))
                 },
                 onDismissRequest = { expanded = false },
                 onItemSelected = { item ->
@@ -1099,7 +1246,7 @@ private fun TranslateLanguageSelector(
             )
         }
         Text(
-            text = "仅润色 (Polish) only polishes what you typed; AI 润译 (AI Translate) polishes and translates it into this language. The round key beside them switches language while typing. Labels follow 中/EN mode.",
+            text = stringResource(R.string.translate_desc),
             color = ZnKeyboardColors.Muted,
             style = MaterialTheme.typography.bodySmall,
         )
@@ -1122,6 +1269,7 @@ private fun FloatingPickerMenu(
         onDismissRequest = onDismissRequest,
         properties = PopupProperties(focusable = focusable),
         shape = RoundedCornerShape(PICKER_CORNER_RADIUS),
+        offset = DpOffset(0.dp, 6.dp),
         containerColor = ZnKeyboardColors.Key,
         tonalElevation = 0.dp,
         shadowElevation = 8.dp,
@@ -1149,7 +1297,7 @@ private fun PickerListSurface(
         modifier = Modifier
             .heightIn(max = maxHeight)
             .verticalScroll(scrollState)
-            .padding(vertical = 4.dp),
+            .padding(vertical = 8.dp),
     ) {
         items.forEachIndexed { index, item ->
             PickerListRow(item = item, onClick = { onItemSelected(item) })
@@ -1174,7 +1322,7 @@ private fun PickerListRow(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 9.dp),
+            .padding(horizontal = 20.dp, vertical = 10.dp),
         verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
         Text(
@@ -1203,19 +1351,20 @@ private fun ProviderTypeSelector(
 ) {
     var expanded by remember { mutableStateOf(false) }
 
-    Box(modifier = Modifier.fillMaxWidth()) {
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
         SettingsPickerLauncherButton(
-            label = "Provider",
-            value = providerType.label,
+            label = stringResource(R.string.provider),
+            value = providerLabel(providerType),
             onClick = { expanded = true },
         )
 
         FloatingPickerMenu(
+            menuWidth = maxWidth,
             expanded = expanded,
             items = KeyboardSettings.AgentProviderType.entries.map { option ->
                 PickerItem(
                     id = option.id,
-                    title = option.label,
+                    title = providerLabel(option),
                 )
             },
             onDismissRequest = { expanded = false },
@@ -1238,21 +1387,21 @@ private fun ReasoningControls(
 ) {
     var expanded by remember { mutableStateOf(false) }
     val showReasoningTextSwitch = reasoningMode != KeyboardSettings.AgentReasoningMode.Off
-    val providerHint = "OpenAI-compatible servers vary. Effort values are sent manually as reasoning_effort only when selected."
+    val providerHint = stringResource(R.string.reasoning_provider_hint)
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
-            text = "Reasoning",
+            text = stringResource(R.string.reasoning_title),
             style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.SemiBold,
         )
         Text(
-            text = "Model capability cannot be detected reliably from every provider, so this stays manual.",
+            text = stringResource(R.string.reasoning_desc),
             color = ZnKeyboardColors.Muted,
             style = MaterialTheme.typography.bodySmall,
         )
 
-        Box(modifier = Modifier.fillMaxWidth()) {
+        BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
             OutlinedButton(
                 onClick = { expanded = true },
                 modifier = Modifier.fillMaxWidth(),
@@ -1264,12 +1413,12 @@ private fun ReasoningControls(
                     horizontalAlignment = Alignment.Start,
                 ) {
                     Text(
-                        text = "Reasoning mode",
+                        text = stringResource(R.string.reasoning_mode),
                         color = ZnKeyboardColors.Muted,
                         style = MaterialTheme.typography.labelSmall,
                     )
                     Text(
-                        text = reasoningMode.label,
+                        text = reasoningLabel(reasoningMode),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         style = MaterialTheme.typography.bodyLarge,
@@ -1278,12 +1427,13 @@ private fun ReasoningControls(
             }
 
             FloatingPickerMenu(
+                menuWidth = maxWidth,
                 expanded = expanded,
                 items = KeyboardSettings.AgentReasoningMode.entries.map { option ->
                     PickerItem(
                         id = option.id,
-                        title = option.label,
-                        subtitle = option.description,
+                        title = reasoningLabel(option),
+                        subtitle = reasoningDescription(option),
                     )
                 },
                 onDismissRequest = { expanded = false },
@@ -1310,12 +1460,12 @@ private fun ReasoningControls(
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "Return reasoning text",
+                        text = stringResource(R.string.reasoning_text_title),
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.SemiBold,
                     )
                     Text(
-                        text = "Off hides reasoning tokens when the provider supports hiding them.",
+                        text = stringResource(R.string.reasoning_text_desc),
                         color = ZnKeyboardColors.Muted,
                         style = MaterialTheme.typography.bodySmall,
                     )

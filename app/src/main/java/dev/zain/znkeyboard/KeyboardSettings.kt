@@ -69,6 +69,8 @@ object KeyboardSettings {
     private const val KEY_AGENT_REASONING_TEXT_ENABLED = "agent_reasoning_text_enabled"
     private const val KEY_AGENT_TRANSLATE_TARGET = "agent_translate_target"
     private const val KEY_AGENT_PROVIDERS_MIGRATED = "agent_providers_migrated_v3"
+    private const val KEY_SECOND_ROW_CLIPBOARD_MIGRATED = "second_row_clipboard_migrated"
+    private const val KEY_VOICE_INPUT_ENABLED = "voice_input_enabled"
     // Removed providers and profiles; kept only so the migration can read and clear them.
     private const val LEGACY_PROVIDER_OPENROUTER = "openrouter"
     private const val LEGACY_PROVIDER_NANBEIGE = "nanbeige_llama_cpp"
@@ -91,6 +93,7 @@ object KeyboardSettings {
 
     val ACTION_KEY_OPTIONS = listOf(
         UpperRowKeyOption("rewrite", "Rewrite"),
+        UpperRowKeyOption("clipboard", "Clipboard"),
     )
 
     val CONTROL_KEY_OPTIONS = listOf(
@@ -326,6 +329,38 @@ object KeyboardSettings {
             ?.let(::parseAgentRowKeyIds)
             ?: return DEFAULT_SECOND_ROW_BUTTON_IDS
         return dropMissingMacroKeys(context, normalizeSecondRowButtonIds(listOf("rewrite") + legacyAgentRow))
+    }
+
+    /**
+     * One-time move of the clipboard from long-press space (now voice input) to the shortcut row:
+     * a saved row gets the clipboard key where @ was, and # makes room for it.
+     */
+    fun migrateSecondRowClipboard(context: Context) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        if (prefs.getBoolean(KEY_SECOND_ROW_CLIPBOARD_MIGRATED, false)) return
+        if (prefs.contains(KEY_SECOND_ROW_BUTTONS)) {
+            val buttons = readSecondRowButtonIds(context).toMutableList()
+            if ("clipboard" !in buttons) {
+                buttons.remove("hash")
+                val index = buttons.indexOf("at").takeIf { it >= 0 }
+                    ?: (buttons.indexOf("rewrite") + 1)
+                buttons.add(index, "clipboard")
+                saveSecondRowButtonIds(context, buttons)
+            }
+        }
+        prefs.edit().putBoolean(KEY_SECOND_ROW_CLIPBOARD_MIGRATED, true).apply()
+    }
+
+    fun readVoiceInputEnabled(context: Context): Boolean {
+        return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .getBoolean(KEY_VOICE_INPUT_ENABLED, true)
+    }
+
+    fun saveVoiceInputEnabled(context: Context, enabled: Boolean) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .putBoolean(KEY_VOICE_INPUT_ENABLED, enabled)
+            .apply()
     }
 
     fun saveSecondRowButtonIds(context: Context, buttonIds: List<String>) {

@@ -1,5 +1,8 @@
 package dev.zain.znkeyboard
 
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -21,10 +24,16 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -49,6 +58,58 @@ internal fun SettingsSectionCard(
             verticalArrangement = Arrangement.spacedBy(verticalSpacing),
             content = content,
         )
+    }
+}
+
+/**
+ * A section card that shows only its header until tapped. [summary] stands in for the hidden
+ * settings while collapsed.
+ */
+@Composable
+internal fun CollapsibleSettingsSection(
+    title: String,
+    iconResId: Int,
+    summary: String,
+    verticalSpacing: androidx.compose.ui.unit.Dp = 18.dp,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    var expanded by rememberSaveable(title) { mutableStateOf(false) }
+    val chevronRotation by animateFloatAsState(if (expanded) 90f else -90f, label = "chevron")
+    Surface(
+        color = ZnKeyboardColors.Surface,
+        shape = RoundedCornerShape(SettingsUiDimensions.SECTION_CORNER_RADIUS),
+        tonalElevation = 0.dp,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(modifier = Modifier.animateContentSize()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { expanded = !expanded }
+                    .padding(18.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                SettingsSectionHeader(
+                    title = title,
+                    iconResId = iconResId,
+                    subtitle = summary.takeUnless { expanded },
+                    modifier = Modifier.weight(1f),
+                )
+                Icon(
+                    painter = painterResource(R.drawable.ic_chevron_left_24),
+                    contentDescription = stringResource(if (expanded) R.string.action_collapse else R.string.action_expand),
+                    tint = ZnKeyboardColors.Muted,
+                    modifier = Modifier.rotate(chevronRotation),
+                )
+            }
+            if (expanded) {
+                Column(
+                    modifier = Modifier.padding(start = 18.dp, end = 18.dp, bottom = 18.dp),
+                    verticalArrangement = Arrangement.spacedBy(verticalSpacing),
+                    content = content,
+                )
+            }
+        }
     }
 }
 
@@ -202,9 +263,9 @@ internal fun LockableSecretOutlinedTextField(
         supportingText = {
             Text(
                 text = if (effectivelyLocked) {
-                    "Locked. Tap lock to edit."
+                    stringResource(R.string.secret_locked)
                 } else if (value.isNotBlank()) {
-                    "Tap lock to prevent edits."
+                    stringResource(R.string.secret_unlocked)
                 } else {
                     emptySupportingText
                 },

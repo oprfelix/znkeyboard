@@ -19,7 +19,7 @@ object SettingsUiDimensions {
     val SKIN_TONE_PICKER_MAX_HEIGHT = 260.dp
     val SECTION_CORNER_RADIUS = 12.dp
     val COMPACT_ITEM_CORNER_RADIUS = 8.dp
-    val PICKER_CORNER_RADIUS = 16.dp
+    val PICKER_CORNER_RADIUS = 28.dp
 }
 
 /** Floating title pill and content clearance for the edge-to-edge settings shell. */

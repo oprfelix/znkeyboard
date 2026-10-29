@@ -20,6 +20,11 @@ object AgentDefaults {
     const val REWRITE_BASE_PROMPT_ASSET = "prompts/rewrite_base.md"
     const val WHATSAPP_PROMPT_ASSET = "prompts/apps/whatsapp.md"
     const val TRANSLATE_PROMPT_ASSET = "prompts/translate.md"
+    const val VOICE_PROMPT_ASSET = "prompts/voice.md"
+    const val MAX_VOICE_CLIP_MS = 90_000L
+    // Shorter holds are taken as a lingering space tap, not speech, and are never sent.
+    const val MIN_VOICE_CLIP_MS = 600L
+    const val MAX_VOICE_LLM_TOKENS = 4_000
     const val TRANSLATE_LANGUAGE_PLACEHOLDER = "{language}"
     val TRANSLATE_LANGUAGES = listOf(
         TranslateLanguage("EN", "English"),
