@@ -38,9 +38,9 @@
     <string name="nav_tools">Tools</string>
     <string name="nav_backup">Backup</string>
     <string name="nav_backup_title">Backup &amp; about</string>
-    <string name="voice_title">Voice input</string>
+    <string name="voice_title">AI voice input</string>
     <string name="voice_subtitle">Hold the space bar to talk, release to insert. Slide up to cancel.</string>
-    <string name="voice_desc">Uses Google Gemini, with the key saved under the Google Gemini provider. 中 mode writes down what you said without filler words; EN mode also translates it. Audio stays in memory and is never saved; off in password fields.</string>
+    <string name="voice_desc">中 mode turns speech into clean text; EN mode translates it into your target language. Needs a Gemini API key; audio is never saved.</string>
     <string name="rewrite_title">AI polish</string>
     <string name="rewrite_subtitle">Use AI to smooth out your text, or translate it.</string>
     <string name="api_base_url">API base URL</string>
@@ -67,6 +67,15 @@
     <string name="language_ja">Japanese</string>
     <string name="language_fr">French</string>
     <string name="language_de">German</string>
+    <string name="language_zh_hans">Simplified Chinese</string>
+    <string name="language_zh_hant">Traditional Chinese</string>
+    <string name="language_ar">Arabic</string>
+    <string name="language_ru">Russian</string>
+    <string name="language_pt">Portuguese</string>
+    <string name="language_ko">Korean</string>
+    <string name="language_id">Indonesian</string>
+    <string name="language_vi">Vietnamese</string>
+    <string name="language_th">Thai</string>
     <string name="provider">Provider</string>
     <string name="provider_openai_compatible">OpenAI compatible</string>
     <string name="reasoning_title">Reasoning (advanced)</string>

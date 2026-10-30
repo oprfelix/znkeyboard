@@ -38,9 +38,9 @@
     <string name="nav_tools">工具</string>
     <string name="nav_backup">备份</string>
     <string name="nav_backup_title">备份与关于</string>
-    <string name="voice_title">语音输入</string>
+    <string name="voice_title">AI 语音输入</string>
     <string name="voice_subtitle">按住空格键说话，松开插入文字，上滑取消。</string>
-    <string name="voice_desc">使用 Google Gemini（用「Google Gemini」服务商下保存的 Key）。中文模式整理成文字并去掉口头禅，英文模式顺带翻译。录音只在内存中处理，不保存；密码框里不可用。</string>
+    <string name="voice_desc">中文模式整理成通顺的文字，英文模式直接翻译成目标语言。需用 Gemini API Key，录音不会保存。</string>
     <string name="rewrite_title">AI 润色</string>
     <string name="rewrite_subtitle">用 AI 把文字改通顺，或翻译成目标语言</string>
     <string name="api_base_url">API 地址</string>
@@ -67,6 +67,15 @@
     <string name="language_ja">日语</string>
     <string name="language_fr">法语</string>
     <string name="language_de">德语</string>
+    <string name="language_zh_hans">简体中文</string>
+    <string name="language_zh_hant">繁体中文</string>
+    <string name="language_ar">阿拉伯语</string>
+    <string name="language_ru">俄语</string>
+    <string name="language_pt">葡萄牙语</string>
+    <string name="language_ko">韩语</string>
+    <string name="language_id">印尼语</string>
+    <string name="language_vi">越南语</string>
+    <string name="language_th">泰语</string>
     <string name="provider">服务商</string>
     <string name="provider_openai_compatible">OpenAI 兼容</string>
     <string name="reasoning_title">推理（高级）</string>
@@ -170,7 +179,7 @@
     <string name="shortcuts_symbols">符号</string>
     <string name="row_a">扩展按键行</string>
     <string name="row_b">工具栏</string>
-    <string name="key_rewrite">润色 / AI翻译</string>
+    <string name="key_rewrite">润色 / AI 翻译</string>
     <string name="key_clipboard">剪贴板</string>
     <string name="language_title">语言</string>
     <string name="language_system">跟随系统</string>
@@ -216,5 +225,5 @@
     <string name="nav_tools_title">AI 与语音</string>
     <string name="touch_summary_off">未开启</string>
     <string name="key_polish">润色</string>
-    <string name="key_translate">AI翻译为</string>
+    <string name="key_translate">AI 翻译为</string>
 </resources>

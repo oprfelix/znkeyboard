@@ -84,13 +84,22 @@ private fun getJsonObject(
  * Gemini's model list mixes in image, video, speech and embedding models; keep the ones that can
  * rewrite text, without the "models/" prefix the OpenAI-compatible endpoint adds.
  */
+/** Flash-Lite text models only, newest version first: larger models cost many times more per rewrite. */
 internal fun List<ModelOption>.geminiTextModels(): List<ModelOption> {
     return map { it.copy(id = it.id.removePrefix("models/")) }
         .filter { option ->
             val id = option.id.lowercase(Locale.US)
-            id.startsWith("gemini") && GEMINI_NON_TEXT_MARKERS.none { it in id }
+            KeyboardSettings.isGeminiLiteModel(id) && GEMINI_NON_TEXT_MARKERS.none { it in id }
         }
         .distinctBy { it.id }
+        .let { models ->
+            // A preview is redundant (and usually retired) once its stable release is listed.
+            val ids = models.mapTo(HashSet()) { it.id }
+            models.filterNot { it.id.endsWith("-preview") && it.id.removeSuffix("-preview") in ids }
+        }
+        .sortedByDescending { option ->
+            option.id.substringAfter("gemini-").substringBefore("-flash").toDoubleOrNull() ?: 0.0
+        }
 }
 
 private val GEMINI_NON_TEXT_MARKERS = listOf(

@@ -39,7 +39,7 @@ object ImeDimensions {
 
     const val DEFAULT_KEY_WEIGHT = 1f
     const val EDGE_UPPER_ROW_KEY_WEIGHT = 1.4f
-    // The row starts 润色 | AI翻译为 [EN ▾]; the language chip's slot is inside the translate pill.
+    // The row starts 润色 | AI 翻译为 [EN ▾]; the language chip's slot is inside the translate pill.
     const val POLISH_ONLY_KEY_WEIGHT = 1.4f
     const val REWRITE_TRANSLATE_KEY_WEIGHT = 1.5f
     const val TRANSLATE_LANGUAGE_KEY_WEIGHT = 1.0f

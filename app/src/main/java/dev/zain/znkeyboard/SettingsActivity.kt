@@ -1284,8 +1284,10 @@ private fun GeminiModelSelector(
     val items = buildList {
         add(PickerItem(id = recommended, title = recommended, subtitle = stringResource(R.string.gemini_recommended_subtitle)))
         liveModels.filter { it.id != recommended }.forEach { add(PickerItem(id = it.id, title = it.id, subtitle = it.name)) }
-        // Keep a model chosen earlier visible even if the live list does not offer it.
-        if (value != recommended && none { it.id == value }) add(PickerItem(id = value, title = value))
+        // Keep a Lite model chosen earlier visible even if the live list does not offer it.
+        if (value != recommended && none { it.id == value } && KeyboardSettings.isGeminiLiteModel(value)) {
+            add(PickerItem(id = value, title = value))
+        }
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {

@@ -46,10 +46,19 @@ internal fun reasoningDescription(mode: KeyboardSettings.AgentReasoningMode): St
 @Composable
 internal fun translateLanguageName(language: TranslateLanguage): String = when (language.code) {
     "EN" -> stringResource(R.string.language_en)
+    "ZH" -> stringResource(R.string.language_zh_hans)
+    "TW" -> stringResource(R.string.language_zh_hant)
     "ES" -> stringResource(R.string.language_es)
-    "JA" -> stringResource(R.string.language_ja)
     "FR" -> stringResource(R.string.language_fr)
+    "AR" -> stringResource(R.string.language_ar)
+    "RU" -> stringResource(R.string.language_ru)
+    "PT" -> stringResource(R.string.language_pt)
     "DE" -> stringResource(R.string.language_de)
+    "JA" -> stringResource(R.string.language_ja)
+    "KO" -> stringResource(R.string.language_ko)
+    "ID" -> stringResource(R.string.language_id)
+    "VI" -> stringResource(R.string.language_vi)
+    "TH" -> stringResource(R.string.language_th)
     else -> language.name
 }
 

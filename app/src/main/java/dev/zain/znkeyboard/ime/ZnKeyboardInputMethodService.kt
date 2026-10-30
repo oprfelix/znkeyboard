@@ -1459,9 +1459,9 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         val gemini = KeyboardSettings.readAgentProviderSettings(this, KeyboardSettings.AgentProviderType.Gemini)
         return when {
             isSensitiveEditor(currentEditorInfo) ->
-                if (chinese) "密码框里不能用语音输入。" else "Voice input is off in password fields."
+                if (chinese) "密码框里不能用 AI 语音输入。" else "AI voice input is off in password fields."
             checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED ->
-                if (chinese) "请先在设置 → 工具 里开启语音输入。" else "Turn on voice input in Settings → Tools."
+                if (chinese) "请先在 设置 → AI 与语音 里开启 AI 语音输入。" else "Turn on AI voice input in Settings → AI & voice."
             !gemini.isConfigured ->
                 if (chinese) "请先在设置里填好 Gemini API Key。" else "Add your Gemini API key in Settings first."
             else -> null
