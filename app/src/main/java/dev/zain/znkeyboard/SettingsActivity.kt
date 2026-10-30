@@ -1044,6 +1044,36 @@ private fun AgentModeSection(
     onAgentApiKeyChange: (String) -> Unit,
     onAgentApiKeyLockedChange: (Boolean) -> Unit,
 ) {
+    val context = LocalContext.current
+    val listingBaseUrl = agentProviderType.fixedBaseUrl ?: agentApiBaseUrl
+    var listing by remember { mutableStateOf<ModelListing>(ModelListing.Idle) }
+    // Set when the key is typed or pasted here, so a key that already worked when the page
+    // opened doesn't turn back on a switch the user turned off.
+    var keyEdited by remember { mutableStateOf(false) }
+    val currentModeEnabled by rememberUpdatedState(agentModeEnabled)
+    val currentModeEnabledChange by rememberUpdatedState(onAgentModeEnabledChange)
+
+    // One /models request serves both the model picker and the key check.
+    LaunchedEffect(agentProviderType, listingBaseUrl, agentApiKey) {
+        val needsKey = agentProviderType == KeyboardSettings.AgentProviderType.Gemini
+        if (listingBaseUrl.isBlank() || (needsKey && agentApiKey.isBlank())) {
+            listing = ModelListing.Idle
+            return@LaunchedEffect
+        }
+        listing = ModelListing.Loading
+        delay(MODEL_LOAD_DEBOUNCE_MS)
+        listing = withContext(Dispatchers.IO) { fetchModelOptions(baseUrl = listingBaseUrl, apiKey = agentApiKey) }
+            .fold(
+                onSuccess = { ModelListing.Loaded(it) },
+                onFailure = { ModelListing.Failed(it.message?.takeIf(String::isNotBlank), it.isKeyRejection()) },
+            )
+        if (listing is ModelListing.Loaded && keyEdited && agentApiKey.isNotBlank() && !currentModeEnabled) {
+            currentModeEnabledChange(true)
+            Toast.makeText(context, context.getString(R.string.api_key_enabled), Toast.LENGTH_SHORT).show()
+        }
+        keyEdited = false
+    }
+
     SettingsSectionCard {
         SettingsSectionHeader(
             title = stringResource(R.string.rewrite_title),
@@ -1078,7 +1108,10 @@ private fun AgentModeSection(
         // The key comes before the model: the model list loads with it.
         LockableSecretOutlinedTextField(
             value = agentApiKey,
-            onValueChange = onAgentApiKeyChange,
+            onValueChange = {
+                keyEdited = true
+                onAgentApiKeyChange(it)
+            },
             label = stringResource(R.string.api_key),
             locked = agentApiKeyLocked,
             onLockedChange = onAgentApiKeyLockedChange,
@@ -1086,17 +1119,20 @@ private fun AgentModeSection(
             lockContentDescription = stringResource(R.string.api_key_lock),
             unlockContentDescription = stringResource(R.string.api_key_unlock),
         )
+        if (agentApiKey.isNotBlank()) {
+            ApiKeyCheckStatus(listing)
+        }
 
         if (agentProviderType == KeyboardSettings.AgentProviderType.Gemini) {
             GeminiModelSelector(
-                apiKey = agentApiKey,
+                listing = listing,
                 value = agentModel,
                 onValueChange = onAgentModelChange,
             )
         } else {
             ModelSelectorField(
                 apiBaseUrl = agentApiBaseUrl,
-                apiKey = agentApiKey,
+                listing = listing,
                 value = agentModel,
                 onValueChange = onAgentModelChange,
             )
@@ -1119,49 +1155,56 @@ private fun AgentModeSection(
     }
 }
 
+/** The provider's model list for the current endpoint and key; loading it is also the key check. */
+private sealed interface ModelListing {
+    /** Nothing to load yet: no key (Gemini) or no base URL. */
+    data object Idle : ModelListing
+    data object Loading : ModelListing
+    data class Loaded(val models: List<ModelOption>) : ModelListing
+    data class Failed(val message: String?, val keyRejected: Boolean) : ModelListing
+}
+
+/** Providers answer a bad key with 400 (Gemini), 401 or 403; anything else may be the network or the endpoint. */
+private fun Throwable.isKeyRejection(): Boolean {
+    val code = Regex("""\((\d{3})\)""").find(message.orEmpty())?.groupValues?.get(1)?.toIntOrNull()
+    return code == 400 || code == 401 || code == 403
+}
+
+@Composable
+private fun ApiKeyCheckStatus(listing: ModelListing) {
+    val (text, color) = when (listing) {
+        ModelListing.Idle, ModelListing.Loading -> stringResource(R.string.api_key_checking) to ZnKeyboardColors.Muted
+        is ModelListing.Loaded -> stringResource(R.string.api_key_valid) to ZnKeyboardColors.Accent
+        is ModelListing.Failed -> if (listing.keyRejected) {
+            stringResource(R.string.api_key_rejected) to MaterialTheme.colorScheme.error
+        } else {
+            stringResource(R.string.api_key_check_failed, listing.message ?: stringResource(R.string.models_failed)) to
+                MaterialTheme.colorScheme.error
+        }
+    }
+    Text(text = text, color = color, style = MaterialTheme.typography.bodySmall)
+}
+
 @Composable
 private fun ModelSelectorField(
     apiBaseUrl: String,
-    apiKey: String,
+    listing: ModelListing,
     value: String,
     onValueChange: (String) -> Unit,
 ) {
     var fieldFocused by remember { mutableStateOf(false) }
     var suggestionsExpanded by remember { mutableStateOf(false) }
-    var modelOptions by remember { mutableStateOf<List<ModelOption>>(emptyList()) }
-    val context = LocalContext.current
-    var modelLoadStatus by remember { mutableStateOf(context.getString(R.string.models_loading)) }
     var debouncedQuery by remember { mutableStateOf(value) }
-    val effectiveBaseUrl = apiBaseUrl
-
-    LaunchedEffect(effectiveBaseUrl, apiKey) {
-        modelOptions = emptyList()
-        if (effectiveBaseUrl.isBlank()) {
-            modelLoadStatus = context.getString(R.string.models_need_base_url)
-            return@LaunchedEffect
+    val modelOptions = (listing as? ModelListing.Loaded)?.models.orEmpty()
+    val modelLoadStatus = when (listing) {
+        ModelListing.Idle -> if (apiBaseUrl.isBlank()) stringResource(R.string.models_need_base_url) else ""
+        ModelListing.Loading -> stringResource(R.string.models_loading)
+        is ModelListing.Loaded -> if (listing.models.isEmpty()) {
+            stringResource(R.string.models_none)
+        } else {
+            stringResource(R.string.models_loaded, listing.models.size)
         }
-
-        modelLoadStatus = context.getString(R.string.models_loading)
-        delay(MODEL_LOAD_DEBOUNCE_MS)
-        val result = withContext(Dispatchers.IO) {
-            fetchModelOptions(
-                baseUrl = effectiveBaseUrl,
-                apiKey = apiKey,
-            )
-        }
-        result
-            .onSuccess { models ->
-                modelOptions = models
-                modelLoadStatus = if (models.isEmpty()) {
-                    context.getString(R.string.models_none)
-                } else {
-                    context.getString(R.string.models_loaded, models.size)
-                }
-            }
-            .onFailure { error ->
-                modelLoadStatus = error.message?.takeIf { it.isNotBlank() }
-                    ?: context.getString(R.string.models_failed)
-            }
+        is ModelListing.Failed -> listing.message ?: stringResource(R.string.models_failed)
     }
 
     LaunchedEffect(value, modelOptions) {
@@ -1235,11 +1278,13 @@ private fun ModelSelectorField(
             }
         }
 
-        Text(
-            text = modelLoadStatus,
-            color = ZnKeyboardColors.Muted,
-            style = MaterialTheme.typography.bodySmall,
-        )
+        if (modelLoadStatus.isNotEmpty()) {
+            Text(
+                text = modelLoadStatus,
+                color = ZnKeyboardColors.Muted,
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
     }
 }
 
@@ -1249,36 +1294,14 @@ private fun ModelSelectorField(
  */
 @Composable
 private fun GeminiModelSelector(
-    apiKey: String,
+    listing: ModelListing,
     value: String,
     onValueChange: (String) -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
-    var liveModels by remember { mutableStateOf<List<ModelOption>>(emptyList()) }
-    val context = LocalContext.current
-    var loadStatus by remember { mutableStateOf("") }
-
-    LaunchedEffect(apiKey) {
-        liveModels = emptyList()
-        if (apiKey.isBlank()) {
-            loadStatus = context.getString(R.string.gemini_need_key)
-            return@LaunchedEffect
-        }
-        loadStatus = context.getString(R.string.gemini_loading)
-        delay(MODEL_LOAD_DEBOUNCE_MS)
-        val result = withContext(Dispatchers.IO) {
-            fetchModelOptions(baseUrl = AgentDefaults.GEMINI_API_BASE_URL, apiKey = apiKey)
-        }
-        result
-            .onSuccess { models ->
-                liveModels = models.geminiTextModels()
-                // The list is the result; only problems need a note under the field.
-                loadStatus = ""
-            }
-            .onFailure { error ->
-                loadStatus = error.message?.takeIf { it.isNotBlank() } ?: context.getString(R.string.gemini_failed)
-            }
-    }
+    val liveModels = remember(listing) { (listing as? ModelListing.Loaded)?.models.orEmpty().geminiTextModels() }
+    // The list is the result, and the key check reports failures; only a missing key needs a note.
+    val loadStatus = if (listing == ModelListing.Idle) stringResource(R.string.gemini_need_key) else ""
 
     val recommended = AgentDefaults.DEFAULT_GEMINI_MODEL
     val items = buildList {
