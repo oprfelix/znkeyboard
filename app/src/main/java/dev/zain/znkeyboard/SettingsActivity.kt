@@ -78,6 +78,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -1170,11 +1171,13 @@ private fun Throwable.isKeyRejection(): Boolean {
     return code == 400 || code == 401 || code == 403
 }
 
+/** A status light under the key: a spinner while checking, then a green or red dot with a short line. */
 @Composable
 private fun ApiKeyCheckStatus(listing: ModelListing) {
+    val checking = listing == ModelListing.Idle || listing == ModelListing.Loading
     val (text, color) = when (listing) {
         ModelListing.Idle, ModelListing.Loading -> stringResource(R.string.api_key_checking) to ZnKeyboardColors.Muted
-        is ModelListing.Loaded -> stringResource(R.string.api_key_valid) to ZnKeyboardColors.Accent
+        is ModelListing.Loaded -> stringResource(R.string.api_key_valid) to ZnKeyboardColors.Success
         is ModelListing.Failed -> if (listing.keyRejected) {
             stringResource(R.string.api_key_rejected) to MaterialTheme.colorScheme.error
         } else {
@@ -1182,7 +1185,20 @@ private fun ApiKeyCheckStatus(listing: ModelListing) {
                 MaterialTheme.colorScheme.error
         }
     }
-    Text(text = text, color = color, style = MaterialTheme.typography.bodySmall)
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.padding(start = 16.dp),
+    ) {
+        Box(modifier = Modifier.size(12.dp), contentAlignment = Alignment.Center) {
+            if (checking) {
+                CircularProgressIndicator(strokeWidth = 1.5.dp, color = color, modifier = Modifier.size(12.dp))
+            } else {
+                Box(modifier = Modifier.size(8.dp).background(color, CircleShape))
+            }
+        }
+        Text(text = text, color = color, style = MaterialTheme.typography.bodySmall)
+    }
 }
 
 @Composable

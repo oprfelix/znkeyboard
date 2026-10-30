@@ -49,7 +49,7 @@
     <string name="api_key_lock">锁定 API Key</string>
     <string name="api_key_unlock">解锁 API Key</string>
     <string name="api_key_checking">正在验证 API Key…</string>
-    <string name="api_key_valid">✓ API Key 可用</string>
+    <string name="api_key_valid">API Key 可用</string>
     <string name="api_key_rejected">API Key 无效，请检查是否复制完整、是否已过期。</string>
     <string name="api_key_check_failed">暂时无法验证 API Key：%1$s</string>
     <string name="api_key_enabled">API Key 可用，已开启 AI 润色与翻译</string>

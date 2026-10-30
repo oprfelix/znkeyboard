@@ -49,7 +49,7 @@
     <string name="api_key_lock">Lock API key</string>
     <string name="api_key_unlock">Unlock API key</string>
     <string name="api_key_checking">Checking API key…</string>
-    <string name="api_key_valid">✓ API key works</string>
+    <string name="api_key_valid">API key works</string>
     <string name="api_key_rejected">This API key was rejected. Check it was copied in full and is still active.</string>
     <string name="api_key_check_failed">Couldn\'t check the API key: %1$s</string>
     <string name="api_key_enabled">API key works. AI polish &amp; translate is on.</string>

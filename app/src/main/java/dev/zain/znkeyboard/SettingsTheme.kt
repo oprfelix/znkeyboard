@@ -52,5 +52,8 @@ internal object ZnKeyboardColors {
         @Composable @ReadOnlyComposable get() = MaterialTheme.colorScheme.errorContainer
     val DeleteContent: Color
         @Composable @ReadOnlyComposable get() = MaterialTheme.colorScheme.onErrorContainer
+    /** "Works" green for status dots; Material's scheme has no success role, so it is fixed per theme. */
+    val Success: Color
+        @Composable @ReadOnlyComposable get() = if (isSystemInDarkTheme()) Color(0xFF81C995) else Color(0xFF1E8E3E)
 }
 
