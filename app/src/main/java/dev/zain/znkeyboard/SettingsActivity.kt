@@ -109,9 +109,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.pointer.pointerInput
@@ -397,9 +399,9 @@ private fun SettingsScreen(onOpenShortcuts: () -> Unit) {
                     }
                     SetupStatusCard()
                     TryTypingField()
-                    AdaptiveTouchSection()
-                    TypingFeelSection()
                     PinyinSection()
+                    TypingFeelSection()
+                    AdaptiveTouchSection()
                 }
 
                 SettingsDestination.Keyboard -> {
@@ -551,6 +553,28 @@ private fun SettingsScreen(onOpenShortcuts: () -> Unit) {
                     )
                 }
             }
+        }
+
+        // Content scrolls under the floating pills; fade it out so text never runs into them.
+        Column(modifier = Modifier.align(Alignment.TopCenter).fillMaxWidth()) {
+            // Solid down to the bottom of the pills, then a short fade.
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(ZnKeyboardColors.Background)
+                    .windowInsetsPadding(WindowInsets.statusBars.only(WindowInsetsSides.Top))
+                    .height(SettingsShellDimensions.TITLE_PILL_TOP_GAP + SettingsShellDimensions.TITLE_PILL_HEIGHT),
+            )
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(SettingsShellDimensions.TITLE_SCRIM_FADE)
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(ZnKeyboardColors.Background, ZnKeyboardColors.Background.copy(alpha = 0f)),
+                        ),
+                    ),
+            )
         }
 
         SettingsTitlePill(
@@ -733,8 +757,12 @@ private fun ClipboardHistorySettingsSection(
             onClick = { confirmingClear = true },
             enabled = entryCount > 0,
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.outlinedButtonColors(contentColor = ZnKeyboardColors.DeleteContent),
-            border = BorderStroke(1.dp, ZnKeyboardColors.DeleteContent.copy(alpha = 0.55f)),
+            // Clearing can't be undone, so it reads as destructive even before the dialog.
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+            border = BorderStroke(
+                1.dp,
+                MaterialTheme.colorScheme.error.copy(alpha = if (entryCount > 0) 0.6f else 0.2f),
+            ),
         ) {
             SettingsIconTextButtonContent(R.drawable.ic_delete_24, stringResource(R.string.clipboard_clear))
         }
@@ -817,7 +845,7 @@ private enum class SettingsDestination(
 ) {
     Typing("typing", R.string.nav_typing, R.string.nav_typing, R.drawable.ic_touch_24),
     Keyboard("keyboard", R.string.nav_layout, R.string.nav_layout_title, R.drawable.ic_keyboard_24),
-    Tools("tools", R.string.nav_tools, R.string.nav_tools, R.drawable.ic_tune_24),
+    Tools("tools", R.string.nav_tools, R.string.nav_tools_title, R.drawable.ic_tune_24),
     Backup("backup", R.string.nav_backup, R.string.nav_backup_title, R.drawable.ic_download_24),
 }
 
@@ -954,6 +982,7 @@ private fun VoiceInputSection() {
     SettingsSectionCard {
         SettingsSectionHeader(
             title = stringResource(R.string.voice_title),
+            iconResId = R.drawable.ic_mic_24,
             subtitle = stringResource(R.string.voice_subtitle),
             trailingContent = {
                 Switch(
@@ -1018,6 +1047,7 @@ private fun AgentModeSection(
     SettingsSectionCard {
         SettingsSectionHeader(
             title = stringResource(R.string.rewrite_title),
+            iconResId = R.drawable.ic_auto_awesome_24,
             subtitle = stringResource(R.string.rewrite_subtitle),
             trailingContent = {
                 Switch(
@@ -1027,28 +1057,34 @@ private fun AgentModeSection(
             },
         )
 
-        Text(
-            text = stringResource(R.string.rewrite_desc),
-            color = ZnKeyboardColors.Muted,
-            style = MaterialTheme.typography.bodySmall,
-        )
-
         ProviderTypeSelector(
             providerType = agentProviderType,
             onProviderTypeChange = onAgentProviderTypeChange,
         )
 
-        val fixedBaseUrl = agentProviderType.fixedBaseUrl
-        // Built-in providers show their endpoint read-only; custom endpoints are typed in.
-        OutlinedTextField(
-            shape = SettingsCapsuleShape,
-            value = fixedBaseUrl ?: agentApiBaseUrl,
-            onValueChange = onAgentApiBaseUrlChange,
-            label = { Text(stringResource(R.string.api_base_url)) },
-            singleLine = true,
-            enabled = fixedBaseUrl == null,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
-            modifier = Modifier.fillMaxWidth(),
+        // Built-in providers have a fixed endpoint, so only custom endpoints show the field.
+        if (agentProviderType.fixedBaseUrl == null) {
+            OutlinedTextField(
+                shape = SettingsCapsuleShape,
+                value = agentApiBaseUrl,
+                onValueChange = onAgentApiBaseUrlChange,
+                label = { Text(stringResource(R.string.api_base_url)) },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+
+        // The key comes before the model: the model list loads with it.
+        LockableSecretOutlinedTextField(
+            value = agentApiKey,
+            onValueChange = onAgentApiKeyChange,
+            label = stringResource(R.string.api_key),
+            locked = agentApiKeyLocked,
+            onLockedChange = onAgentApiKeyLockedChange,
+            emptySupportingText = stringResource(R.string.api_key_empty),
+            lockContentDescription = stringResource(R.string.api_key_lock),
+            unlockContentDescription = stringResource(R.string.api_key_unlock),
         )
 
         if (agentProviderType == KeyboardSettings.AgentProviderType.Gemini) {
@@ -1080,17 +1116,6 @@ private fun AgentModeSection(
                 onReasoningTextEnabledChange = onAgentReasoningTextEnabledChange,
             )
         }
-
-        LockableSecretOutlinedTextField(
-            value = agentApiKey,
-            onValueChange = onAgentApiKeyChange,
-            label = stringResource(R.string.api_key),
-            locked = agentApiKeyLocked,
-            onLockedChange = onAgentApiKeyLockedChange,
-            emptySupportingText = stringResource(R.string.api_key_empty),
-            lockContentDescription = stringResource(R.string.api_key_lock),
-            unlockContentDescription = stringResource(R.string.api_key_unlock),
-        )
     }
 }
 
@@ -1247,7 +1272,8 @@ private fun GeminiModelSelector(
         result
             .onSuccess { models ->
                 liveModels = models.geminiTextModels()
-                loadStatus = context.getString(R.string.gemini_loaded, liveModels.size)
+                // The list is the result; only problems need a note under the field.
+                loadStatus = ""
             }
             .onFailure { error ->
                 loadStatus = error.message?.takeIf { it.isNotBlank() } ?: context.getString(R.string.gemini_failed)
@@ -1281,11 +1307,13 @@ private fun GeminiModelSelector(
                 maxHeight = REASONING_PICKER_MAX_HEIGHT,
             )
         }
-        Text(
-            text = loadStatus,
-            color = ZnKeyboardColors.Muted,
-            style = MaterialTheme.typography.bodySmall,
-        )
+        if (loadStatus.isNotEmpty()) {
+            Text(
+                text = loadStatus,
+                color = ZnKeyboardColors.Muted,
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
     }
 }
 
@@ -1337,11 +1365,6 @@ private fun TranslateLanguageSelector(
                 },
             )
         }
-        Text(
-            text = stringResource(R.string.translate_desc),
-            color = ZnKeyboardColors.Muted,
-            style = MaterialTheme.typography.bodySmall,
-        )
     }
 }
 
@@ -1478,15 +1501,38 @@ private fun ReasoningControls(
     onReasoningTextEnabledChange: (Boolean) -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
+    // Most models need none of this; it stays folded under its current value until opened.
+    var showAdvanced by rememberSaveable { mutableStateOf(false) }
     val showReasoningTextSwitch = reasoningMode != KeyboardSettings.AgentReasoningMode.Off
-    val providerHint = stringResource(R.string.reasoning_provider_hint)
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(
-            text = stringResource(R.string.reasoning_title),
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.SemiBold,
-        )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(COMPACT_ITEM_CORNER_RADIUS))
+                .clickable { showAdvanced = !showAdvanced }
+                .padding(vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = stringResource(R.string.reasoning_title),
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.weight(1f),
+            )
+            Text(
+                text = reasoningLabel(reasoningMode),
+                color = ZnKeyboardColors.Muted,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            Icon(
+                painter = painterResource(R.drawable.ic_chevron_left_24),
+                contentDescription = stringResource(if (showAdvanced) R.string.action_collapse else R.string.action_expand),
+                tint = ZnKeyboardColors.Muted,
+                modifier = Modifier.rotate(if (showAdvanced) 90f else 270f),
+            )
+        }
+        if (!showAdvanced) return@Column
         Text(
             text = stringResource(R.string.reasoning_desc),
             color = ZnKeyboardColors.Muted,
@@ -1537,12 +1583,6 @@ private fun ReasoningControls(
                 maxHeight = REASONING_PICKER_MAX_HEIGHT,
             )
         }
-
-        Text(
-            text = providerHint,
-            color = ZnKeyboardColors.Muted,
-            style = MaterialTheme.typography.bodySmall,
-        )
 
         if (showReasoningTextSwitch) {
             Row(

@@ -9,11 +9,14 @@ object AgentDefaults {
     const val DEFAULT_GEMINI_MODEL = "gemini-3.5-flash-lite"
     const val DEFAULT_MODEL = "gpt-4o-mini"
 
-    const val MAX_REWRITE_SOURCE_CHARS = 12_000
+    // Long enough for an email; a full-length Chinese answer still fits MAX_REWRITE_LLM_TOKENS.
+    const val MAX_REWRITE_SOURCE_CHARS = 5_000
     const val REQUEST_TIMEOUT_MS = 30_000
     const val MIN_REWRITE_LLM_TOKENS = 2_000
-    const val MAX_REWRITE_LLM_TOKENS = 6_000
-    const val CHARS_PER_OUTPUT_TOKEN_ESTIMATE = 2
+    // Most providers accept 8k output tokens; larger values are rejected by some (e.g. DeepSeek).
+    const val MAX_REWRITE_LLM_TOKENS = 8_000
+    const val CHARS_PER_OUTPUT_TOKEN_ESTIMATE = 3
+    const val REWRITE_TOKEN_MARGIN = 200
     const val ERROR_PREVIEW_CHARS = 160
 
     const val STRUCTURED_OUTPUT_TEXT_FIELD = "text"
@@ -35,7 +38,7 @@ object AgentDefaults {
     )
     val DEFAULT_TRANSLATE_LANGUAGE = TRANSLATE_LANGUAGES.first()
     // Shortcut-row labels follow the input mode: Chinese in 中, English in EN.
-    const val TRANSLATE_REWRITE_LABEL = "翻译"
+    const val TRANSLATE_REWRITE_LABEL = "AI翻译为"
     const val TRANSLATE_REWRITE_LABEL_EN = "Translate"
     const val TRANSLATE_REWRITE_LOADING_LABEL = "处理中…"
     const val TRANSLATE_REWRITE_LOADING_LABEL_EN = "Working…"
@@ -44,14 +47,14 @@ object AgentDefaults {
 
     /** Rewrite errors shown in Chinese while typing in pinyin mode; others stay as they are. */
     val CHINESE_ERROR_MESSAGES = mapOf(
-        "Text changed. Run rewrite again." to "文字已变动，请重新点润色或翻译。",
+        "Text changed. Run rewrite again." to "文字已变动，请重新点润色或 AI翻译。",
         "Couldn't select the original text." to "无法选中原文。",
         "Couldn't apply the rewrite." to "无法替换成 AI 结果。",
         "Couldn't read the current field." to "无法读取输入框内容。",
         "Couldn't read the full field." to "无法读取完整的输入内容。",
         "Text is too long to rewrite." to "文字太长，无法润色或翻译。",
         "No text to rewrite." to "没有可润色或翻译的文字。",
-        "Add API settings first." to "请先在设置里填好 API。",
+        "Add API settings first." to "请先在 设置 → 工具 里填好 API Key。",
         "Couldn't select the current text." to "无法选中当前文字。",
         "LLM request failed." to "AI 请求失败。",
         "No rewrite returned." to "AI 没有返回结果。",

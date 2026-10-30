@@ -96,17 +96,24 @@ internal fun ShortcutsSummaryCard(onOpen: () -> Unit) {
                 )
             },
         )
+        // Drawn like the keyboard: the rewrite key is its two buttons, and empty rows are left out.
+        val visibleRows = rows.filter { it.second.isNotEmpty() }
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            rows.forEach { (_, keyIds) ->
+            if (visibleRows.isEmpty()) {
+                MiniKey(label = stringResource(R.string.shortcuts_empty_row), muted = true, modifier = Modifier.fillMaxWidth())
+            }
+            visibleRows.forEach { (_, keyIds) ->
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
-                    if (keyIds.isEmpty()) {
-                        MiniKey(label = stringResource(R.string.shortcuts_empty_row), muted = true, modifier = Modifier.weight(1f))
-                    }
                     keyIds.forEach { keyId ->
-                        MiniKey(label = shortcutKeyLabel(keyId), modifier = Modifier.weight(1f))
+                        if (keyId == "rewrite") {
+                            MiniKey(label = stringResource(R.string.key_polish), modifier = Modifier.weight(1.2f))
+                            MiniKey(label = stringResource(R.string.key_translate), modifier = Modifier.weight(1.6f))
+                        } else {
+                            MiniKey(label = shortcutKeyLabel(keyId), modifier = Modifier.weight(1f))
+                        }
                     }
                 }
             }
@@ -476,8 +483,9 @@ private fun KeyPaletteSheet(
             }
 
             PaletteSection(stringResource(R.string.shortcuts_actions), KeyboardSettings.ACTION_KEY_OPTIONS.map { it.id to shortcutOptionLabel(it.id, it.label) }, keyIds, full, onToggle)
-            PaletteSection(stringResource(R.string.shortcuts_keys), KeyboardSettings.CONTROL_KEY_OPTIONS.map { it.id to it.label }, keyIds, full, onToggle)
             PaletteSection(stringResource(R.string.shortcuts_symbols), KeyboardSettings.SYMBOL_KEY_OPTIONS.map { it.id to it.label }, keyIds, full, onToggle)
+            // Terminal keys (Ctrl, Esc, arrows…) come last: rarely needed for writing.
+            PaletteSection(stringResource(R.string.shortcuts_keys), KeyboardSettings.CONTROL_KEY_OPTIONS.map { it.id to it.label }, keyIds, full, onToggle)
         }
     }
 }

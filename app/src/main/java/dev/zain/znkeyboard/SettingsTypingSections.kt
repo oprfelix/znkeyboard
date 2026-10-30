@@ -1,6 +1,7 @@
 package dev.zain.znkeyboard
 
 import android.content.Context
+import android.icu.text.CompactDecimalFormat
 import android.content.Intent
 import android.provider.Settings
 import android.view.inputmethod.InputMethodManager
@@ -60,6 +61,7 @@ import dev.zain.znkeyboard.ime.PinyinLearningStore
 import dev.zain.znkeyboard.pinyin.PinyinFuzzyRule
 import dev.zain.znkeyboard.typing.AdaptiveTypingEngine
 import dev.zain.znkeyboard.typing.TouchModel
+import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
@@ -90,6 +92,30 @@ internal fun SetupStatusCard() {
         if (windowFocused) status = readImeSetupStatus(context)
     }
     val ready = status.enabled && status.selected
+    if (ready) {
+        // Once set up, a single quiet line is enough; the full card is for the steps.
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(start = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.ic_keyboard_24),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(20.dp),
+            )
+            Text(
+                text = stringResource(R.string.setup_active),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f).padding(start = 10.dp),
+            )
+            TextButton(onClick = {
+                context.getSystemService(InputMethodManager::class.java)?.showInputMethodPicker()
+            }) { Text(stringResource(R.string.action_switch)) }
+        }
+        return
+    }
     Surface(
         color = if (ready) MaterialTheme.colorScheme.surfaceContainer else MaterialTheme.colorScheme.primaryContainer,
         contentColor = if (ready) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onPrimaryContainer,
@@ -195,7 +221,7 @@ internal fun TypingFeelSection() {
     var doubleSpace by remember { mutableStateOf(KeyboardSettings.readDoubleSpacePeriodEnabled(context)) }
     CollapsibleSettingsSection(
         title = stringResource(R.string.feel_title),
-        iconResId = R.drawable.ic_touch_24,
+        iconResId = R.drawable.ic_vibration_24,
         summary = stringResource(R.string.feel_summary),
     ) {
         SettingsSwitchRow(
@@ -256,8 +282,12 @@ internal fun PinyinSection() {
 
     CollapsibleSettingsSection(
         title = stringResource(R.string.pinyin_title),
-        iconResId = R.drawable.ic_keyboard_24,
-        summary = stringResource(R.string.pinyin_summary, rules.size, PinyinFuzzyRule.entries.size),
+        iconResId = R.drawable.ic_translate_24,
+        summary = listOfNotNull(
+            stringResource(R.string.pinyin_summary, rules.size, PinyinFuzzyRule.entries.size),
+            stringResource(R.string.pinyin_summary_learn).takeIf { learning },
+            stringResource(R.string.pinyin_summary_predict).takeIf { predictions },
+        ).joinToString(" · "),
     ) {
         Text(
             text = stringResource(R.string.pinyin_desc),
@@ -355,12 +385,16 @@ internal fun AdaptiveTouchSection() {
         )
     }
 
-    SettingsSectionCard(verticalSpacing = 16.dp) {
-        SettingsSectionHeader(
-            title = stringResource(R.string.touch_title),
-            iconResId = R.drawable.ic_tune_24,
-            trailingText = if (summary.samples > 0) stringResource(R.string.touch_taps, formatCount(summary.samples)) else null,
-        )
+    CollapsibleSettingsSection(
+        title = stringResource(R.string.touch_title),
+        iconResId = R.drawable.ic_target_24,
+        summary = when {
+            !adaptive -> stringResource(R.string.touch_summary_off)
+            summary.samples > 0 -> stringResource(R.string.touch_taps, formatCount(summary.samples))
+            else -> stringResource(R.string.touch_learn)
+        },
+        verticalSpacing = 16.dp,
+    ) {
         SettingsSwitchRow(
             title = stringResource(R.string.touch_learn),
             description = stringResource(R.string.touch_learn_desc),
@@ -405,11 +439,9 @@ private fun touchInsight(summary: TouchSummary): String {
     }
 }
 
-private fun formatCount(count: Int): String = when {
-    count >= 10_000 -> "${count / 1000}k"
-    count >= 1_000 -> "%.1fk".format(count / 1000f)
-    else -> count.toString()
-}
+/** Short count in the app's language: "1.2K" in English, "1234" or "1.2万" in Chinese. */
+private fun formatCount(count: Int): String =
+    CompactDecimalFormat.getInstance(Locale.getDefault(), CompactDecimalFormat.CompactStyle.SHORT).format(count)
 
 /** Mini QWERTY showing each key's learned touch centre (dot) and 1σ spread (ring). */
 @Composable

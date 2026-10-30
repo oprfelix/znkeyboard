@@ -2,7 +2,7 @@
 
 A modern, privacy-respecting custom keyboard (input method editor) for Android, built with Kotlin and Jetpack Compose. ZnKeyboard pairs a fast custom typing surface with **Chinese pinyin input** and a built‑in **AI assistant** that polishes your text — or polishes and translates it for customers abroad — using your own API key — Google Gemini built in, or any OpenAI‑compatible endpoint.
 
-> This is a modified fork of [zainbits/zn-keyboard](https://github.com/zainbits/zn-keyboard). It adds pinyin input and AI polish and translate (润色 / 翻译), and removes the GIF, emoji, text-snippet and macro features to keep the keyboard small (release APK ≈ 4.6 MB). Screenshots below are from upstream and predate these changes.
+> This is a modified fork of [zainbits/zn-keyboard](https://github.com/zainbits/zn-keyboard). It adds pinyin input and AI polish and translate (润色 / AI翻译), and removes the GIF, emoji, text-snippet and macro features to keep the keyboard small (release APK ≈ 4.6 MB). Screenshots below are from upstream and predate these changes.
 
 ![Platform](https://img.shields.io/badge/platform-Android%2016%2B-3DDC84?logo=android&logoColor=white)
 ![Language](https://img.shields.io/badge/kotlin-2.3-7F52FF?logo=kotlin&logoColor=white)
@@ -48,8 +48,8 @@ ZnKeyboard learns how *your* thumbs actually hit each key and decodes every tap 
 - Learning stays on the device (and inside the password-encrypted backup), is skipped in password and incognito fields, and can be turned off or cleared in Settings → Typing → Chinese pinyin, as can suggestions.
 - Dictionary: 8,757 characters and the 150,000 most frequent words from [rime-ice](https://github.com/iDvel/rime-ice) (GPL‑3.0), with a few joke weights corrected.
 
-### 🌐 润色 / 翻译: polish and translate
-- In both modes the row starts **润色 | 翻译 | (EN)** — labelled **Polish | Translate** in EN mode. **润色** only polishes what you typed; **翻译** polishes it and translates it into the language on the ink‑blue badge inside that button — **EN, ES, JA, FR or DE** (text already in that language is just polished). Tap the badge, or long‑press the button, to switch language. Settings → Tools → *Translate to* sets the same choice.
+### 🌐 润色 / AI翻译: polish and translate
+- In both modes the row starts **润色 | AI翻译 | (EN)** — labelled **Polish | Translate** in EN mode. **润色** only polishes what you typed; **AI翻译** polishes it and translates it into the language on the ink‑blue badge inside that button — **EN, ES, JA, FR or DE** (text already in that language is just polished). Tap the badge, or long‑press the button, to switch language. Settings → Tools → *Translate to* sets the same choice.
 - In 中 mode the review panel and its errors are in Chinese (取消 / 应用 / 复制).
 
 ### 🎙️ Hold-space voice input
@@ -107,7 +107,7 @@ Single‑module Android app (`:app`), package `dev.zain.znkeyboard`.
 | `ime/ZnKeyboardInputMethodService` | The `InputMethodService` entry point; owns the input lifecycle and `InputConnection`. |
 | `ime/ZnKeyboardView` | The custom keyboard surface — drawing, touch handling, gestures. |
 | `ime/AgentReviewView` + prompt assets | AI rewrite UI and the OpenAI request/response flow. |
-| `ime/PinyinCandidateBar` | Candidate strip above the keys; also lists target languages for 翻译. |
+| `ime/PinyinCandidateBar` | Candidate strip above the keys; also lists target languages for AI翻译. |
 | `pinyin/` | Pinyin engine in pure Kotlin: `PinyinFuzzy` (fuzzy-sound folding), `PinyinDictionary` (exact and 简拼 indexes), `PinyinEngine` (segmentation and ranking). |
 | `ime/ClipboardPanelView`, `ime/ClipboardSearchView` | Clipboard history panel and its search. |
 | `SettingsActivity` (Jetpack Compose, Material 3) | Edge-to-edge settings app with a floating title pill and four tabs: Typing, Layout, Tools (AI), and Backup (with clipboard history). |
@@ -162,8 +162,8 @@ Release builds are minified with R8 (code and resource shrinking), which takes t
 1. Open ZnKeyboard settings → **Tools** tab.
 2. Pick **Google Gemini** (endpoint built in; choose a model, `gemini-3.5-flash-lite` recommended) or **OpenAI compatible** (type the base URL and model), then paste your API key.
 3. The key is encrypted with the Android Keystore and stored only on your device.
-4. Turn on **Rewrite** at the top of the Tools tab, and pick a **Translate to** language for 翻译.
-5. Tap **润色** or **翻译** on the shortcut row and review the suggestion before it's applied.
+4. Turn on **Rewrite** at the top of the Tools tab, and pick a **Translate to** language for AI翻译.
+5. Tap **润色** or **AI翻译** on the shortcut row and review the suggestion before it's applied.
 
 You are billed directly by your chosen provider for your own usage; ZnKeyboard never proxies requests.
 

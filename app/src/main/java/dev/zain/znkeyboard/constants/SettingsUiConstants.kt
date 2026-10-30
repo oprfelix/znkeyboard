@@ -28,6 +28,8 @@ object SettingsShellDimensions {
     val TITLE_PILL_HORIZONTAL_PADDING = 20.dp
     val TITLE_PILL_START_MARGIN = 12.dp
     val TITLE_PILL_TOP_GAP = 8.dp
+    /** Fade below the solid band behind the title pills. */
+    val TITLE_SCRIM_FADE = 20.dp
     val TITLE_PILL_BORDER_WIDTH = 1.dp
     val CONTENT_HORIZONTAL_PADDING = 16.dp
 

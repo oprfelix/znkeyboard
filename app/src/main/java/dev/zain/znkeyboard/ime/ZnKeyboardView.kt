@@ -136,8 +136,10 @@ class ZnKeyboardView @JvmOverloads constructor(
     // Shown on a round key beside Rewrite while it translates; null when it only polishes.
     private var translateLanguageCode: String? = null
     // Reused by onDraw for round and merged keys, which must not allocate.
-    private val circleKeyBounds = RectF()
+    private val chipKeyBounds = RectF()
+    private val chipChevronPath = Path()
     private val mergedKeyBounds = RectF()
+    private val mergedLabelBounds = RectF()
     private var keyHapticsEnabled = true
     private var keyPreviewEnabled = true
     private var autoShiftActive = false
@@ -873,7 +875,7 @@ class ZnKeyboardView @JvmOverloads constructor(
     /** [next] is the key drawn after this one; a [KeySpec.mergesWithNext] key stretches its pill over it. */
     private fun drawKey(canvas: Canvas, hit: KeyHit, next: KeyHit? = null) {
         val key = hit.key
-        val bounds = if (key.circle) circleBounds(hit.visualBounds) else hit.visualBounds
+        val bounds = if (key.chip) chipBounds(hit.visualBounds) else hit.visualBounds
         val backgroundBounds = if (key.mergesWithNext && next != null) {
             mergedKeyBounds.set(bounds.left, bounds.top, next.visualBounds.right, bounds.bottom)
             mergedKeyBounds
@@ -890,14 +892,14 @@ class ZnKeyboardView @JvmOverloads constructor(
         // Space is typed as often as letters; it shares their surface rather than looking like a modifier.
         val isSpace = key.id == "space" || key.id == "phone_space"
         val drawBackground = when {
-            pressed || selected || rewriteLoading || isSpace || key.circle -> true
+            pressed || selected || rewriteLoading || isSpace || key.chip -> true
             // Shortcut rows read as a quiet toolbar: content only, with a pill on press / latch.
             toolbar -> key.intent == KeyIntent.AgentRewrite || key.intent == KeyIntent.AgentPolishOnly
             key.role == KeyRole.Function -> functionKeyBackgroundsEnabled
             else -> true
         }
         val containerColor = when {
-            key.circle -> ImeColors.TRANSLATE_BADGE
+            key.chip -> ImeColors.TRANSLATE_BADGE
             rewriteLoading -> PALETTE.aiLoadingSurface
             selected -> PALETTE.selected
             toolbar -> PALETTE.function
@@ -908,7 +910,7 @@ class ZnKeyboardView @JvmOverloads constructor(
             else -> PALETTE.key
         }
         val contentColor = when {
-            key.circle -> ImeColors.ON_TRANSLATE_BADGE
+            key.chip -> ImeColors.ON_TRANSLATE_BADGE
             rewriteLoading -> PALETTE.text
             selected -> PALETTE.onSelected
             isActionKey -> PALETTE.onAction
@@ -940,9 +942,19 @@ class ZnKeyboardView @JvmOverloads constructor(
         }
 
         val contentAlpha = if (key.enabled || key.emphasizedWhenDisabled) 255 else DISABLED_CONTENT_ALPHA
+        // A pill that runs on under a round badge centers its label in the space left of the badge.
+        val labelBounds = if (key.mergesWithNext && next?.key?.chip == true) {
+            val chipLeft = next.visualBounds.left + dp(ImeDimensions.TRANSLATE_CHIP_INSET_DP)
+            mergedLabelBounds.set(bounds.left, bounds.top, chipLeft, bounds.bottom)
+            mergedLabelBounds
+        } else {
+            bounds
+        }
 
         if (rewriteLoading) {
-            drawRewriteLoadingContent(canvas, key.label, bounds, contentColor, contentAlpha)
+            drawRewriteLoadingContent(canvas, key.label, labelBounds, contentColor, contentAlpha)
+        } else if (key.chip) {
+            drawLanguageChipContent(canvas, key.label, bounds, contentColor, contentAlpha)
         } else key.icon?.let {
             drawIcon(canvas, it, bounds, contentColor, contentAlpha)
         } ?: run {
@@ -953,14 +965,14 @@ class ZnKeyboardView @JvmOverloads constructor(
                 }
             } else {
                 val role = if (toolbar && key.role == KeyRole.Character && key.label.length > 1) KeyRole.Function else key.role
-                val textSize = fitTextSize(key.label, bounds, role, hit.rowStyle)
+                val textSize = fitTextSize(key.label, labelBounds, role, hit.rowStyle)
                 textPaint.typeface = if (role == KeyRole.Character) letterTypeface else labelTypeface
                 textPaint.textSize = textSize
                 textPaint.color = contentColor
                 textPaint.alpha = contentAlpha
                 val metrics = textPaint.fontMetrics
                 val baseline = bounds.centerY() - (metrics.ascent + metrics.descent) / 2f
-                canvas.drawText(key.label, bounds.centerX(), baseline, textPaint)
+                canvas.drawText(key.label, labelBounds.centerX(), baseline, textPaint)
                 textPaint.typeface = letterTypeface
             }
         }
@@ -1125,13 +1137,40 @@ class ZnKeyboardView @JvmOverloads constructor(
         return voiceTimerText
     }
 
-    /** Square centered in a round key's slot; with a toolbar's half-height radius it draws a circle. */
-    private fun circleBounds(bounds: RectF): RectF {
-        val side = min(bounds.width(), bounds.height()) * ImeDimensions.TRANSLATE_BADGE_SCALE
-        val left = bounds.centerX() - side / 2f
-        val top = bounds.centerY() - side / 2f
-        circleKeyBounds.set(left, top, left + side, top + side)
-        return circleKeyBounds
+    /** Capsule inset in the chip key's slot; a toolbar's half-height radius rounds its ends. */
+    private fun chipBounds(bounds: RectF): RectF {
+        val inset = dp(ImeDimensions.TRANSLATE_CHIP_INSET_DP)
+        val height = bounds.height() * ImeDimensions.TRANSLATE_CHIP_HEIGHT_FRACTION
+        val top = bounds.centerY() - height / 2f
+        chipKeyBounds.set(bounds.left + inset, top, bounds.right - inset, top + height)
+        return chipKeyBounds
+    }
+
+    /** "EN" plus a small down chevron, centered together: the chip opens the language list. */
+    private fun drawLanguageChipContent(canvas: Canvas, label: String, bounds: RectF, color: Int, alpha: Int) {
+        textPaint.typeface = labelTypeface
+        textPaint.textSize = bounds.height() * ImeDimensions.TRANSLATE_CHIP_TEXT_FRACTION
+        textPaint.color = color
+        textPaint.alpha = alpha
+        val textWidth = textPaint.measureText(label)
+        val chevronWidth = bounds.height() * 0.22f
+        val gap = bounds.height() * 0.12f
+        val left = bounds.centerX() - (textWidth + gap + chevronWidth) / 2f
+        val metrics = textPaint.fontMetrics
+        val baseline = bounds.centerY() - (metrics.ascent + metrics.descent) / 2f
+        canvas.drawText(label, left + textWidth / 2f, baseline, textPaint)
+        val chevronLeft = left + textWidth + gap
+        val chevronTop = bounds.centerY() - chevronWidth * 0.25f
+        chipChevronPath.reset()
+        chipChevronPath.moveTo(chevronLeft, chevronTop)
+        chipChevronPath.lineTo(chevronLeft + chevronWidth, chevronTop)
+        chipChevronPath.lineTo(chevronLeft + chevronWidth / 2f, chevronTop + chevronWidth * 0.55f)
+        chipChevronPath.close()
+        keyPaint.style = Paint.Style.FILL
+        keyPaint.color = color
+        keyPaint.alpha = alpha
+        canvas.drawPath(chipChevronPath, keyPaint)
+        textPaint.typeface = letterTypeface
     }
 
     private fun keyRadius(bounds: RectF, toolbar: Boolean): Float {
@@ -1930,7 +1969,7 @@ class ZnKeyboardView @JvmOverloads constructor(
                     intent = KeyIntent.ChooseTranslateLanguage,
                     weight = ImeDimensions.TRANSLATE_LANGUAGE_KEY_WEIGHT,
                     role = KeyRole.Function,
-                    circle = true,
+                    chip = true,
                 ),
             )
         }
@@ -2435,8 +2474,8 @@ class ZnKeyboardView @JvmOverloads constructor(
         val longPressHint: String? = null,
         val subLabel: String? = null,
         val subLabelStyle: SubLabelStyle = SubLabelStyle.Small,
-        /** Drawn as a circle centered in its slot, always with a background. */
-        val circle: Boolean = false,
+        /** Drawn as a capsule chip ("EN ▾") inset in its slot, always with a background. */
+        val chip: Boolean = false,
         /** The pill also covers the next key's slot, so that key reads as a badge inside it. */
         val mergesWithNext: Boolean = false,
     )

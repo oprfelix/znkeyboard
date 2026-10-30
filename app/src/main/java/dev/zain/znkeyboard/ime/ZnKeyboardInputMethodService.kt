@@ -1908,6 +1908,9 @@ class ZnKeyboardInputMethodService : InputMethodService(),
                 .getJSONArray("choices")
                 .getJSONObject(0)
 
+        // A cut-off answer is half a JSON object; say why instead of reporting a parse error.
+        if (choice.optString("finish_reason") == "length") throw IOException("Text is too long to rewrite.")
+
         val message = choice.optJSONObject("message")
             ?: throw IOException("LLM response did not include a message.")
 
@@ -1981,10 +1984,15 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         }
     }
 
+    /**
+     * Room for the answer: a CJK character can cost a whole token while Latin text packs several
+     * characters per token, so CJK counts in full. Translation can lengthen text, hence the margin.
+     */
     private fun maxTokensFor(text: String): Int {
-        val estimatedOutputTokens = (text.length / CHARS_PER_OUTPUT_TOKEN_ESTIMATE)
-            .coerceAtLeast(MIN_REWRITE_LLM_TOKENS)
-        return estimatedOutputTokens.coerceAtMost(MAX_REWRITE_LLM_TOKENS)
+        val cjk = text.count { it.code >= CJK_START }
+        val estimatedOutputTokens = cjk + (text.length - cjk) / CHARS_PER_OUTPUT_TOKEN_ESTIMATE
+        return (estimatedOutputTokens * 3 / 2 + REWRITE_TOKEN_MARGIN)
+            .coerceIn(MIN_REWRITE_LLM_TOKENS, MAX_REWRITE_LLM_TOKENS)
     }
 
     private fun structuredResponseFormatFor(outputMode: StructuredOutputMode): JSONObject {
@@ -2366,6 +2374,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         const val MIN_REWRITE_LLM_TOKENS = AgentDefaults.MIN_REWRITE_LLM_TOKENS
         const val MAX_REWRITE_LLM_TOKENS = AgentDefaults.MAX_REWRITE_LLM_TOKENS
         const val CHARS_PER_OUTPUT_TOKEN_ESTIMATE = AgentDefaults.CHARS_PER_OUTPUT_TOKEN_ESTIMATE
+        const val REWRITE_TOKEN_MARGIN = AgentDefaults.REWRITE_TOKEN_MARGIN
         const val ERROR_PREVIEW_CHARS = AgentDefaults.ERROR_PREVIEW_CHARS
         const val STRUCTURED_OUTPUT_TEXT_FIELD = AgentDefaults.STRUCTURED_OUTPUT_TEXT_FIELD
         const val REWRITE_BASE_PROMPT_ASSET = AgentDefaults.REWRITE_BASE_PROMPT_ASSET

@@ -59,11 +59,12 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
     }
     private val languageBadge = TextView(context).apply {
         gravity = Gravity.CENTER
-        textSize = 11f
-        typeface = Typeface.DEFAULT_BOLD
+        textSize = 12f
+        typeface = Typeface.create(Typeface.DEFAULT, 500, false)
         setTextColor(ImeColors.ON_TRANSLATE_BADGE)
+        setPadding(context.dp(9), 0, context.dp(8), 0)
         background = GradientDrawable().apply {
-            shape = GradientDrawable.OVAL
+            cornerRadius = context.dp(13f)
             setColor(ImeColors.TRANSLATE_BADGE)
         }
         setOnClickListener { callback?.onTranslateLanguageMenuRequested() }
@@ -73,7 +74,7 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
         gravity = Gravity.CENTER_VERTICAL
         setPadding(0, 0, context.dp(4), 0)
         addView(translateLabel, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.MATCH_PARENT))
-        addView(languageBadge, LayoutParams(context.dp(26), context.dp(26)))
+        addView(languageBadge, LayoutParams(LayoutParams.WRAP_CONTENT, context.dp(26)))
         setOnClickListener { callback?.onAgentRewriteRequested() }
         setOnLongClickListener {
             callback?.onTranslateLanguageMenuRequested()
@@ -133,7 +134,7 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
         toolsRow.visibility = View.VISIBLE
         polishButton.text = tools.polishLabel
         translateLabel.text = tools.translateLabel
-        languageBadge.text = tools.languageCode
+        languageBadge.text = "${tools.languageCode} ▾"
         val alpha = if (tools.enabled) 1f else DISABLED_ALPHA
         polishButton.isEnabled = tools.enabled
         translateButton.isEnabled = tools.enabled
