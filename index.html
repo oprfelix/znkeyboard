@@ -29,6 +29,7 @@
   --select: rgba(42, 112, 255, 0.22);
   --shadow: 0 18px 50px rgba(30, 70, 160, 0.14);
   --green: #1e8e3e;
+  --warn: #b45309;
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
@@ -47,6 +48,7 @@
     --select: rgba(91, 147, 255, 0.32);
     --shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
     --green: #81c995;
+    --warn: #f0b35a;
     color-scheme: dark;
   }
 }
@@ -125,6 +127,7 @@ nav .wrap { display: flex; align-items: center; gap: 24px; height: 60px; }
 .btn.ghost { background: var(--card); color: var(--ink); border: 1px solid var(--line); box-shadow: none; }
 .btn.ghost:hover { border-color: var(--blue); }
 .meta { color: var(--muted); font-size: 14px; }
+.meta .warn { color: var(--warn); font-weight: 600; }
 .others { margin-top: 14px; font-size: 14px; color: var(--muted); }
 .others a { margin-right: 14px; }
 @media (max-width: 880px) {
@@ -478,7 +481,7 @@ footer .links a { margin-right: 18px; }
     <div class="grid three steps">
       <div class="card step">
         <h3 data-en="Install">安装</h3>
-        <p data-en="Download the version for your device above. On Android, also turn on ZnKeyboard in the keyboard settings; the app walks you through it.">在上方下载对应版本。Android 安装后还要在系统里启用 ZnKeyboard 输入法，App 首页会引导你完成。</p>
+        <p data-en="Download the version for your device above. On Android, also turn on ZnKeyboard in the keyboard settings; the app walks you through it. On Mac, allow ZnKeyboard under Accessibility when asked, so it can read the text you select.">在上方下载对应版本。Android 安装后还要在系统里启用 ZnKeyboard 输入法，App 首页会引导你完成；Mac 需要按提示在「辅助功能」里授权，才能读取你选中的文字。</p>
       </div>
       <div class="card step">
         <h3 data-en="Get an API key">获取 API Key</h3>
@@ -511,35 +514,37 @@ footer .links a { margin-right: 18px; }
     <div class="qa">
       <details>
         <summary data-en="Android: “Install blocked” or “unknown apps”">Android：提示「禁止安装未知应用」</summary>
-        <div class="answer" data-en="<ol><li>Open the downloaded APK. When Android asks, tap <b>Settings</b> and allow your browser or file manager to install apps.</li><li>Go back and tap <b>Install</b>.</li><li>Open ZnKeyboard and follow the steps to enable it as a keyboard.</li></ol>Updating: install the new APK over the old one; your settings and API key stay.">
+        <div class="answer" data-en="<ol><li>Open the downloaded APK. When Android asks, tap <b>Settings</b> and allow your browser or file manager to install apps.</li><li>Go back and tap <b>Install</b>.</li><li>Open ZnKeyboard and follow the steps to enable it as a keyboard.</li></ol>Updating: install the new APK over the old one; your settings and API key stay. If your keyboard switched to another one after updating, open ZnKeyboard and follow the prompt on its home screen to select it again.">
           <ol>
             <li>打开下载好的 APK，系统提示时点 <b>设置</b>，允许浏览器或文件管理器安装应用。</li>
             <li>返回后点 <b>安装</b>。</li>
             <li>打开 ZnKeyboard，按首页提示启用输入法。</li>
           </ol>
-          以后更新：直接安装新版 APK 覆盖即可，设置和 API Key 都会保留。
+          以后更新：直接安装新版 APK 覆盖即可，设置和 API Key 都会保留。更新后如果键盘被换成了别的输入法，打开 ZnKeyboard，按首页提示重新选择即可。
         </div>
       </details>
       <details>
-        <summary data-en="Mac: “ZnKeyboard Not Opened” / Apple could not verify">Mac：提示「未打开 ZnKeyboard」「Apple 无法验证」</summary>
-        <div class="answer" data-en="<ol><li>Drag ZnKeyboard into Applications and open it. If macOS blocks it, click <b>Done</b>.</li><li>Open <b>System Settings → Privacy &amp; Security</b>, scroll down and click <b>Open Anyway</b> next to ZnKeyboard, then confirm.</li><li>When asked, turn on ZnKeyboard under <b>Privacy &amp; Security → Accessibility</b> so it can read the text you select.</li></ol>Command-line alternative: <code>xattr -dr com.apple.quarantine /Applications/ZnKeyboard.app</code>">
+        <summary data-en="Mac: “ZnKeyboard Not Opened”, or it stops working after an upgrade">Mac：提示「未打开 ZnKeyboard」，或升级后用不了</summary>
+        <div class="answer" data-en="<ol><li>Drag ZnKeyboard into Applications and open it. If macOS blocks it, click <b>Done</b>.</li><li>Open <b>System Settings → Privacy &amp; Security</b>, scroll down and click <b>Open Anyway</b> next to ZnKeyboard, then confirm.</li><li>When asked, turn on ZnKeyboard under <b>Privacy &amp; Security → Accessibility</b> so it can read the text you select.</li></ol><b>After each upgrade</b>, select ZnKeyboard under Accessibility, remove it with “−”, then add <code>/Applications/ZnKeyboard.app</code> back with “+” and turn it on. If macOS asks about the keychain, click <b>Always Allow</b>.<br>Command-line alternative: <code>xattr -dr com.apple.quarantine /Applications/ZnKeyboard.app</code>">
           <ol>
             <li>把 ZnKeyboard 拖进「应用程序」后打开。如果被拦截，先点 <b>完成</b>。</li>
             <li>打开 <b>系统设置 → 隐私与安全性</b>，滚到最下面，在 ZnKeyboard 旁点 <b>仍要打开</b>，输入密码确认。</li>
             <li>按提示在 <b>隐私与安全性 → 辅助功能</b> 里打开 ZnKeyboard，它才能读取你选中的文字。</li>
           </ol>
+          <b>每次升级后</b>：在「辅助功能」里选中 ZnKeyboard，点「−」移除，再点「+」把 <code>/Applications/ZnKeyboard.app</code> 加回来并打开开关。如果弹出钥匙串授权，点 <b>始终允许</b>。<br>
           会用终端的话也可以执行：<code>xattr -dr com.apple.quarantine /Applications/ZnKeyboard.app</code>
         </div>
       </details>
       <details>
         <summary data-en="Windows: “Windows protected your PC” or it won't start">Windows：提示「Windows 已保护你的电脑」或打不开</summary>
-        <div class="answer" data-en="<ol><li>Install the <a href=&quot;https://dotnet.microsoft.com/download/dotnet/10.0&quot;>.NET 10 Desktop Runtime</a> (x64) first.</li><li>Unzip the download to a folder you keep, such as Documents, and run <b>ZnKeyboard.exe</b>.</li><li>If SmartScreen appears, click <b>More info → Run anyway</b>.</li><li>ZnKeyboard sits in the tray (bottom right). Right-click it for settings; you can have it start with Windows.</li></ol>">
+        <div class="answer" data-en="<ol><li>Install the <a href=&quot;https://dotnet.microsoft.com/download/dotnet/10.0&quot;>.NET 10 Desktop Runtime</a> (x64) first.</li><li>Unzip the download to a folder you keep, such as Documents, and run <b>ZnKeyboard.exe</b>.</li><li>If SmartScreen appears, click <b>More info → Run anyway</b>.</li><li>ZnKeyboard sits in the tray (bottom right). Right-click it for settings; you can have it start with Windows.</li></ol>Something not working? Right-click the tray icon → <b>Open diagnostic log</b> and send it with your <a href=&quot;https://github.com/oprfelix/Znkeyboard-for-Windows/issues&quot;>report</a>. It never contains your text.">
           <ol>
             <li>先安装 <a href="https://dotnet.microsoft.com/download/dotnet/10.0">.NET 10 桌面运行时</a>（x64）。</li>
             <li>把压缩包解压到一个固定的文件夹（比如「文档」），运行 <b>ZnKeyboard.exe</b>。</li>
             <li>如果出现蓝色的 SmartScreen 提示，点 <b>更多信息 → 仍要运行</b>。</li>
             <li>ZnKeyboard 会出现在右下角托盘里，右键可打开设置，还可以设为开机启动。</li>
           </ol>
+          遇到问题：右键托盘图标 → <b>打开诊断日志</b>，连同问题描述一起<a href="https://github.com/oprfelix/Znkeyboard-for-Windows/issues">反馈给我们</a>。日志里不包含任何你输入或选中的文字。
         </div>
       </details>
     </div>
@@ -552,15 +557,15 @@ footer .links a { margin-right: 18px; }
     <div class="qa">
       <details>
         <summary data-en="Is it free?">要花钱吗？</summary>
-        <div class="answer" data-en="The apps are free. AI requests are billed by your provider to your own key. Google Gemini's free tier is plenty for everyday polishing and translating; ZnKeyboard uses the low-cost Flash-Lite models by default.">软件本身免费。AI 请求由服务商按你自己的 Key 计费。Google Gemini 的免费额度足够日常润色和翻译使用，ZnKeyboard 默认用的也是价格最低的 Flash-Lite 模型。</div>
+        <div class="answer" data-en="The apps are free. AI requests are billed by your provider to your own key. <b>DeepSeek</b> is pay as you go after a small top-up; a polish or translation costs a tiny fraction of a cent. <b>Google Gemini</b>'s free tier is plenty for everyday use, and ZnKeyboard uses its low-cost Flash-Lite models.">软件本身免费。AI 请求由服务商按你自己的 Key 计费：<b>DeepSeek</b> 按用量付费，需要先充值，润色或翻译一次只要几厘钱；<b>Google Gemini</b> 的免费额度足够日常使用，ZnKeyboard 默认用的也是它价格最低的 Flash-Lite 模型。</div>
       </details>
       <details>
         <summary data-en="Where does my text go?">我的文字会发到哪里？</summary>
         <div class="answer" data-en="Only when you tap Polish or Translate (or use AI voice input), that text is sent directly to the AI provider you chose. There is no ZnKeyboard server, no account and no analytics. Your API key is stored on your device (Android Keystore, macOS Keychain, Windows Credential Manager). Ordinary typing never leaves the keyboard.">只有在你点「润色」「翻译」或使用 AI 语音输入时，那一段文字才会直接发给你选择的 AI 服务商。ZnKeyboard 没有自己的服务器，不需要注册，也不收集统计数据。API Key 只保存在你的设备上（Android 密钥库、macOS 钥匙串、Windows 凭据管理器）。平时普通打字的内容不会离开键盘。</div>
       </details>
       <details>
-        <summary data-en="Can I use something other than Gemini?">除了 Gemini 还能用别的吗？</summary>
-        <div class="answer" data-en="Yes. Choose “OpenAI compatible” as the provider, then pick the DeepSeek endpoint: the address is built in, so you only paste a key from the <a href=&quot;https://platform.deepseek.com/api_keys&quot;>DeepSeek platform</a> (model deepseek-flash by default). DeepSeek is fast in mainland China. Pick “Custom” to type the address and model of OpenAI, OpenRouter or another compatible service. AI voice input still needs a Gemini key.">可以。服务商选择「OpenAI 兼容」，接口选「DeepSeek」，地址已内置，只需粘贴在 <a href="https://platform.deepseek.com/api_keys">DeepSeek 开放平台</a>申请的 Key（默认模型 deepseek-flash），国内可直连。接口选「自定义」，可以填写 OpenAI、OpenRouter 等其他兼容服务的地址和模型。AI 语音输入仍需要 Gemini Key。</div>
+        <summary data-en="Which AI services can I use?">可以用哪些 AI 服务？</summary>
+        <div class="answer" data-en="Google Gemini and DeepSeek are set up for you; see <a href=&quot;#start&quot;>Get started</a>. Under “OpenAI compatible”, the “Custom” endpoint also works with OpenAI, OpenRouter and other compatible services: type their address and model. AI voice input needs a Gemini key.">Google Gemini 和 DeepSeek 都已内置，设置方法见上方<a href="#start">三步开始使用</a>。「OpenAI 兼容」里的「自定义」接口还可以接 OpenAI、OpenRouter 等其他兼容服务，填写对方的地址和模型即可。AI 语音输入需要 Gemini Key。</div>
       </details>
       <details>
         <summary data-en="Is there an iPhone version?">有 iPhone 版吗？</summary>
@@ -578,6 +583,7 @@ footer .links a { margin-right: 18px; }
   <div class="wrap">
     <div>© 2026 ZnKeyboard · GPL-3.0</div>
     <div class="links">
+      <a href="https://github.com/oprfelix/znkeyboard/issues" data-en="Report a problem">反馈问题</a>
       <a href="https://github.com/oprfelix/znkeyboard">Android</a>
       <a href="https://github.com/oprfelix/Znkeyboard-for-macOS">macOS</a>
       <a href="https://github.com/oprfelix/Znkeyboard-for-Windows">Windows</a>
@@ -626,16 +632,34 @@ footer .links a { margin-right: 18px; }
 
   function releasesPage(repo) { return 'https://github.com/oprfelix/' + repo + '/releases/latest'; }
 
+  // "v1.6.2 · 4.8 MB": the version links to that release's notes. The Mac build runs on Apple silicon only.
+  function fillMeta(el, repo) {
+    var info = latest[repo];
+    el.textContent = '';
+    if (info) {
+      var link = document.createElement('a');
+      link.href = info.notes;
+      link.textContent = info.version;
+      link.title = t('查看更新内容', "What's new");
+      el.appendChild(link);
+      el.appendChild(document.createTextNode(' · ' + info.size + ' MB'));
+    }
+    if (repo === repos.mac.repo) {
+      if (info) el.appendChild(document.createTextNode(' · '));
+      var note = document.createElement('span');
+      note.className = 'warn';
+      note.textContent = t('仅支持 Apple 芯片', 'Apple silicon only');
+      el.appendChild(note);
+    }
+  }
+
   function renderDownloads() {
     // Platform cards.
     document.querySelectorAll('a[data-repo]').forEach(function (a) {
       var info = latest[a.dataset.repo];
       if (info) a.href = info.url;
     });
-    document.querySelectorAll('[data-meta]').forEach(function (m) {
-      var info = latest[m.dataset.meta];
-      m.textContent = info ? info.version + ' · ' + info.size + ' MB' : '';
-    });
+    document.querySelectorAll('[data-meta]').forEach(function (m) { fillMeta(m, m.dataset.meta); });
     document.querySelectorAll('.platform').forEach(function (card) {
       card.classList.toggle('current', card.dataset.platform === platform);
     });
@@ -650,7 +674,7 @@ footer .links a { margin-right: 18px; }
       var info = latest[target.repo];
       btn.href = info ? info.url : releasesPage(target.repo);
       label.textContent = t('下载 ' + target.name + ' 版', 'Download for ' + target.name);
-      meta.textContent = info ? info.version + ' · ' + info.size + ' MB' : '';
+      fillMeta(meta, target.repo);
     } else {
       btn.href = '#download';
       label.textContent = t('免费下载', 'Download free');
@@ -671,7 +695,7 @@ footer .links a { margin-right: 18px; }
         if (!rel || !rel.assets) return;
         var asset = rel.assets.find(function (a) { return a.name.toLowerCase().endsWith(r.ext); });
         if (!asset) return;
-        latest[r.repo] = { url: asset.browser_download_url, version: rel.tag_name, size: (asset.size / 1048576).toFixed(1) };
+        latest[r.repo] = { url: asset.browser_download_url, notes: rel.html_url, version: rel.tag_name, size: (asset.size / 1048576).toFixed(1) };
         renderDownloads();
       })
       .catch(function () {});
