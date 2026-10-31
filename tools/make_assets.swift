@@ -153,13 +153,12 @@ save(bitmap(width: 512, height: 512) { androidTile($0, size: 512) }, "assets/ico
 save(bitmap(width: 180, height: 180) { androidTile($0, size: 180) }, "assets/apple-touch-icon.png")
 save(bitmap(width: 64, height: 64) { androidTile($0, size: 64, artScale: 1.05) }, "assets/favicon.png")
 
-// macOS / Windows share the ✦ two-card icon; put it on the same white tile.
+// macOS / Windows share the ✦ two-card icon; the macOS one already sits on its white tile, so
+// crop away the icon grid's margin to match the Android tile.
 let macIcon = NSImage(contentsOfFile: CommandLine.arguments[1])!
 save(bitmap(width: 512, height: 512) { _ in
-    rgb(255, 255, 255).setFill()
-    rounded(NSRect(x: 0, y: 0, width: 512, height: 512), 512 * 0.225).fill()
-    let inset: CGFloat = 512 * (1 - 0.82) / 2
-    macIcon.draw(in: NSRect(x: inset, y: inset, width: 512 - 2 * inset, height: 512 - 2 * inset))
+    macIcon.draw(in: NSRect(x: 0, y: 0, width: 512, height: 512), from: NSRect(x: 100, y: 100, width: 824, height: 824),
+                 operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
 }, "assets/icon-desktop.png")
 
 // Share card for chat apps and social sites.
