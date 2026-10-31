@@ -428,7 +428,7 @@ footer .links a { margin-right: 18px; }
 <section id="download">
   <div class="wrap">
     <h2 data-en="Download">下载</h2>
-    <p class="lead" data-en="Free. Settings carry over when you update.">免费使用。更新时直接覆盖安装，设置都会保留。</p>
+    <p class="lead" data-en="Free. To update, just install the new version: your settings and API key stay, with no need to grant permissions again.">免费使用。更新时安装新版即可，设置和 API Key 都会保留，不用重新授权。</p>
     <div class="grid three">
       <article class="card platform" data-platform="android">
         <header><img src="assets/icon-android.png" alt=""><div><h3>Android <span class="tag" data-en="Keyboard">输入法</span></h3><div class="kind" data-en="Pinyin + English keyboard">拼音 + 英文输入法</div></div></header>
@@ -456,6 +456,7 @@ footer .links a { margin-right: 18px; }
         <ul>
           <li data-en="Pill on selected text, or <kbd>Ctrl+Alt+R</kbd> / <kbd>Ctrl+Alt+T</kbd>">选中文字弹出小胶囊，或按 <kbd>Ctrl+Alt+R</kbd> / <kbd>Ctrl+Alt+T</kbd></li>
           <li data-en="Screenshot translate with <kbd>Ctrl+Alt+E</kbd>: text is read on your PC">截图翻译 <kbd>Ctrl+Alt+E</kbd>：在本机识别文字后翻译</li>
+          <li data-en="Double-click to install, then open it from the Start menu">双击自动安装，可从开始菜单打开</li>
           <li data-en="Windows 10 / 11, 64-bit (Intel / AMD)">Windows 10 / 11，64 位（Intel / AMD）</li>
           <li data-en="Needs the free <a href=&quot;https://dotnet.microsoft.com/download/dotnet/10.0&quot;>.NET 10 Desktop Runtime</a>">需先安装免费的 <a href="https://dotnet.microsoft.com/download/dotnet/10.0">.NET 10 桌面运行时</a></li>
         </ul>
@@ -496,7 +497,7 @@ footer .links a { margin-right: 18px; }
     <div class="grid three steps">
       <div class="card step">
         <h3 data-en="Install">安装</h3>
-        <p data-en="Download the version for your device above. On Android, also turn on ZnKeyboard in the keyboard settings; the app walks you through it. On Mac, allow ZnKeyboard under Accessibility when asked, so it can read the text you select.">在上方下载对应版本。Android 安装后还要在系统里启用 ZnKeyboard 输入法，App 首页会引导你完成；Mac 需要按提示在「辅助功能」里授权，才能读取你选中的文字。</p>
+        <p data-en="Download the version for your device above. On Android, also turn on ZnKeyboard in the keyboard settings; the app walks you through it. On Mac, allow ZnKeyboard under Accessibility when asked, so it can read the text you select (screenshot translate also needs Screen Recording). On Windows, run the installer; the first time, install the .NET 10 runtime.">在上方下载对应版本。Android 安装后还要在系统里启用 ZnKeyboard 输入法，App 首页会引导你完成；Mac 需要按提示在「辅助功能」里授权，才能读取你选中的文字（截图翻译还需要「屏幕录制」权限）；Windows 双击安装程序即可，第一次需先安装 .NET 10 运行时。</p>
       </div>
       <div class="card step">
         <h3 data-en="Get an API key">获取 API Key</h3>
@@ -539,15 +540,14 @@ footer .links a { margin-right: 18px; }
         </div>
       </details>
       <details>
-        <summary data-en="Mac: “ZnKeyboard Not Opened”, or it stops working after an upgrade">Mac：提示「未打开 ZnKeyboard」，或升级后用不了</summary>
-        <div class="answer" data-en="<ol><li>Drag ZnKeyboard into Applications and open it. If macOS blocks it, click <b>Done</b>.</li><li>Open <b>System Settings → Privacy &amp; Security</b>, scroll down and click <b>Open Anyway</b> next to ZnKeyboard, then confirm.</li><li>When asked, turn on ZnKeyboard under <b>Privacy &amp; Security → Accessibility</b> so it can read the text you select.</li></ol><b>After each upgrade</b>, select ZnKeyboard under Accessibility, remove it with “−”, then add <code>/Applications/ZnKeyboard.app</code> back with “+” and turn it on. If macOS asks about the keychain, click <b>Always Allow</b>.<br>Command-line alternative: <code>xattr -dr com.apple.quarantine /Applications/ZnKeyboard.app</code>">
+        <summary data-en="Mac: first launch and permissions">Mac：第一次打开和授权</summary>
+        <div class="answer" data-en="&lt;ol&gt;&lt;li&gt;Drag ZnKeyboard into Applications and open it.&lt;/li&gt;&lt;li&gt;When asked, turn on ZnKeyboard under &lt;b&gt;System Settings → Privacy &amp; Security → Accessibility&lt;/b&gt; so it can read the text you select.&lt;/li&gt;&lt;li&gt;The first time you use screenshot translate, turn on ZnKeyboard under &lt;b&gt;Screen Recording&lt;/b&gt; as well, then quit and reopen ZnKeyboard.&lt;/li&gt;&lt;/ol&gt;To update, drag the new version into Applications to replace the old one. Your settings, API key and permissions stay.">
           <ol>
-            <li>把 ZnKeyboard 拖进「应用程序」后打开。如果被拦截，先点 <b>完成</b>。</li>
-            <li>打开 <b>系统设置 → 隐私与安全性</b>，滚到最下面，在 ZnKeyboard 旁点 <b>仍要打开</b>，输入密码确认。</li>
-            <li>按提示在 <b>隐私与安全性 → 辅助功能</b> 里打开 ZnKeyboard，它才能读取你选中的文字。</li>
+            <li>把 ZnKeyboard 拖进「应用程序」后打开。</li>
+            <li>按提示在 <b>系统设置 → 隐私与安全性 → 辅助功能</b> 里打开 ZnKeyboard，它才能读取你选中的文字。</li>
+            <li>第一次使用截图翻译时，再在 <b>屏幕录制</b> 里打开 ZnKeyboard，然后退出并重新打开 ZnKeyboard。</li>
           </ol>
-          <b>每次升级后</b>：在「辅助功能」里选中 ZnKeyboard，点「−」移除，再点「+」把 <code>/Applications/ZnKeyboard.app</code> 加回来并打开开关。如果弹出钥匙串授权，点 <b>始终允许</b>。<br>
-          会用终端的话也可以执行：<code>xattr -dr com.apple.quarantine /Applications/ZnKeyboard.app</code>
+          以后升级：把新版本拖进「应用程序」替换旧版即可，设置、API Key 和权限都会保留，不用重新授权。
         </div>
       </details>
       <details>
