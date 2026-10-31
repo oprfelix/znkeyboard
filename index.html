@@ -459,7 +459,7 @@ footer .links a { margin-right: 18px; }
           <li data-en="Windows 10 / 11, 64-bit (Intel / AMD)">Windows 10 / 11，64 位（Intel / AMD）</li>
           <li data-en="Needs the free <a href=&quot;https://dotnet.microsoft.com/download/dotnet/10.0&quot;>.NET 10 Desktop Runtime</a>">需先安装免费的 <a href="https://dotnet.microsoft.com/download/dotnet/10.0">.NET 10 桌面运行时</a></li>
         </ul>
-        <a class="btn" data-repo="Znkeyboard-for-Windows" data-ext=".zip" href="https://github.com/oprfelix/Znkeyboard-for-Windows/releases/latest"><svg><use href="#download"/></svg><span data-en="Download ZIP">下载 ZIP</span></a>
+        <a class="btn" data-repo="Znkeyboard-for-Windows" data-ext=".exe" href="https://github.com/oprfelix/Znkeyboard-for-Windows/releases/latest"><svg><use href="#download"/></svg><span data-en="Download installer">下载安装程序</span></a>
         <div class="meta" data-meta="Znkeyboard-for-Windows"></div>
       </article>
     </div>
@@ -552,12 +552,12 @@ footer .links a { margin-right: 18px; }
       </details>
       <details>
         <summary data-en="Windows: “Windows protected your PC” or it won't start">Windows：提示「Windows 已保护你的电脑」或打不开</summary>
-        <div class="answer" data-en="<ol><li>Install the <a href=&quot;https://dotnet.microsoft.com/download/dotnet/10.0&quot;>.NET 10 Desktop Runtime</a> (x64) first.</li><li>Unzip the download to a folder you keep, such as Documents, and run <b>ZnKeyboard.exe</b>.</li><li>If SmartScreen appears, click <b>More info → Run anyway</b>.</li><li>ZnKeyboard sits in the tray (bottom right). Right-click it for settings; you can have it start with Windows.</li></ol>Something not working? Right-click the tray icon → <b>Open diagnostic log</b> and send it with your <a href=&quot;https://github.com/oprfelix/Znkeyboard-for-Windows/issues&quot;>report</a>. It never contains your text.">
+        <div class="answer" data-en="<ol><li>Install the <a href=&quot;https://dotnet.microsoft.com/download/dotnet/10.0&quot;>.NET 10 Desktop Runtime</a> (x64) first.</li><li>Run the downloaded <b>ZnKeyboard-Windows-….exe</b>. It installs itself for you (no admin rights) and adds ZnKeyboard to the Start menu; you can then delete the download. To update, run a newer download the same way.</li><li>If SmartScreen appears, click <b>More info → Run anyway</b>.</li><li>ZnKeyboard sits in the tray (bottom right) and starts with Windows. Right-click it for settings. To uninstall, go to Settings → Apps → Installed apps.</li></ol>Something not working? Right-click the tray icon → <b>Open diagnostic log</b> and send it with your <a href=&quot;https://github.com/oprfelix/Znkeyboard-for-Windows/issues&quot;>report</a>. It never contains your text.">
           <ol>
             <li>先安装 <a href="https://dotnet.microsoft.com/download/dotnet/10.0">.NET 10 桌面运行时</a>（x64）。</li>
-            <li>把压缩包解压到一个固定的文件夹（比如「文档」），运行 <b>ZnKeyboard.exe</b>。</li>
+            <li>双击下载的 <b>ZnKeyboard-Windows-….exe</b>，会自动安装到本机（不需要管理员权限）并添加到开始菜单，之后下载的文件可以删除。升级时同样双击新版本即可。</li>
             <li>如果出现蓝色的 SmartScreen 提示，点 <b>更多信息 → 仍要运行</b>。</li>
-            <li>ZnKeyboard 会出现在右下角托盘里，右键可打开设置，还可以设为开机启动。</li>
+            <li>ZnKeyboard 会出现在右下角托盘里，并且开机自动启动，右键可打开设置。卸载：Windows「设置」→「应用」→「已安装的应用」。</li>
           </ol>
           遇到问题：右键托盘图标 → <b>打开诊断日志</b>，连同问题描述一起<a href="https://github.com/oprfelix/Znkeyboard-for-Windows/issues">反馈给我们</a>。日志里不包含任何你输入或选中的文字。
         </div>
@@ -641,7 +641,7 @@ footer .links a { margin-right: 18px; }
   var repos = {
     android: { repo: 'znkeyboard', ext: '.apk', name: 'Android' },
     mac: { repo: 'Znkeyboard-for-macOS', ext: '.dmg', name: 'macOS' },
-    windows: { repo: 'Znkeyboard-for-Windows', ext: '.zip', name: 'Windows' }
+    windows: { repo: 'Znkeyboard-for-Windows', ext: '.exe', name: 'Windows' }
   };
   var latest = {}; // repo -> { url, version, size }
 
