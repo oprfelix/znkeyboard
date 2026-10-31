@@ -78,13 +78,15 @@ object KeyboardSettings {
     private const val KEY_AGENT_REASONING_MODE = "agent_reasoning_mode"
     private const val KEY_AGENT_REASONING_TEXT_ENABLED = "agent_reasoning_text_enabled"
     private const val KEY_AGENT_TRANSLATE_TARGET = "agent_translate_target"
-    private const val KEY_AGENT_PROVIDERS_MIGRATED = "agent_providers_migrated_v3"
+    private const val KEY_AGENT_PROVIDERS_MIGRATED = "agent_providers_migrated_v4"
+    private const val KEY_DEEPSEEK_MODEL = "deepseek_model"
     private const val KEY_SECOND_ROW_CLIPBOARD_MIGRATED = "second_row_clipboard_migrated"
     private const val KEY_VOICE_INPUT_ENABLED = "voice_input_enabled"
     // Removed providers and profiles; kept only so the migration can read and clear them.
     private const val LEGACY_PROVIDER_OPENROUTER = "openrouter"
     private const val LEGACY_PROVIDER_NANBEIGE = "nanbeige_llama_cpp"
-    private const val LEGACY_OPENROUTER_API_BASE_URL = "https://openrouter.ai/api/v1"
+    private const val LEGACY_PROVIDER_OPENAI_COMPATIBLE = "openai_compatible"
+    private const val LEGACY_KEY_AGENT_PROVIDERS_MIGRATED_V3 = "agent_providers_migrated_v3"
     private const val LEGACY_KEY_OPENROUTER_PROVIDER_SLUG = "openrouter_provider_slug"
     private const val LEGACY_KEY_AGENT_PROFILES = "agent_profiles"
     private const val LEGACY_KEY_ACTIVE_AGENT_PROFILE_ID = "active_agent_profile_id"
@@ -527,8 +529,11 @@ object KeyboardSettings {
             ?.takeIf { it.isNotBlank() }
             ?: return default
         // Gemini is limited to Flash-Lite; a larger model saved earlier or restored from a backup
-        // falls back to the default instead of spending far more per request.
-        return if (providerType == AgentProviderType.Gemini && !isGeminiLiteModel(stored)) default else stored
+        // falls back to the default instead of spending far more per request. DeepSeek is fixed.
+        return when (providerType) {
+            AgentProviderType.Gemini -> if (isGeminiLiteModel(stored)) stored else default
+            AgentProviderType.DeepSeek -> default
+        }
     }
 
     /** Gemini Flash-Lite 2.5 or newer, e.g. gemini-3.5-flash-lite or gemini-4-flash-lite-preview. */
@@ -554,13 +559,13 @@ object KeyboardSettings {
 
     private fun modelKeyAndDefault(providerType: AgentProviderType): Pair<String, String> = when (providerType) {
         AgentProviderType.Gemini -> KEY_GEMINI_MODEL to AgentDefaults.DEFAULT_GEMINI_MODEL
-        AgentProviderType.OpenAiCompatible -> KEY_AGENT_MODEL to DEFAULT_AGENT_MODEL
+        AgentProviderType.DeepSeek -> KEY_DEEPSEEK_MODEL to AgentDefaults.DEFAULT_DEEPSEEK_MODEL
     }
 
     /**
-     * One-time move to the Gemini / OpenAI-compatible provider list. An OpenAI-compatible setup
-     * pointed at Gemini becomes the Gemini provider; OpenRouter and Nanbeige setups become
-     * OpenAI-compatible ones. Keys move with them; profiles are dropped.
+     * One-time move to the Gemini / DeepSeek provider list. A custom OpenAI-compatible setup pointed
+     * at Gemini or DeepSeek becomes that provider, key included; any other custom endpoint, and the
+     * older OpenRouter and Nanbeige setups, fall back to Gemini. Profiles are dropped.
      */
     fun migrateAgentProviders(context: Context) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -578,45 +583,45 @@ object KeyboardSettings {
             saveAgentApiKeyLocked(context, to, secrets.getBoolean("${fromProviderId}_$KEY_AGENT_API_KEY_LOCKED", false))
         }
 
-        // Older versions defaulted to OpenAI compatible without storing it; an existing setup with
-        // no stored provider is that default, while a fresh install has nothing to move.
-        val compatibleId = AgentProviderType.OpenAiCompatible.id
+        // Before the v3 migration, versions defaulted to OpenAI compatible without storing it; an
+        // existing setup with no stored provider is that default, while a fresh install has none.
         val hasCompatibleSetup = prefs.contains(KEY_AGENT_API_BASE_URL) ||
-            secrets.contains("${compatibleId}_$KEY_AGENT_API_KEY_CIPHERTEXT")
+            secrets.contains("${LEGACY_PROVIDER_OPENAI_COMPATIBLE}_$KEY_AGENT_API_KEY_CIPHERTEXT")
         val storedProvider = prefs.getString(KEY_AGENT_PROVIDER_TYPE, null)
-            ?: compatibleId.takeIf { hasCompatibleSetup }
+            ?: LEGACY_PROVIDER_OPENAI_COMPATIBLE.takeIf {
+                hasCompatibleSetup && !prefs.getBoolean(LEGACY_KEY_AGENT_PROVIDERS_MIGRATED_V3, false)
+            }
         when (val stored = storedProvider) {
-            LEGACY_PROVIDER_OPENROUTER -> {
-                moveSecret(stored, AgentProviderType.OpenAiCompatible)
-                saveAgentApiBaseUrl(context, LEGACY_OPENROUTER_API_BASE_URL)
-                saveAgentProviderType(context, AgentProviderType.OpenAiCompatible)
-            }
-            LEGACY_PROVIDER_NANBEIGE -> {
-                moveSecret(stored, AgentProviderType.OpenAiCompatible)
-                saveAgentProviderType(context, AgentProviderType.OpenAiCompatible)
-            }
-            AgentProviderType.OpenAiCompatible.id -> {
-                if (readAgentApiBaseUrl(context).contains(GEMINI_HOST)) {
-                    moveSecret(stored, AgentProviderType.Gemini)
-                    saveAgentModel(context, readAgentModel(context, AgentProviderType.OpenAiCompatible), AgentProviderType.Gemini)
-                    saveAgentProviderType(context, AgentProviderType.Gemini)
-                } else {
-                    // Pin it: the default is now Gemini.
-                    saveAgentProviderType(context, AgentProviderType.OpenAiCompatible)
+            LEGACY_PROVIDER_OPENAI_COMPATIBLE -> {
+                val baseUrl = readAgentApiBaseUrl(context)
+                when {
+                    GEMINI_HOST in baseUrl -> {
+                        moveSecret(stored, AgentProviderType.Gemini)
+                        prefs.getString(KEY_AGENT_MODEL, null)?.let { saveAgentModel(context, it, AgentProviderType.Gemini) }
+                        saveAgentProviderType(context, AgentProviderType.Gemini)
+                    }
+                    DEEPSEEK_HOST in baseUrl -> {
+                        moveSecret(stored, AgentProviderType.DeepSeek)
+                        saveAgentProviderType(context, AgentProviderType.DeepSeek)
+                    }
+                    else -> saveAgentProviderType(context, AgentProviderType.Gemini)
                 }
             }
+            LEGACY_PROVIDER_OPENROUTER, LEGACY_PROVIDER_NANBEIGE -> saveAgentProviderType(context, AgentProviderType.Gemini)
         }
 
         val staleSecretKeys = secrets.all.keys.filter {
             it.startsWith("profile_") ||
                 it.startsWith("${LEGACY_PROVIDER_OPENROUTER}_") ||
-                it.startsWith("${LEGACY_PROVIDER_NANBEIGE}_")
+                it.startsWith("${LEGACY_PROVIDER_NANBEIGE}_") ||
+                it.startsWith("${LEGACY_PROVIDER_OPENAI_COMPATIBLE}_")
         }
         secrets.edit().apply { staleSecretKeys.forEach(::remove) }.apply()
         prefs.edit()
             .remove(LEGACY_KEY_OPENROUTER_PROVIDER_SLUG)
             .remove(LEGACY_KEY_AGENT_PROFILES)
             .remove(LEGACY_KEY_ACTIVE_AGENT_PROFILE_ID)
+            .remove(LEGACY_KEY_AGENT_PROVIDERS_MIGRATED_V3)
             .putBoolean(KEY_AGENT_PROVIDERS_MIGRATED, true)
             .apply()
     }
@@ -759,15 +764,11 @@ object KeyboardSettings {
     ): AgentProviderSettings {
         return AgentProviderSettings(
             providerType = providerType,
-            baseUrl = providerType.fixedBaseUrl ?: readAgentApiBaseUrl(context),
+            baseUrl = providerType.baseUrl,
             model = readAgentModel(context, providerType),
             apiKey = readAgentApiKey(context, providerType),
-            // Gemini rewrites stay fast; reasoning is only adjustable for custom endpoints.
-            reasoningMode = if (providerType == AgentProviderType.Gemini) {
-                AgentReasoningMode.Off
-            } else {
-                readAgentReasoningMode(context)
-            },
+            // Both providers rewrite fastest, and most reliably, with reasoning off.
+            reasoningMode = AgentReasoningMode.Off,
             reasoningTextEnabled = readAgentReasoningTextEnabled(context),
         )
     }
@@ -807,7 +808,7 @@ object KeyboardSettings {
                             .put("enabled", readAgentModeEnabled(context))
                             .put("providerType", readAgentProviderType(context).id)
                             .put("apiBaseUrl", readAgentApiBaseUrl(context))
-                            .put("model", readAgentModel(context, AgentProviderType.OpenAiCompatible))
+                            .put("model", readAgentModel(context, AgentProviderType.DeepSeek))
                             .put("geminiModel", readAgentModel(context, AgentProviderType.Gemini))
                             .put("reasoningMode", readAgentReasoningMode(context).id)
                             .put("reasoningTextEnabled", readAgentReasoningTextEnabled(context)),
@@ -937,8 +938,8 @@ object KeyboardSettings {
         saveAgentApiBaseUrl(context, rewrite.optString("apiBaseUrl", readAgentApiBaseUrl(context)))
         saveAgentModel(
             context,
-            rewrite.optString("model", readAgentModel(context, AgentProviderType.OpenAiCompatible)),
-            AgentProviderType.OpenAiCompatible,
+            rewrite.optString("model", readAgentModel(context, AgentProviderType.DeepSeek)),
+            AgentProviderType.DeepSeek,
         )
         saveAgentModel(
             context,
@@ -1076,6 +1077,7 @@ object KeyboardSettings {
     }
 
     private const val GEMINI_HOST = "generativelanguage.googleapis.com"
+    private const val DEEPSEEK_HOST = "api.deepseek.com"
 
     private fun providerSecretKey(providerType: AgentProviderType, key: String): String {
         return "${providerType.id}_$key"
@@ -1197,14 +1199,14 @@ object KeyboardSettings {
         Second("second", "Shortcut row B"),
     }
 
-    /** [fixedBaseUrl] is built in and not editable; null means the user supplies it. */
+    /** The built-in providers, both reached through their OpenAI-compatible endpoint at [baseUrl]. */
     enum class AgentProviderType(
         val id: String,
         val label: String,
-        val fixedBaseUrl: String?,
+        val baseUrl: String,
     ) {
         Gemini("gemini", "Google Gemini", AgentDefaults.GEMINI_API_BASE_URL),
-        OpenAiCompatible("openai_compatible", "OpenAI compatible", null),
+        DeepSeek("deepseek", "DeepSeek", AgentDefaults.DEEPSEEK_API_BASE_URL),
     }
 
     enum class AgentReasoningMode(

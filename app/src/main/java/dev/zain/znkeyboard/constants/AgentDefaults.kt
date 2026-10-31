@@ -7,6 +7,8 @@ object AgentDefaults {
     const val DEFAULT_API_BASE_URL = "https://api.openai.com/v1"
     const val GEMINI_API_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai"
     const val DEFAULT_GEMINI_MODEL = "gemini-3.5-flash-lite"
+    const val DEEPSEEK_API_BASE_URL = "https://api.deepseek.com"
+    const val DEFAULT_DEEPSEEK_MODEL = "deepseek-chat"
     const val DEFAULT_MODEL = "gpt-4o-mini"
 
     // Long enough for an email; a full-length Chinese answer still fits MAX_REWRITE_LLM_TOKENS.

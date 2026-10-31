@@ -82,7 +82,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.InputChip
 import androidx.compose.material3.MaterialTheme
@@ -110,10 +109,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
@@ -121,13 +118,11 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -205,11 +200,8 @@ private fun SettingsScreen(onOpenShortcuts: () -> Unit) {
     }
     var agentModeEnabled by remember { mutableStateOf(KeyboardSettings.readAgentModeEnabled(context)) }
     var agentProviderType by remember { mutableStateOf(KeyboardSettings.readAgentProviderType(context)) }
-    var agentApiBaseUrl by remember { mutableStateOf(KeyboardSettings.readAgentApiBaseUrl(context)) }
     var agentModel by remember { mutableStateOf(KeyboardSettings.readAgentModel(context)) }
     var agentTranslateTarget by remember { mutableStateOf(KeyboardSettings.readAgentTranslateTarget(context).code) }
-    var agentReasoningMode by remember { mutableStateOf(KeyboardSettings.readAgentReasoningMode(context)) }
-    var agentReasoningTextEnabled by remember { mutableStateOf(KeyboardSettings.readAgentReasoningTextEnabled(context)) }
     var agentApiKey by remember { mutableStateOf(KeyboardSettings.readAgentApiKey(context, agentProviderType)) }
     var agentApiKeyLocked by remember { mutableStateOf(KeyboardSettings.readAgentApiKeyLocked(context, agentProviderType)) }
     var clipboardHistoryCount by remember { mutableStateOf(ClipboardHistoryStore.read(context).size) }
@@ -271,10 +263,7 @@ private fun SettingsScreen(onOpenShortcuts: () -> Unit) {
         functionKeyBackgroundsEnabled = KeyboardSettings.readFunctionKeyBackgroundsEnabled(context)
         agentModeEnabled = KeyboardSettings.readAgentModeEnabled(context)
         agentProviderType = nextProviderType
-        agentApiBaseUrl = KeyboardSettings.readAgentApiBaseUrl(context)
         agentModel = KeyboardSettings.readAgentModel(context)
-        agentReasoningMode = KeyboardSettings.readAgentReasoningMode(context)
-        agentReasoningTextEnabled = KeyboardSettings.readAgentReasoningTextEnabled(context)
         agentApiKey = KeyboardSettings.readAgentApiKey(context, nextProviderType)
         agentApiKeyLocked = KeyboardSettings.readAgentApiKeyLocked(context, nextProviderType)
         clipboardHistoryCount = ClipboardHistoryStore.read(context).size
@@ -469,11 +458,8 @@ private fun SettingsScreen(onOpenShortcuts: () -> Unit) {
                     AgentModeSection(
                         agentModeEnabled = agentModeEnabled,
                         agentProviderType = agentProviderType,
-                        agentApiBaseUrl = agentApiBaseUrl,
                         agentModel = agentModel,
                         agentTranslateTarget = agentTranslateTarget,
-                        agentReasoningMode = agentReasoningMode,
-                        agentReasoningTextEnabled = agentReasoningTextEnabled,
                         agentApiKey = agentApiKey,
                         agentApiKeyLocked = agentApiKeyLocked,
                         onAgentModeEnabledChange = {
@@ -487,10 +473,6 @@ private fun SettingsScreen(onOpenShortcuts: () -> Unit) {
                             agentApiKey = KeyboardSettings.readAgentApiKey(context, it)
                             agentApiKeyLocked = KeyboardSettings.readAgentApiKeyLocked(context, it)
                         },
-                        onAgentApiBaseUrlChange = {
-                            agentApiBaseUrl = it
-                            KeyboardSettings.saveAgentApiBaseUrl(context, it)
-                        },
                         onAgentModelChange = {
                             agentModel = it
                             KeyboardSettings.saveAgentModel(context, it, agentProviderType)
@@ -498,14 +480,6 @@ private fun SettingsScreen(onOpenShortcuts: () -> Unit) {
                         onAgentTranslateTargetChange = {
                             agentTranslateTarget = it
                             KeyboardSettings.saveAgentTranslateTarget(context, it)
-                        },
-                        onAgentReasoningModeChange = {
-                            agentReasoningMode = it
-                            KeyboardSettings.saveAgentReasoningMode(context, it)
-                        },
-                        onAgentReasoningTextEnabledChange = {
-                            agentReasoningTextEnabled = it
-                            KeyboardSettings.saveAgentReasoningTextEnabled(context, it)
                         },
                         onAgentApiKeyChange = {
                             agentApiKey = it
@@ -1028,25 +1002,18 @@ private fun VoiceInputSection() {
 private fun AgentModeSection(
     agentModeEnabled: Boolean,
     agentProviderType: KeyboardSettings.AgentProviderType,
-    agentApiBaseUrl: String,
     agentModel: String,
     agentTranslateTarget: String,
-    agentReasoningMode: KeyboardSettings.AgentReasoningMode,
-    agentReasoningTextEnabled: Boolean,
     agentApiKey: String,
     agentApiKeyLocked: Boolean,
     onAgentModeEnabledChange: (Boolean) -> Unit,
     onAgentProviderTypeChange: (KeyboardSettings.AgentProviderType) -> Unit,
-    onAgentApiBaseUrlChange: (String) -> Unit,
     onAgentModelChange: (String) -> Unit,
     onAgentTranslateTargetChange: (String) -> Unit,
-    onAgentReasoningModeChange: (KeyboardSettings.AgentReasoningMode) -> Unit,
-    onAgentReasoningTextEnabledChange: (Boolean) -> Unit,
     onAgentApiKeyChange: (String) -> Unit,
     onAgentApiKeyLockedChange: (Boolean) -> Unit,
 ) {
     val context = LocalContext.current
-    val listingBaseUrl = agentProviderType.fixedBaseUrl ?: agentApiBaseUrl
     var listing by remember { mutableStateOf<ModelListing>(ModelListing.Idle) }
     // Set when the key is typed or pasted here, so a key that already worked when the page
     // opened doesn't turn back on a switch the user turned off.
@@ -1055,15 +1022,14 @@ private fun AgentModeSection(
     val currentModeEnabledChange by rememberUpdatedState(onAgentModeEnabledChange)
 
     // One /models request serves both the model picker and the key check.
-    LaunchedEffect(agentProviderType, listingBaseUrl, agentApiKey) {
-        val needsKey = agentProviderType == KeyboardSettings.AgentProviderType.Gemini
-        if (listingBaseUrl.isBlank() || (needsKey && agentApiKey.isBlank())) {
+    LaunchedEffect(agentProviderType, agentApiKey) {
+        if (agentApiKey.isBlank()) {
             listing = ModelListing.Idle
             return@LaunchedEffect
         }
         listing = ModelListing.Loading
         delay(MODEL_LOAD_DEBOUNCE_MS)
-        listing = withContext(Dispatchers.IO) { fetchModelOptions(baseUrl = listingBaseUrl, apiKey = agentApiKey) }
+        listing = withContext(Dispatchers.IO) { fetchModelOptions(baseUrl = agentProviderType.baseUrl, apiKey = agentApiKey) }
             .fold(
                 onSuccess = { ModelListing.Loaded(it) },
                 onFailure = { ModelListing.Failed(it.message?.takeIf(String::isNotBlank), it.isKeyRejection()) },
@@ -1093,19 +1059,6 @@ private fun AgentModeSection(
             onProviderTypeChange = onAgentProviderTypeChange,
         )
 
-        // Built-in providers have a fixed endpoint, so only custom endpoints show the field.
-        if (agentProviderType.fixedBaseUrl == null) {
-            OutlinedTextField(
-                shape = SettingsCapsuleShape,
-                value = agentApiBaseUrl,
-                onValueChange = onAgentApiBaseUrlChange,
-                label = { Text(stringResource(R.string.api_base_url)) },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
-                modifier = Modifier.fillMaxWidth(),
-            )
-        }
-
         // The key comes before the model: the model list loads with it.
         LockableSecretOutlinedTextField(
             value = agentApiKey,
@@ -1124,15 +1077,9 @@ private fun AgentModeSection(
             ApiKeyCheckStatus(listing)
         }
 
+        // DeepSeek always uses deepseek-chat, so only Gemini offers a model choice.
         if (agentProviderType == KeyboardSettings.AgentProviderType.Gemini) {
             GeminiModelSelector(
-                listing = listing,
-                value = agentModel,
-                onValueChange = onAgentModelChange,
-            )
-        } else {
-            ModelSelectorField(
-                apiBaseUrl = agentApiBaseUrl,
                 listing = listing,
                 value = agentModel,
                 onValueChange = onAgentModelChange,
@@ -1143,16 +1090,6 @@ private fun AgentModeSection(
             value = agentTranslateTarget,
             onValueChange = onAgentTranslateTargetChange,
         )
-
-        // Gemini always runs with reasoning off; only custom endpoints expose it.
-        if (agentProviderType == KeyboardSettings.AgentProviderType.OpenAiCompatible) {
-            ReasoningControls(
-                reasoningMode = agentReasoningMode,
-                reasoningTextEnabled = agentReasoningTextEnabled,
-                onReasoningModeChange = onAgentReasoningModeChange,
-                onReasoningTextEnabledChange = onAgentReasoningTextEnabledChange,
-            )
-        }
     }
 }
 
@@ -1198,109 +1135,6 @@ private fun ApiKeyCheckStatus(listing: ModelListing) {
             }
         }
         Text(text = text, color = color, style = MaterialTheme.typography.bodySmall)
-    }
-}
-
-@Composable
-private fun ModelSelectorField(
-    apiBaseUrl: String,
-    listing: ModelListing,
-    value: String,
-    onValueChange: (String) -> Unit,
-) {
-    var fieldFocused by remember { mutableStateOf(false) }
-    var suggestionsExpanded by remember { mutableStateOf(false) }
-    var debouncedQuery by remember { mutableStateOf(value) }
-    val modelOptions = (listing as? ModelListing.Loaded)?.models.orEmpty()
-    val modelLoadStatus = when (listing) {
-        ModelListing.Idle -> if (apiBaseUrl.isBlank()) stringResource(R.string.models_need_base_url) else ""
-        ModelListing.Loading -> stringResource(R.string.models_loading)
-        is ModelListing.Loaded -> if (listing.models.isEmpty()) {
-            stringResource(R.string.models_none)
-        } else {
-            stringResource(R.string.models_loaded, listing.models.size)
-        }
-        is ModelListing.Failed -> listing.message ?: stringResource(R.string.models_failed)
-    }
-
-    LaunchedEffect(value, modelOptions) {
-        delay(MODEL_QUERY_DEBOUNCE_MS)
-        debouncedQuery = value
-    }
-
-    val filteredOptions = remember(modelOptions, debouncedQuery) {
-        modelOptions.filterForQuery(debouncedQuery)
-    }
-    val showSuggestions = fieldFocused && suggestionsExpanded && filteredOptions.isNotEmpty()
-
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-        OutlinedTextField(
-            shape = SettingsCapsuleShape,
-            value = value,
-            onValueChange = {
-                onValueChange(it)
-                suggestionsExpanded = true
-            },
-            label = { Text(stringResource(R.string.model)) },
-            singleLine = true,
-            trailingIcon = {
-                Text(
-                    text = if (modelOptions.isEmpty()) stringResource(R.string.model_custom) else "${modelOptions.size}",
-                    color = ZnKeyboardColors.Muted,
-                    style = MaterialTheme.typography.labelSmall,
-                    modifier = Modifier.padding(end = 12.dp),
-                )
-            },
-            modifier = Modifier
-                .fillMaxWidth()
-                .onFocusChanged { focusState ->
-                    fieldFocused = focusState.isFocused
-                    if (focusState.isFocused) suggestionsExpanded = true
-                },
-        )
-
-            FloatingPickerMenu(
-                menuWidth = maxWidth,
-                expanded = showSuggestions,
-                focusable = false,
-                items = filteredOptions.map { option ->
-                    PickerItem(
-                        id = option.id,
-                        title = option.id,
-                        subtitle = option.name?.takeIf { it != option.id },
-                    )
-                },
-                onDismissRequest = { suggestionsExpanded = false },
-                onItemSelected = { item ->
-                    suggestionsExpanded = false
-                    onValueChange(item.id)
-                },
-            )
-        }
-
-        if (fieldFocused && suggestionsExpanded && modelOptions.isNotEmpty() && debouncedQuery.isNotBlank() && filteredOptions.isEmpty()) {
-            Surface(
-                color = ZnKeyboardColors.Key,
-                shape = RoundedCornerShape(SECTION_CORNER_RADIUS),
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text(
-                    text = stringResource(R.string.models_no_match),
-                    color = ZnKeyboardColors.Muted,
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-                )
-            }
-        }
-
-        if (modelLoadStatus.isNotEmpty()) {
-            Text(
-                text = modelLoadStatus,
-                color = ZnKeyboardColors.Muted,
-                style = MaterialTheme.typography.bodySmall,
-            )
-        }
     }
 }
 
@@ -1521,6 +1355,7 @@ private fun ProviderTypeSelector(
                 PickerItem(
                     id = option.id,
                     title = providerLabel(option),
+                    subtitle = providerDescription(option),
                 )
             },
             onDismissRequest = { expanded = false },
@@ -1534,126 +1369,7 @@ private fun ProviderTypeSelector(
     }
 }
 
-@Composable
-private fun ReasoningControls(
-    reasoningMode: KeyboardSettings.AgentReasoningMode,
-    reasoningTextEnabled: Boolean,
-    onReasoningModeChange: (KeyboardSettings.AgentReasoningMode) -> Unit,
-    onReasoningTextEnabledChange: (Boolean) -> Unit,
-) {
-    var expanded by remember { mutableStateOf(false) }
-    // Most models need none of this; it stays folded under its current value until opened.
-    var showAdvanced by rememberSaveable { mutableStateOf(false) }
-    val showReasoningTextSwitch = reasoningMode != KeyboardSettings.AgentReasoningMode.Off
-
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(COMPACT_ITEM_CORNER_RADIUS))
-                .clickable { showAdvanced = !showAdvanced }
-                .padding(vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = stringResource(R.string.reasoning_title),
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.weight(1f),
-            )
-            Text(
-                text = reasoningLabel(reasoningMode),
-                color = ZnKeyboardColors.Muted,
-                style = MaterialTheme.typography.bodyMedium,
-            )
-            Icon(
-                painter = painterResource(R.drawable.ic_chevron_left_24),
-                contentDescription = stringResource(if (showAdvanced) R.string.action_collapse else R.string.action_expand),
-                tint = ZnKeyboardColors.Muted,
-                modifier = Modifier.rotate(if (showAdvanced) 90f else 270f),
-            )
-        }
-        if (!showAdvanced) return@Column
-        Text(
-            text = stringResource(R.string.reasoning_desc),
-            color = ZnKeyboardColors.Muted,
-            style = MaterialTheme.typography.bodySmall,
-        )
-
-        BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-            OutlinedButton(
-                onClick = { expanded = true },
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = ZnKeyboardColors.OnSurface),
-            ) {
-                Column(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(2.dp),
-                    horizontalAlignment = Alignment.Start,
-                ) {
-                    Text(
-                        text = stringResource(R.string.reasoning_mode),
-                        color = ZnKeyboardColors.Muted,
-                        style = MaterialTheme.typography.labelSmall,
-                    )
-                    Text(
-                        text = reasoningLabel(reasoningMode),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        style = MaterialTheme.typography.bodyLarge,
-                    )
-                }
-            }
-
-            FloatingPickerMenu(
-                menuWidth = maxWidth,
-                expanded = expanded,
-                items = KeyboardSettings.AgentReasoningMode.entries.map { option ->
-                    PickerItem(
-                        id = option.id,
-                        title = reasoningLabel(option),
-                        subtitle = reasoningDescription(option),
-                    )
-                },
-                onDismissRequest = { expanded = false },
-                onItemSelected = { item ->
-                    expanded = false
-                    KeyboardSettings.AgentReasoningMode.entries.firstOrNull { it.id == item.id }
-                        ?.let(onReasoningModeChange)
-                },
-                maxHeight = REASONING_PICKER_MAX_HEIGHT,
-            )
-        }
-
-        if (showReasoningTextSwitch) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = stringResource(R.string.reasoning_text_title),
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                    Text(
-                        text = stringResource(R.string.reasoning_text_desc),
-                        color = ZnKeyboardColors.Muted,
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                }
-                Switch(
-                    checked = reasoningTextEnabled,
-                    onCheckedChange = onReasoningTextEnabledChange,
-                )
-            }
-        }
-    }
-}
-
 private const val MODEL_LOAD_DEBOUNCE_MS = SettingsUiTimings.MODEL_LOAD_DEBOUNCE_MS
-private const val MODEL_QUERY_DEBOUNCE_MS = SettingsUiTimings.MODEL_QUERY_DEBOUNCE_MS
 private val BACKUP_IMPORT_MIME_TYPES = SettingsBackupDefaults.IMPORT_MIME_TYPES
 private val PICKER_MENU_WIDTH = SettingsUiDimensions.PICKER_MENU_WIDTH
 private val PICKER_MAX_HEIGHT = SettingsUiDimensions.PICKER_MAX_HEIGHT

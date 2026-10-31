@@ -107,16 +107,6 @@ private val GEMINI_NON_TEXT_MARKERS = listOf(
     "transcribe", "nano-banana",
 )
 
-internal fun List<ModelOption>.filterForQuery(query: String): List<ModelOption> {
-    val normalizedQuery = query.trim().lowercase(Locale.US)
-    if (normalizedQuery.isBlank()) return this
-
-    return filter { option ->
-        option.id.lowercase(Locale.US).contains(normalizedQuery) ||
-            option.name?.lowercase(Locale.US)?.contains(normalizedQuery) == true
-    }
-}
-
 internal fun writeEncryptedSettingsBackup(
     context: Context,
     uri: Uri,
