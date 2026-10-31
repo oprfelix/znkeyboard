@@ -1870,12 +1870,6 @@ class ZnKeyboardInputMethodService : InputMethodService(),
             .put("max_tokens", maxTokens)
             .put("response_format", structuredResponseFormatFor(outputMode))
             .applyReasoningSettings(providerSettings)
-            .apply {
-                // DeepSeek thinks by default, which only slows a rewrite down.
-                if (providerSettings.providerType == KeyboardSettings.AgentProviderType.DeepSeek) {
-                    put("thinking", JSONObject().put("type", "disabled"))
-                }
-            }
 
         return try {
             connection.outputStream.writer(Charsets.UTF_8).use { writer ->

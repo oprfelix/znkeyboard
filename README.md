@@ -1,6 +1,6 @@
 # ZnKeyboard
 
-A modern, privacy-respecting custom keyboard (input method editor) for Android, built with Kotlin and Jetpack Compose. ZnKeyboard pairs a fast custom typing surface with **Chinese pinyin input** and a built‑in **AI assistant** that polishes your text — or polishes and translates it for customers abroad — using your own API key — Google Gemini or DeepSeek.
+A modern, privacy-respecting custom keyboard (input method editor) for Android, built with Kotlin and Jetpack Compose. ZnKeyboard pairs a fast custom typing surface with **Chinese pinyin input** and a built‑in **AI assistant** that polishes your text — or polishes and translates it for customers abroad — using your own API key — Google Gemini built in, or any OpenAI‑compatible endpoint.
 
 > This is a modified fork of [zainbits/zn-keyboard](https://github.com/zainbits/zn-keyboard). It adds pinyin input and AI polish and translate (润色 / AI 翻译), and removes the GIF, emoji, text-snippet and macro features to keep the keyboard small (release APK ≈ 4.6 MB). Screenshots below are from upstream and predate these changes.
 
@@ -22,7 +22,7 @@ A modern, privacy-respecting custom keyboard (input method editor) for Android, 
 
 Most "AI keyboards" send your keystrokes to a vendor's cloud. ZnKeyboard takes the opposite stance:
 
-- **Bring your own key.** AI features call Google Gemini or DeepSeek with your own key. There is no ZnKeyboard backend in the middle.
+- **Bring your own key.** AI features call your own OpenAI / OpenAI‑compatible endpoint. There is no ZnKeyboard backend in the middle.
 - **Keys never leave the device in plaintext.** API keys are encrypted at rest with the Android Keystore (AES/GCM). A user-created backup can include them only inside a password-encrypted file.
 - **AI is opt‑in.** The keyboard is fully usable with the agent disabled; nothing is sent anywhere unless you turn it on and trigger it.
 
@@ -58,9 +58,9 @@ ZnKeyboard learns how *your* thumbs actually hit each key and decodes every tap 
 
 ### ✍️ AI rewrite assistant ("agent mode")
 - Rewrite, polish, or restructure the text in the current field with one tap, then review the result before it replaces anything.
-- **Two providers:** **Google Gemini** with a built‑in endpoint and a model picker limited to Flash‑Lite 2.5 and newer (recommended `gemini-3.5-flash-lite`; the list is loaded live with your key), so a rewrite never runs on a model that costs many times more, or **DeepSeek** (`deepseek-flash`, reachable from mainland China). Both endpoints are built in, each provider keeps its own key, and reasoning (DeepSeek's thinking mode) stays off for fast, predictable rewrites.
+- **Two providers:** **Google Gemini** with a built‑in endpoint and a model picker limited to Flash‑Lite 2.5 and newer (recommended `gemini-3.5-flash-lite`; the list is loaded live with your key), so a rewrite never runs on a model that costs many times more, or **OpenAI compatible**, with a **DeepSeek** preset (address built in, `deepseek-flash` by default) or a **custom** base URL and model for OpenAI, OpenRouter, a local server, …. Each provider keeps its own key and model. Reasoning stays off for Gemini and is adjustable for custom endpoints.
 - **App‑aware prompts:** rewrites adapt to where you are typing — e.g. a WhatsApp profile that keeps a natural chat tone.
-- **Structured, safe output:** the model is constrained to a JSON `{ "text": ... }` contract (JSON schema, or plain JSON mode where the provider only supports that).
+- **Structured, safe output:** the model is constrained to a JSON `{ "text": ... }` contract, with optional reasoning modes for compatible models.
 - Encrypted key storage via the Android Keystore.
 
 ### 🧩 Customizable extra button rows
@@ -160,7 +160,7 @@ Release builds are minified with R8 (code and resource shrinking), which takes t
 ## Configure AI rewrite (optional)
 
 1. Open ZnKeyboard settings → **Tools** tab.
-2. Pick **Google Gemini** (endpoint built in; choose a model, `gemini-3.5-flash-lite` recommended) or **DeepSeek**, then paste your API key. A green dot under the key means it works.
+2. Pick **Google Gemini** (endpoint built in; choose a model, `gemini-3.5-flash-lite` recommended) or **OpenAI compatible** (pick the DeepSeek preset, or Custom to type a base URL), then paste your API key. A green dot under the key means it works.
 3. The key is encrypted with the Android Keystore and stored only on your device.
 4. Turn on **Rewrite** at the top of the Tools tab, and pick a **Translate to** language for AI 翻译.
 5. Tap **润色** or **AI 翻译** on the shortcut row and review the suggestion before it's applied.

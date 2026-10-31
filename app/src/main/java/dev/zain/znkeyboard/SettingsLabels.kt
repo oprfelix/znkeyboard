@@ -14,14 +14,46 @@ import dev.zain.znkeyboard.constants.TranslateLanguage
 @Composable
 internal fun providerLabel(type: KeyboardSettings.AgentProviderType): String = when (type) {
     KeyboardSettings.AgentProviderType.Gemini -> type.label
-    KeyboardSettings.AgentProviderType.DeepSeek -> type.label
+    KeyboardSettings.AgentProviderType.OpenAiCompatible -> stringResource(R.string.provider_openai_compatible)
 }
 
 @Composable
-internal fun providerDescription(type: KeyboardSettings.AgentProviderType): String = stringResource(
-    when (type) {
-        KeyboardSettings.AgentProviderType.Gemini -> R.string.provider_gemini_desc
-        KeyboardSettings.AgentProviderType.DeepSeek -> R.string.provider_deepseek_desc
+internal fun apiPresetLabel(preset: KeyboardSettings.AgentApiPreset): String = when (preset) {
+    KeyboardSettings.AgentApiPreset.DeepSeek -> "DeepSeek"
+    KeyboardSettings.AgentApiPreset.Custom -> stringResource(R.string.api_preset_custom)
+}
+
+@Composable
+internal fun apiPresetDescription(preset: KeyboardSettings.AgentApiPreset): String = stringResource(
+    when (preset) {
+        KeyboardSettings.AgentApiPreset.DeepSeek -> R.string.api_preset_deepseek_desc
+        KeyboardSettings.AgentApiPreset.Custom -> R.string.api_preset_custom_desc
+    },
+)
+
+@Composable
+internal fun reasoningLabel(mode: KeyboardSettings.AgentReasoningMode): String = stringResource(
+    when (mode) {
+        KeyboardSettings.AgentReasoningMode.Off -> R.string.reasoning_off
+        KeyboardSettings.AgentReasoningMode.Auto -> R.string.reasoning_auto
+        KeyboardSettings.AgentReasoningMode.Minimal -> R.string.reasoning_minimal
+        KeyboardSettings.AgentReasoningMode.Low -> R.string.reasoning_low
+        KeyboardSettings.AgentReasoningMode.Medium -> R.string.reasoning_medium
+        KeyboardSettings.AgentReasoningMode.High -> R.string.reasoning_high
+        KeyboardSettings.AgentReasoningMode.XHigh -> R.string.reasoning_xhigh
+    },
+)
+
+@Composable
+internal fun reasoningDescription(mode: KeyboardSettings.AgentReasoningMode): String = stringResource(
+    when (mode) {
+        KeyboardSettings.AgentReasoningMode.Off -> R.string.reasoning_off_desc
+        KeyboardSettings.AgentReasoningMode.Auto -> R.string.reasoning_auto_desc
+        KeyboardSettings.AgentReasoningMode.Minimal -> R.string.reasoning_minimal_desc
+        KeyboardSettings.AgentReasoningMode.Low -> R.string.reasoning_low_desc
+        KeyboardSettings.AgentReasoningMode.Medium -> R.string.reasoning_medium_desc
+        KeyboardSettings.AgentReasoningMode.High -> R.string.reasoning_high_desc
+        KeyboardSettings.AgentReasoningMode.XHigh -> R.string.reasoning_xhigh_desc
     },
 )
 

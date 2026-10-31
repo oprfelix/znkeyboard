@@ -4,12 +4,12 @@ package dev.zain.znkeyboard.constants
 data class TranslateLanguage(val code: String, val name: String)
 
 object AgentDefaults {
+    // The OpenAI-compatible provider starts on the DeepSeek preset; a custom address starts here.
     const val DEFAULT_API_BASE_URL = "https://api.openai.com/v1"
+    const val DEEPSEEK_API_BASE_URL = "https://api.deepseek.com"
     const val GEMINI_API_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai"
     const val DEFAULT_GEMINI_MODEL = "gemini-3.5-flash-lite"
-    const val DEEPSEEK_API_BASE_URL = "https://api.deepseek.com"
-    const val DEFAULT_DEEPSEEK_MODEL = "deepseek-flash"
-    const val DEFAULT_MODEL = "gpt-4o-mini"
+    const val DEFAULT_MODEL = "deepseek-flash"
 
     // Long enough for an email; a full-length Chinese answer still fits MAX_REWRITE_LLM_TOKENS.
     const val MAX_REWRITE_SOURCE_CHARS = 5_000
