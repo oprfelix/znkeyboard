@@ -53,7 +53,8 @@
   }
 }
 * { box-sizing: border-box; }
-html { scroll-behavior: smooth; }
+/* Anchor jumps stop below the sticky nav. */
+html { scroll-behavior: smooth; scroll-padding-top: 72px; }
 body {
   margin: 0;
   background: var(--bg);
