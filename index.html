@@ -250,6 +250,12 @@ kbd { font: inherit; font-size: 13px; background: var(--bg-soft); border: 1px so
 }
 .step h3 { font-size: 18px; margin-bottom: 6px; }
 .step p { margin: 0; color: var(--muted); font-size: 15px; }
+.step-body { color: var(--muted); font-size: 15px; }
+.step-body p { margin: 0 0 6px; }
+.step-body ul { margin: 0 0 6px; padding-left: 18px; }
+.step-body li { margin: 6px 0; }
+.step-body b { color: var(--ink); }
+.step-body .note { margin-top: 10px; font-size: 13px; }
 .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--green); margin-right: 6px; vertical-align: 1px; }
 .ok { color: var(--green); font-weight: 600; }
 
@@ -468,19 +474,32 @@ footer .links a { margin-right: 18px; }
 <section id="start">
   <div class="wrap">
     <h2 data-en="Ready in three steps">三步开始使用</h2>
-    <p class="lead" data-en="ZnKeyboard uses your own AI key. Google Gemini is recommended: it has a free tier and takes a minute to set up.">ZnKeyboard 使用你自己的 AI Key。推荐 Google Gemini：有免费额度，一分钟就能申请好。</p>
+    <p class="lead" data-en="ZnKeyboard uses your own AI key, from &lt;b&gt;Gemini&lt;/b&gt; or &lt;b&gt;DeepSeek&lt;/b&gt;: DeepSeek is recommended in mainland China, Gemini elsewhere.">ZnKeyboard 使用你自己的 AI Key，可以选 <b>Gemini</b> 或 <b>DeepSeek</b>：在国内推荐 DeepSeek，在海外推荐 Gemini。</p>
     <div class="grid three steps">
       <div class="card step">
         <h3 data-en="Install">安装</h3>
         <p data-en="Download the version for your device above. On Android, also turn on ZnKeyboard in the keyboard settings; the app walks you through it.">在上方下载对应版本。Android 安装后还要在系统里启用 ZnKeyboard 输入法，App 首页会引导你完成。</p>
       </div>
       <div class="card step">
-        <h3 data-en="Get a Gemini API key">获取 Gemini API Key</h3>
-        <p data-en="Sign in to <a href=&quot;https://aistudio.google.com/apikey&quot;>Google AI Studio</a> and create an API key. Copy it.">登录 <a href="https://aistudio.google.com/apikey">Google AI Studio</a>，点「Create API key」创建一个 Key，然后复制。</p>
+        <h3 data-en="Get an API key">获取 API Key</h3>
+        <div class="step-body" data-en="&lt;ul&gt;&lt;li&gt;&lt;b&gt;DeepSeek&lt;/b&gt; (fast in mainland China): create a key on the &lt;a href=&quot;https://platform.deepseek.com/api_keys&quot;&gt;DeepSeek platform&lt;/a&gt;. Pay as you go after a small top-up; a rewrite costs a tiny fraction of a cent.&lt;/li&gt;&lt;li&gt;&lt;b&gt;Gemini&lt;/b&gt; (free tier): create a key in &lt;a href=&quot;https://aistudio.google.com/apikey&quot;&gt;Google AI Studio&lt;/a&gt;. Needs a network that can reach Google.&lt;/li&gt;&lt;/ul&gt;">
+        <ul>
+          <li><b>DeepSeek</b>（国内可直连）：登录 <a href="https://platform.deepseek.com/api_keys">DeepSeek 开放平台</a> 创建 Key。按用量付费，需要先充值，润色一次只要几厘钱。</li>
+          <li><b>Gemini</b>（有免费额度）：登录 <a href="https://aistudio.google.com/apikey">Google AI Studio</a> 创建 Key。需要能访问 Google 的网络。</li>
+        </ul>
+        </div>
       </div>
       <div class="card step">
         <h3 data-en="Paste and go">粘贴，开始用</h3>
-        <p data-en="Paste the key in Settings → AI &amp; voice. When you see <span class=&quot;ok&quot;><span class=&quot;dot&quot;></span>API key works</span>, AI polish &amp; translate turns on by itself.">在 设置 → AI 与语音 里粘贴 Key。看到 <span class="ok"><span class="dot"></span>API Key 可用</span> 就会自动开启 AI 润色与翻译。</p>
+        <div class="step-body" data-en="&lt;p&gt;Open Settings (on Android, “AI &amp;amp; voice”; on Mac and Windows, “Settings” in the menu bar or tray icon):&lt;/p&gt;&lt;ul&gt;&lt;li&gt;&lt;b&gt;DeepSeek&lt;/b&gt;: choose “OpenAI compatible” as the provider and “DeepSeek” as the endpoint, then paste your key.&lt;/li&gt;&lt;li&gt;&lt;b&gt;Gemini&lt;/b&gt;: choose “Google Gemini”, then paste your key.&lt;/li&gt;&lt;/ul&gt;&lt;p&gt;When you see &lt;span class=&quot;ok&quot;&gt;&lt;span class=&quot;dot&quot;&gt;&lt;/span&gt;API key works&lt;/span&gt;, you&#x27;re all set.&lt;/p&gt;&lt;p class=&quot;note&quot;&gt;AI voice input (Android) currently needs a Gemini key.&lt;/p&gt;">
+        <p>打开设置（Android 在「AI 与语音」，Mac 和 Windows 在菜单栏或托盘图标的「设置」里）：</p>
+        <ul>
+          <li><b>DeepSeek</b>：服务商选「OpenAI 兼容」，接口选「DeepSeek」，粘贴 Key。</li>
+          <li><b>Gemini</b>：服务商选「Google Gemini」，粘贴 Key。</li>
+        </ul>
+        <p>看到 <span class="ok"><span class="dot"></span>API Key 可用</span> 就可以用了。</p>
+        <p class="note">AI 语音输入（Android）目前需要 Gemini Key。</p>
+        </div>
       </div>
     </div>
   </div>
