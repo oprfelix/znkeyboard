@@ -58,7 +58,7 @@ ZnKeyboard learns how *your* thumbs actually hit each key and decodes every tap 
 
 ### ✍️ AI rewrite assistant ("agent mode")
 - Rewrite, polish, or restructure the text in the current field with one tap, then review the result before it replaces anything.
-- **Two providers:** **Google Gemini** with a built‑in endpoint and a model picker limited to Flash‑Lite 2.5 and newer (recommended `gemini-3.5-flash-lite`; the list is loaded live with your key), so a rewrite never runs on a model that costs many times more, or **DeepSeek** (`deepseek-chat`, reachable from mainland China). Both endpoints are built in, each provider keeps its own key, and reasoning stays off for fast, predictable rewrites.
+- **Two providers:** **Google Gemini** with a built‑in endpoint and a model picker limited to Flash‑Lite 2.5 and newer (recommended `gemini-3.5-flash-lite`; the list is loaded live with your key), so a rewrite never runs on a model that costs many times more, or **DeepSeek** (`deepseek-flash`, reachable from mainland China). Both endpoints are built in, each provider keeps its own key, and reasoning (DeepSeek's thinking mode) stays off for fast, predictable rewrites.
 - **App‑aware prompts:** rewrites adapt to where you are typing — e.g. a WhatsApp profile that keeps a natural chat tone.
 - **Structured, safe output:** the model is constrained to a JSON `{ "text": ... }` contract (JSON schema, or plain JSON mode where the provider only supports that).
 - Encrypted key storage via the Android Keystore.

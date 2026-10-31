@@ -1077,7 +1077,7 @@ private fun AgentModeSection(
             ApiKeyCheckStatus(listing)
         }
 
-        // DeepSeek always uses deepseek-chat, so only Gemini offers a model choice.
+        // DeepSeek always uses deepseek-flash, so only Gemini offers a model choice.
         if (agentProviderType == KeyboardSettings.AgentProviderType.Gemini) {
             GeminiModelSelector(
                 listing = listing,

@@ -74,7 +74,7 @@
     <string name="language_th">泰语</string>
     <string name="provider">服务商</string>
     <string name="provider_gemini_desc">有免费额度 · 支持 AI 语音输入</string>
-    <string name="provider_deepseek_desc">国内可直连 · 使用 deepseek-chat 模型</string>
+    <string name="provider_deepseek_desc">国内可直连 · 使用 deepseek-flash 模型</string>
     <string name="setup_turn_on">启用 ZnKeyboard</string>
     <string name="setup_switch">切换到 ZnKeyboard</string>
     <string name="setup_active">ZnKeyboard 已启用</string>

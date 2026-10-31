@@ -74,7 +74,7 @@
     <string name="language_th">Thai</string>
     <string name="provider">Provider</string>
     <string name="provider_gemini_desc">Free tier · also powers AI voice input</string>
-    <string name="provider_deepseek_desc">Fast in mainland China · uses deepseek-chat</string>
+    <string name="provider_deepseek_desc">Fast in mainland China · uses deepseek-flash</string>
     <string name="setup_turn_on">Turn on ZnKeyboard</string>
     <string name="setup_switch">Switch to ZnKeyboard</string>
     <string name="setup_active">ZnKeyboard is active</string>
