@@ -641,6 +641,10 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         syncSystemSubtype()
     }
 
+    override fun onInputMethodPickerRequested() {
+        getSystemService(InputMethodManager::class.java)?.showInputMethodPicker()
+    }
+
     /** The system's language switcher picked one of our subtypes: follow it. */
     override fun onCurrentInputMethodSubtypeChanged(newSubtype: InputMethodSubtype?) {
         super.onCurrentInputMethodSubtypeChanged(newSubtype)

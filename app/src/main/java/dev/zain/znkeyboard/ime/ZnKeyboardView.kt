@@ -52,6 +52,8 @@ class ZnKeyboardView @JvmOverloads constructor(
         fun onClipboardPanelRequested()
         fun onAgentRewriteRequested()
         fun onPinyinModeToggled()
+        /** Long-press on the globe: the system's list of keyboards. */
+        fun onInputMethodPickerRequested() {}
         fun onTranslateLanguageMenuRequested()
         fun onAgentPolishOnlyRequested()
         /** Hold-space voice input; false when it can't start (the service shows why). */
@@ -306,10 +308,13 @@ class ZnKeyboardView @JvmOverloads constructor(
         else -> "hold to talk"
     }
 
-    /** Long-press space records speech, so it is labelled only while voice input is on. */
+    /**
+     * The space key's corner: 拼音 names the Chinese keyboard (the globe switches it); in English
+     * it marks that a long press records speech, while voice input is on.
+     */
     private fun spaceLongPressHint(): String? = when {
+        pinyinModeEnabled -> "拼音"
         !voiceInputEnabled -> null
-        pinyinModeEnabled -> "语音"
         else -> "voice"
     }
 
@@ -484,6 +489,9 @@ class ZnKeyboardView @JvmOverloads constructor(
             }
             "space" -> scheduleLongPress(pointerId, "space") {
                 startVoiceTouch(pointerId)
+            }
+            "pinyin_mode" -> scheduleLongPress(pointerId, "pinyin_mode") {
+                callback?.onInputMethodPickerRequested()
             }
         }
         if (key?.id == "space") {
@@ -1431,6 +1439,7 @@ class ZnKeyboardView @JvmOverloads constructor(
             KeyIcon.Enter -> drawEnterIcon(canvas)
             KeyIcon.Space -> drawSpaceIcon(canvas)
             KeyIcon.Clipboard -> drawClipboardIcon(canvas)
+            KeyIcon.Globe -> drawGlobeIcon(canvas)
         }
         canvas.restore()
     }
@@ -1552,6 +1561,14 @@ class ZnKeyboardView @JvmOverloads constructor(
             lineTo(12f, 18f)
         }
         canvas.drawPath(path, iconPaint)
+    }
+
+    private fun drawGlobeIcon(canvas: Canvas) {
+        canvas.drawCircle(12f, 12f, 9f, iconPaint)
+        canvas.drawOval(RectF(8f, 3f, 16f, 21f), iconPaint)
+        canvas.drawLine(3f, 12f, 21f, 12f, iconPaint)
+        canvas.drawLine(4.6f, 7.5f, 19.4f, 7.5f, iconPaint)
+        canvas.drawLine(4.6f, 16.5f, 19.4f, 16.5f, iconPaint)
     }
 
     private fun drawSpaceIcon(canvas: Canvas) {
@@ -2291,6 +2308,7 @@ class ZnKeyboardView @JvmOverloads constructor(
                 KeyIntent.Dispatch(KeyboardAction.Text(" ")),
                 ImeDimensions.SPACE_KEY_WEIGHT,
                 KeyRole.Function,
+                longPressHint = spaceLongPressHint(),
             )
             keys += KeySpec(
                 "numeric_layout_toggle",
@@ -2316,6 +2334,7 @@ class ZnKeyboardView @JvmOverloads constructor(
                 KeyIntent.Dispatch(KeyboardAction.Text(" ")),
                 ImeDimensions.SPACE_KEY_WEIGHT,
                 KeyRole.Function,
+                longPressHint = spaceLongPressHint(),
             )
             keys += KeySpec(
                 "bottom_period",
@@ -2338,7 +2357,7 @@ class ZnKeyboardView @JvmOverloads constructor(
         )
     }
 
-    /** Switches between pinyin (中) and English (EN). */
+    /** The globe switches between pinyin and English; the space key's corner says which is on. */
     private fun pinyinModeKeySpec(): KeySpec {
         return KeySpec(
             id = "pinyin_mode",
@@ -2346,6 +2365,7 @@ class ZnKeyboardView @JvmOverloads constructor(
             intent = KeyIntent.TogglePinyinMode,
             weight = ImeDimensions.PINYIN_MODE_KEY_WEIGHT,
             role = KeyRole.Function,
+            icon = KeyIcon.Globe,
         )
     }
 
@@ -2438,6 +2458,7 @@ class ZnKeyboardView @JvmOverloads constructor(
         Enter,
         Space,
         Clipboard,
+        Globe,
     }
 
     private enum class ArrowDirection {
