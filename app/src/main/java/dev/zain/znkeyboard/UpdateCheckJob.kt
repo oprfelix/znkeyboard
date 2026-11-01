@@ -53,8 +53,16 @@ class UpdateCheckJob : JobService() {
         private const val NOTIFICATION_ID = 4201
         private const val DAY_MS = 24L * 60 * 60 * 1000
 
-        /** Keeps the daily check scheduled (or cancelled) to match the setting; cheap to call often. */
+        /**
+         * Keeps the daily check scheduled (or cancelled) to match the setting; cheap to call often.
+         * Never throws: it runs as the settings app and the keyboard start, and the system refuses
+         * some jobs (1.7.1 crashed on launch when it did).
+         */
         fun sync(context: Context) {
+            runCatching { syncOrThrow(context) }
+        }
+
+        private fun syncOrThrow(context: Context) {
             val scheduler = context.getSystemService(JobScheduler::class.java) ?: return
             if (!KeyboardSettings.readUpdateAutoCheck(context)) {
                 scheduler.cancel(JOB_ID)

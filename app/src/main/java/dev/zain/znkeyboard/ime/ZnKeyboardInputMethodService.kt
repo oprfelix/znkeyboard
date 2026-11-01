@@ -22,6 +22,8 @@ import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.ExtractedTextRequest
 import android.view.inputmethod.InputConnection
+import android.view.inputmethod.InputMethodManager
+import android.view.inputmethod.InputMethodSubtype
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.Toast
@@ -91,6 +93,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     private var activeReview: AgentReview? = null
     private var agentError: String? = null
     private var agentLoading = false
+    private var subtypeSynced = false
     private var requestGeneration = 0
     private var backspaceGestureDeleteState: BackspaceGestureDeleteState? = null
     private var spaceCursorDragState: SpaceCursorDragState? = null
@@ -223,6 +226,11 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         resetAgentState(returnToKeyboard = true)
         applyKeyboardSettings()
         keyboardView?.setEnterLabel(resolveEnterLabel(info))
+        if (!subtypeSynced) {
+            // Versions before 1.7.2 had only an English subtype; line the system up with the saved mode once.
+            subtypeSynced = true
+            syncSystemSubtype()
+        }
         renderSecondRow()
         capturePrimaryClipboardText()
         updateAutoShift()
@@ -629,9 +637,34 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     }
 
     override fun onPinyinModeToggled() {
+        setPinyinMode(!pinyinModeEnabled)
+        syncSystemSubtype()
+    }
+
+    /** The system's language switcher picked one of our subtypes: follow it. */
+    override fun onCurrentInputMethodSubtypeChanged(newSubtype: InputMethodSubtype?) {
+        super.onCurrentInputMethodSubtypeChanged(newSubtype)
+        val pinyin = newSubtype?.isPinyin() ?: return
+        if (pinyin != pinyinModeEnabled) setPinyinMode(pinyin)
+    }
+
+    private fun InputMethodSubtype.isPinyin(): Boolean = languageTag.startsWith("zh") || locale.startsWith("zh")
+
+    /** Makes the system's current subtype (shown in its language switcher) match the 中 / EN mode. */
+    private fun syncSystemSubtype() {
+        runCatching {
+            val manager = getSystemService(InputMethodManager::class.java) ?: return
+            val ours = manager.inputMethodList.firstOrNull { it.packageName == packageName } ?: return
+            val wanted = (0 until ours.subtypeCount).map(ours::getSubtypeAt).firstOrNull { it.isPinyin() == pinyinModeEnabled } ?: return
+            val current = manager.currentInputMethodSubtype
+            if (current == null || current.isPinyin() != pinyinModeEnabled) switchInputMethod(ours.id, wanted)
+        }
+    }
+
+    private fun setPinyinMode(enabled: Boolean) {
         commitPinyinRaw()
         dismissPinyinPredictions()
-        pinyinModeEnabled = !pinyinModeEnabled
+        pinyinModeEnabled = enabled
         KeyboardSettings.savePinyinModeEnabled(this, pinyinModeEnabled)
         keyboardView?.setPinyinMode(pinyinModeEnabled)
         if (activeSurface != KeyboardSurface.ClipboardSearch) keyboardView?.setEnterLabel(resolveEnterLabel(currentEditorInfo))

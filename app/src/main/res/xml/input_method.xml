@@ -1,11 +1,26 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Two subtypes, so the system's language switcher (and its globe or space-bar label) lists both;
+     the 中 / EN key and the system switch stay in step. Fixed subtype IDs keep the user's choice
+     across updates. Both are on by default whatever the system language. -->
 <input-method xmlns:android="http://schemas.android.com/apk/res/android"
     android:isDefault="false"
     android:settingsActivity="dev.zain.znkeyboard.SettingsActivity"
     android:supportsSwitchingToNextInputMethod="true">
     <subtype
+        android:subtypeId="0x5a4e0001"
+        android:imeSubtypeLocale="zh_CN"
+        android:languageTag="zh-CN"
+        android:imeSubtypeMode="keyboard"
+        android:imeSubtypeExtraValue="pinyin"
+        android:isAsciiCapable="false"
+        android:overridesImplicitlyEnabledSubtype="true"
+        android:label="@string/ime_subtype_label_pinyin" />
+    <subtype
+        android:subtypeId="0x5a4e0002"
         android:imeSubtypeLocale="en_US"
+        android:languageTag="en-US"
         android:imeSubtypeMode="keyboard"
         android:isAsciiCapable="true"
+        android:overridesImplicitlyEnabledSubtype="true"
         android:label="@string/ime_subtype_label" />
 </input-method>
