@@ -68,6 +68,13 @@ class PinyinLearner(var data: PinyinUserData) {
         }
     }
 
+    /** The user asked to forget [text]: its picks, its built phrase and its predictions go. */
+    fun forget(text: String) {
+        data.forgetWord(text)
+        dictionary?.forget(text)
+        if (previous == text) previous = null
+    }
+
     /** Something other than pinyin was typed, or the caret moved: the next word has no context. */
     fun breakChain() {
         previous = null

@@ -90,6 +90,21 @@ fun main(args: Array<String>) {
     pick("小丰", "xiao feng")
     learner.onCompositionDone()
     check("built phrase 王小丰 by full pinyin", top("wangxiaofeng", learnDict).firstOrNull()?.text == "王小丰", top("wangxiaofeng", learnDict).toString())
+
+    // One accidental build (我们 + 一气 by hand) must not take over a sentence; a habit (a few builds) does.
+    fun sentence() = PinyinEngine.candidates("womengyiqiqupashan", learnDict).first().text
+    pick("我们", "wo men"); pick("一气", "yi qi"); learner.onCompositionDone()
+    check("one-off 我们一气 keeps 我们一起去爬山", sentence() == "我们一起去爬山", sentence())
+    var builds = 1
+    while (sentence() != "我们一气去爬山" && builds < 6) {
+        pick("我们", "wo men"); pick("一气", "yi qi"); learner.onCompositionDone()
+        builds++
+    }
+    check("built again and again, 我们一气 wins (after $builds)", sentence() == "我们一气去爬山" && builds <= 5, sentence())
+    learner.forget("我们一气")
+    learner.forget("一气")
+    check("forgotten, back to 我们一起去爬山", sentence() == "我们一起去爬山", sentence())
+    check("forgotten word is not learned", !learnDict.isLearned("我们一气"), "")
     check("built phrase 王小丰 by 简拼", top("wxf", learnDict, 3).any { it.text == "王小丰" }, top("wxf", learnDict, 3).toString())
     val built = top("wangxiaofeng", learnDict).first()
     check("built phrase consumes all", built.consumed == 12 && built.syllables == listOf("wang", "xiao", "feng"), built.toString())

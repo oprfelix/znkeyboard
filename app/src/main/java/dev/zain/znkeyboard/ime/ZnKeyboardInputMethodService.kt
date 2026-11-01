@@ -726,6 +726,28 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         renderPinyinBar()
     }
 
+    /**
+     * Long press on a candidate forgets what was learned about it (a sentence: about its words),
+     * so a wrong pick stops coming first. Dictionary words stay, at their own rank.
+     */
+    override fun onPinyinCandidateLongPressed(index: Int) {
+        val dictionary = pinyinDictionary ?: return
+        val texts = if (pinyinComposing.isEmpty()) {
+            listOfNotNull(pinyinPredictions.getOrNull(index)?.text)
+        } else {
+            pinyinCandidates.getOrNull(index)?.let { candidate -> candidate.parts?.map { it.text } ?: listOf(candidate.text) }.orEmpty()
+        }
+        val learned = if (pinyinComposing.isEmpty()) texts else texts.filter { dictionary.isLearned(it) }
+        if (learned.isEmpty()) {
+            Toast.makeText(this, t("这个词没有学习记录，不用删除。", "Nothing learned about this one."), Toast.LENGTH_SHORT).show()
+            return
+        }
+        learned.forEach(pinyinLearner::forget)
+        savePinyinLearning()
+        Toast.makeText(this, t("已删除学习记录：${learned.joinToString("、")}", "Forgot: ${learned.joinToString(", ")}"), Toast.LENGTH_SHORT).show()
+        if (pinyinComposing.isNotEmpty()) updatePinyinComposition(pinyinComposing) else showPinyinPredictions()
+    }
+
     override fun onPinyinCandidateSelected(index: Int) {
         if (pinyinComposing.isEmpty()) pickPinyinPrediction(index) else selectPinyinCandidate(index, byHand = true)
     }

@@ -206,10 +206,33 @@ class PinyinDictionary private constructor(
             entry = newEntry(text, raw, Int.MAX_VALUE, NEW_WORD_BASE)
             index(entry)
         }
-        entry.score = entry.base + LEARN_BONUS * ln(1f + uses)
+        // A phrase the user built gains from its second pick on: one accidental build (我们 + 一气)
+        // must not push a dictionary word with the same pinyin (我们一起) aside.
+        val bonus = if (entry.rank == Int.MAX_VALUE) ln(uses.toFloat().coerceAtLeast(1f)) else ln(1f + uses)
+        entry.score = entry.base + LEARN_BONUS * bonus
         learned += entry
         reposition(entry)
     }
+
+    /** Undoes [learn] for one word: a dictionary word goes back to its own rank, a built one goes. */
+    fun forget(text: String) {
+        version++
+        for (entry in learned.filter { it.text == text }) {
+            learned -= entry
+            if (entry.rank == Int.MAX_VALUE) {
+                exact[exactKey(entry)]?.remove(entry)
+                byInitials[initialsKey(entry)]?.remove(entry)
+                if (entry.text.length > 1) byFirstChar[entry.text[0]]?.remove(entry)
+                nineKey?.remove(entry)
+            } else {
+                entry.score = entry.base
+                reposition(entry)
+            }
+        }
+    }
+
+    /** Whether [text] is ranked by the user's picks, so there is something to forget. */
+    fun isLearned(text: String): Boolean = learned.any { it.text == text }
 
     /** Drops everything [learn] did. */
     fun forgetLearned() {

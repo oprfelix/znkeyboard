@@ -22,6 +22,8 @@ import dev.zain.znkeyboard.constants.ImeColors
 class PinyinCandidateBar(context: Context) : LinearLayout(context) {
     interface Callback {
         fun onPinyinCandidateSelected(index: Int)
+        /** Long press: forget what was learned about this candidate. */
+        fun onPinyinCandidateLongPressed(index: Int) {}
         fun onTranslateLanguageSelected(index: Int)
         fun onAgentPolishOnlyRequested()
         fun onAgentRewriteRequested()
@@ -189,6 +191,10 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
                     } else {
                         callback?.onPinyinCandidateSelected(index)
                     }
+                }
+                setOnLongClickListener {
+                    if (!choosingLanguage) callback?.onPinyinCandidateLongPressed(index)
+                    !choosingLanguage
                 }
             }
             candidateViews += view

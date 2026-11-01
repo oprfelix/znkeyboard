@@ -23,8 +23,8 @@ android {
         applicationId = "dev.zain.znkeyboard"
         minSdk = 36
         targetSdk = 36
-        versionCode = 35
-        versionName = "1.9.1"
+        versionCode = 36
+        versionName = "1.9.2"
     }
 
     signingConfigs {

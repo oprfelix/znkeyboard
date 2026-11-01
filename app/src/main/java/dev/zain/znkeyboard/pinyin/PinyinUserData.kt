@@ -33,6 +33,16 @@ class PinyinUserData {
         return word
     }
 
+    /** Forgets every pick of [text] and what followed it or it followed. */
+    fun forgetWord(text: String) {
+        clock++
+        words.values.removeAll { it.text == text }
+        following.remove(text)
+        for (list in following.values) list.removeAll { it.next == text }
+        following.values.removeAll { it.isEmpty() }
+        pairCount = following.values.sumOf { it.size }
+    }
+
     /** Records that [next] was typed right after [previous]. */
     fun learnPair(previous: String, next: String) {
         if (previous.isEmpty() || next.isEmpty()) return
