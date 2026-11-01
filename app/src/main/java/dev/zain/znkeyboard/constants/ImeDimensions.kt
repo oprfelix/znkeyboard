@@ -49,9 +49,10 @@ object ImeDimensions {
     const val TRANSLATE_CHIP_TEXT_FRACTION = 0.42f
     const val SIDE_FUNCTION_KEY_WEIGHT = 1.5f
     const val MODE_SWITCH_KEY_WEIGHT = 1.25f
-    const val SPACE_KEY_WEIGHT = 5.1f
+    const val SPACE_KEY_WEIGHT = 4.85f
     const val ENTER_KEY_WEIGHT = 1.55f
-    const val PINYIN_MODE_KEY_WEIGHT = 0.9f
+    // The globe (拼音 / English): as wide as a letter key, like Gboard's.
+    const val PINYIN_MODE_KEY_WEIGHT = 1.15f
 
     const val BROWSE_HEADER_HEIGHT_DP = 42
     const val BACK_BUTTON_WIDTH_DP = 44

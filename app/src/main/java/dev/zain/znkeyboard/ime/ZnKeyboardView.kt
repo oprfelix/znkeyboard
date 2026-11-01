@@ -1473,7 +1473,8 @@ class ZnKeyboardView @JvmOverloads constructor(
     }
 
     private fun drawIcon(canvas: Canvas, icon: KeyIcon, bounds: RectF, color: Int, alpha: Int) {
-        val iconSize = min(bounds.width(), bounds.height()) * 0.5f
+        // The globe is the language switch; drawn larger so it reads at a glance.
+        val iconSize = min(bounds.width(), bounds.height()) * if (icon == KeyIcon.Globe) GLOBE_ICON_FRACTION else 0.5f
         val left = bounds.centerX() - iconSize / 2f
         val top = bounds.centerY() - iconSize / 2f
 
@@ -2737,6 +2738,7 @@ class ZnKeyboardView @JvmOverloads constructor(
 
     private companion object {
         const val LETTER_LIFT_FRACTION = 0.04f
+        const val GLOBE_ICON_FRACTION = 0.66f
         const val TOP_ROW_DIGITS = "1234567890"
         /** Without the number row, each letter row takes this much more height (the keyboard still ends up shorter). */
         const val NO_NUMBER_ROW_EXTRA_WEIGHT = 0.2f

@@ -104,6 +104,8 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     private var activeReview: AgentReview? = null
     private var agentError: String? = null
     private var agentLoading = false
+    /** After a capital typed in pinyin: letters go in as English until a space or a mark. */
+    private var englishRun = false
     private var subtypeSynced = false
     private var requestGeneration = 0
     private var backspaceGestureDeleteState: BackspaceGestureDeleteState? = null
@@ -214,6 +216,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         super.onStartInput(attribute, restarting)
         // A new field: whatever was composing belonged to the old one.
         clearPinyinComposition()
+        englishRun = false
         currentEditorInfo = attribute
         keyboardView?.setPhonePadMode(shouldUsePhonePadMode(attribute))
         resetAgentState(returnToKeyboard = true)
@@ -291,6 +294,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         if (!isRawKeyEventEditor(currentEditorInfo) && (oldSelStart != newSelStart || oldSelEnd != newSelEnd)) {
             // The user tapped elsewhere in the text, or the app edited it: accept and resync.
             dismissPinyinPredictions()
+            englishRun = false
             typingEngine.learner.onContextChanged(
                 if (newSelStart == newSelEnd) currentInputConnection?.getTextBeforeCursor(TYPING_CONTEXT_CHARS, 0) else null,
             )
@@ -682,6 +686,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     }
 
     private fun setPinyinMode(enabled: Boolean) {
+        englishRun = false
         commitPinyinRaw()
         dismissPinyinPredictions()
         pinyinModeEnabled = enabled
@@ -852,7 +857,16 @@ class ZnKeyboardInputMethodService : InputMethodService(),
             is KeyboardAction.Text -> {
                 val value = action.value
                 val char = value.singleOrNull()
+                if (char == null || char.lowercaseChar() !in 'a'..'z') englishRun = false
                 when {
+                    // Shift in pinyin types English: a capital goes in as it is, and the letters after
+                    // it too (iPhone, McDonald), until a space or a mark ends the word.
+                    char != null && char in 'A'..'Z' -> {
+                        if (composing) commitPinyinWholeTop()
+                        englishRun = true
+                        return false
+                    }
+                    char != null && char in 'a'..'z' && englishRun && !composing -> return false
                     char != null && char.lowercaseChar() in 'a'..'z' -> {
                         updatePinyinComposition(pinyinComposing + char.lowercaseChar())
                         return true
@@ -894,6 +908,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
                 return true
             }
             KeyboardAction.Enter -> {
+                englishRun = false
                 if (!composing) return false
                 commitPinyinRaw()
                 return true
