@@ -11,9 +11,16 @@ object PinyinEngine {
 
     /**
      * [consumed] is how many input characters picking this candidate uses up; [syllables] is
-     * its raw pinyin, one per character, for learning.
+     * its raw pinyin, one per character, for learning. A whole sentence also has its [parts]
+     * (the words, learned one by one) and its [spelling] as read, slips corrected.
      */
-    data class Candidate(val text: String, val consumed: Int, val syllables: List<String>)
+    data class Candidate(
+        val text: String,
+        val consumed: Int,
+        val syllables: List<String>,
+        val parts: List<Candidate>? = null,
+        val spelling: String? = null,
+    )
 
     const val SEPARATOR = '\''
     private const val MAX_SYLLABLE_LENGTH = 6
@@ -92,7 +99,23 @@ object PinyinEngine {
             PinyinDictionary.Piece(text, isPrefix = !complete || stillTyping)
         }
 
+    /**
+     * The whole input read as one sentence (when that takes more than one word, or reads past a
+     * slip), then the words for its leading part.
+     */
     fun candidates(input: String, dictionary: PinyinDictionary): List<Candidate> {
+        val words = wordCandidates(input, dictionary)
+        val sentence = SentenceDecoder.decode(input, dictionary) ?: return words
+        val typed = input.replace(SEPARATOR.toString(), "")
+        val corrected = sentence.spelling.replace(" ", "") != typed
+        if (sentence.parts.size < 2 && !corrected) return words
+        val top = words.firstOrNull()
+        if (top != null && top.text == sentence.text && top.consumed >= input.length) return words
+        val whole = Candidate(sentence.text, input.length, sentence.parts.flatMap { it.syllables }, sentence.parts, sentence.spelling)
+        return listOf(whole) + words.filter { it.text != sentence.text }
+    }
+
+    private fun wordCandidates(input: String, dictionary: PinyinDictionary): List<Candidate> {
         val syllables = segment(input, dictionary)
         if (syllables.isEmpty()) return emptyList()
         val seen = HashSet<String>()

@@ -464,6 +464,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
             view.setFunctionKeyBackgroundsEnabled(KeyboardSettings.readFunctionKeyBackgroundsEnabled(this))
             view.setKeyHapticsEnabled(KeyboardSettings.readKeyHapticsEnabled(this))
             view.setKeyPreviewEnabled(KeyboardSettings.readKeyPreviewEnabled(this))
+            view.setNumberRowVisible(KeyboardSettings.readNumberRowEnabled(this))
             view.setVoiceInputEnabled(KeyboardSettings.readVoiceInputEnabled(this))
             view.setUpperRowKeyIds(KeyboardSettings.readUpperRowKeyIds(this))
             view.setSecondRowButtonIds(KeyboardSettings.readSecondRowButtonIds(this))
@@ -929,7 +930,8 @@ class ZnKeyboardInputMethodService : InputMethodService(),
             inputConnection.setComposingText("", 1)
             inputConnection.finishComposingText()
         } else {
-            inputConnection.setComposingText(composingDisplay(), 1)
+            // 26-key letters stay as typed in the field; the bar shows them as read, slips corrected.
+            inputConnection.setComposingText(if (chineseKeyboard.isNineKey) composingDisplay() else composing, 1)
         }
         renderPinyinBar()
     }
@@ -942,7 +944,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
             chineseKeyboard == KeyboardSettings.ChineseKeyboard.NineKeyPinyin && dictionary != null ->
                 NineKeyEngine.display(pinyinComposing, dictionary, pinyinCandidates.firstOrNull())
             chineseKeyboard == KeyboardSettings.ChineseKeyboard.NineKeyStroke -> StrokeIndex.display(pinyinComposing)
-            else -> pinyinComposing
+            else -> pinyinCandidates.firstOrNull()?.spelling?.replace(' ', PinyinEngine.SEPARATOR) ?: pinyinComposing
         }
     }
 
@@ -998,7 +1000,9 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         noteOwnEdit()
         inputConnection.beginBatchEdit()
         inputConnection.commitText(candidate.text, 1)
-        pinyinLearner.onPick(candidate.text, candidate.syllables, byHand)
+        // A whole sentence teaches its words one by one (and which follows which), not itself.
+        candidate.parts?.forEach { part -> pinyinLearner.onPick(part.text, part.syllables, byHand) }
+            ?: pinyinLearner.onPick(candidate.text, candidate.syllables, byHand)
         if (remaining.isEmpty()) {
             pinyinLearner.onCompositionDone()
             pinyinComposing = ""

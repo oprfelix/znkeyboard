@@ -3,6 +3,7 @@ package dev.zain.znkeyboard.ime
 import android.content.Context
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.text.TextUtils
 import android.view.Gravity
 import android.view.View
 import android.widget.HorizontalScrollView
@@ -11,8 +12,8 @@ import android.widget.TextView
 import dev.zain.znkeyboard.constants.ImeColors
 
 /**
- * Strip laid over the keyboard's toolbar row showing, while composing, the typed pinyin and a
- * scrollable row of candidates (or predictions after a commit). It also hosts the target-language
+ * Strip laid over the keyboard's toolbar row showing, while composing, the typed pinyin in small
+ * type on top and below it a scrollable row of candidates only (or predictions after a commit). It also hosts the target-language
  * choices opened from the round language key. Hidden when it has nothing to show, so the toolbar
  * is usable and the keyboard never changes height. While it shows predictions it pins 润色 | 翻译
  * on the right, since it covers the toolbar keys. Candidate views are pooled so typing does not
@@ -32,15 +33,21 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
 
     var callback: Callback? = null
 
+    // The pinyin being typed, small, above the candidates; a long sentence keeps only its end in view.
     private val composingLabel = TextView(context).apply {
-        gravity = Gravity.CENTER_VERTICAL
-        textSize = 13f
-        setPadding(context.dp(12), 0, context.dp(8), 0)
-        maxLines = 1
+        gravity = Gravity.CENTER_VERTICAL or Gravity.START
+        textSize = COMPOSING_TEXT_SP
+        includeFontPadding = false
+        setPadding(context.dp(14), context.dp(3), context.dp(14), 0)
+        isSingleLine = true
+        ellipsize = TextUtils.TruncateAt.START
     }
+    // Thin lines between candidates mark where each one's tap area ends, as on Gboard.
     private val candidateRow = LinearLayout(context).apply {
         orientation = HORIZONTAL
         gravity = Gravity.CENTER_VERTICAL
+        showDividers = SHOW_DIVIDER_MIDDLE
+        dividerPadding = context.dp(12)
     }
     private val scroller = HorizontalScrollView(context).apply {
         isHorizontalScrollBarEnabled = false
@@ -91,23 +98,32 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
             LayoutParams(LayoutParams.WRAP_CONTENT, context.dp(34)).apply { marginStart = context.dp(6) },
         )
     }
+    /** Candidates (or predictions) and, after a commit, the pinned 润色 | 翻译. */
+    private val mainRow = LinearLayout(context).apply {
+        orientation = HORIZONTAL
+        gravity = Gravity.CENTER_VERTICAL
+    }
     private val candidateViews = ArrayList<TextView>()
     private var choosingLanguage = false
     // Highlighted item: the first candidate (what space commits) or the current language.
     private var highlightedIndex = 0
 
     init {
-        orientation = HORIZONTAL
-        gravity = Gravity.CENTER_VERTICAL
-        addView(composingLabel, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.MATCH_PARENT))
-        addView(scroller, LayoutParams(0, LayoutParams.MATCH_PARENT, 1f))
-        addView(toolsRow, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.MATCH_PARENT))
+        orientation = VERTICAL
+        addView(composingLabel, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
+        addView(mainRow, LayoutParams(LayoutParams.MATCH_PARENT, 0, 1f))
+        mainRow.addView(scroller, LayoutParams(0, LayoutParams.MATCH_PARENT, 1f))
+        mainRow.addView(toolsRow, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.MATCH_PARENT))
         toolsRow.visibility = View.GONE
         applyColors()
     }
 
     fun applyColors() {
         setBackgroundColor(ImeColors.BACKGROUND)
+        candidateRow.dividerDrawable = GradientDrawable().apply {
+            setColor(ImeColors.DIVIDER)
+            setSize(context.dp(1), 0)
+        }
         composingLabel.setTextColor(ImeColors.DISABLED_TEXT)
         polishButton.setTextColor(ImeColors.TEXT)
         translateLabel.setTextColor(ImeColors.TEXT)
@@ -163,8 +179,10 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
             val index = candidateViews.size
             val view = TextView(context).apply {
                 gravity = Gravity.CENTER
-                textSize = 19f
-                setPadding(context.dp(12), 0, context.dp(12), 0)
+                textSize = CANDIDATE_TEXT_SP
+                includeFontPadding = false
+                minWidth = context.dp(CANDIDATE_MIN_WIDTH_DP)
+                setPadding(context.dp(14), 0, context.dp(14), 0)
                 setOnClickListener {
                     if (choosingLanguage) {
                         callback?.onTranslateLanguageSelected(index)
@@ -188,11 +206,21 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
         scroller.scrollTo(0, 0)
     }
 
+    /**
+     * Candidates are all the same plain color, the first (what space commits) a little heavier.
+     * The current language stays accented while choosing a translation target.
+     */
     private fun styleCandidate(view: TextView, highlighted: Boolean) {
-        view.setTextColor(if (highlighted) ImeColors.ACCENT else ImeColors.TEXT)
+        view.setTextColor(if (highlighted && choosingLanguage) ImeColors.ACCENT else ImeColors.TEXT)
+        view.typeface = if (highlighted) FIRST_TYPEFACE else REGULAR_TYPEFACE
     }
 
     private companion object {
         const val DISABLED_ALPHA = 0.45f
+        const val CANDIDATE_TEXT_SP = 22f
+        const val COMPOSING_TEXT_SP = 12f
+        const val CANDIDATE_MIN_WIDTH_DP = 52
+        val FIRST_TYPEFACE: Typeface = Typeface.create(Typeface.DEFAULT, 500, false)
+        val REGULAR_TYPEFACE: Typeface = Typeface.create(Typeface.DEFAULT, 400, false)
     }
 }

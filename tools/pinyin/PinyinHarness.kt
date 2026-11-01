@@ -40,7 +40,10 @@ fun main(args: Array<String>) {
     val single = PinyinEngine.candidates("nihao", strict).firstOrNull { it.text == "你" }
     check("single char consumes 2", single?.consumed == 2, single.toString())
 
-    check("strict zongguo has no 中国", top("zongguo", strict, 20).none { it.text == "中国" }, "")
+    // Without fuzzy sounds zong is not zhong; 中国 may only come as a slip-corrected sentence.
+    val zongguo = top("zongguo", strict, 20)
+    check("strict zongguo: 中国 only as a correction", zongguo.none { it.text == "中国" && it.parts == null } &&
+        zongguo.filter { it.text == "中国" }.all { it.spelling == "zhong guo" }, zongguo.map { it.text }.toString())
     val zFuzzy = top("zongguo", fuzzy)
     check("fuzzy zongguo -> 中国", zFuzzy.any { it.text == "中国" }, zFuzzy.toString())
     val nl = top("niulai", fuzzy, 20)

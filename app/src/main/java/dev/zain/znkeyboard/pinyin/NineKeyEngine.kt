@@ -30,11 +30,18 @@ object NineKeyEngine {
         return Parsed(locked, digits.toString(), boundaries, at)
     }
 
+    /** The digits read as a whole sentence first (when nothing is locked or separated), then words. */
     fun candidates(composing: String, dictionary: PinyinDictionary): List<PinyinEngine.Candidate> {
         val parsed = parse(composing)
-        return dictionary.nineKeyMatches(parsed.locked, parsed.digits, parsed.boundaries).map { match ->
+        val words = dictionary.nineKeyMatches(parsed.locked, parsed.digits, parsed.boundaries).map { match ->
             PinyinEngine.Candidate(match.word.text, consumedFor(composing, parsed, match.digits), match.word.syllables)
         }
+        if (parsed.locked.isNotEmpty() || parsed.boundaries.isNotEmpty()) return words
+        val sentence = SentenceDecoder.decodeNineKey(parsed.digits, dictionary) ?: return words
+        val top = words.firstOrNull()
+        if (top != null && top.text == sentence.text && top.consumed >= composing.length) return words
+        val whole = PinyinEngine.Candidate(sentence.text, composing.length, sentence.parts.flatMap { it.syllables }, sentence.parts, sentence.spelling)
+        return listOf(whole) + words.filter { it.text != sentence.text }
     }
 
     /** Characters of [composing] a candidate using [digits] digits takes up, with a following separator. */

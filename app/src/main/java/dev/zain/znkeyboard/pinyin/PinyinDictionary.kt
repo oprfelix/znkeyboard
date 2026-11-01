@@ -58,8 +58,14 @@ class PinyinDictionary private constructor(
 
     private val normalizedBySyllable = HashMap<String, String>()
 
+    /** Changes whenever scores or words change, so cached lookups know to start over. */
+    var version = 0
+        private set
+
+    /** Every syllable as spelled in the dictionary (zhong, lv…), for typo correction. */
+    val rawSyllables = HashSet<String>()
+
     init {
-        val rawSyllables = HashSet<String>()
         rows.forEachIndexed { rank, row ->
             rawSyllables += row.syllables
             index(newEntry(row.text, row.syllables, rank, ln(row.weight.coerceAtLeast(1L).toFloat())))
@@ -84,6 +90,15 @@ class PinyinDictionary private constructor(
         byInitials.getOrPut(initialsKey(entry)) { mutableListOf() }.add(entry)
         if (entry.text.length > 1) byFirstChar.getOrPut(entry.text[0]) { mutableListOf() }.add(entry)
         nineKey?.add(entry)
+        initialsPrefixes?.let { set ->
+            val key = initialsKey(entry)
+            var at = key.indexOf(' ')
+            while (at > 0) {
+                set += key.substring(0, at)
+                at = key.indexOf(' ', at + 1)
+            }
+            set += key
+        }
     }
 
     private fun exactKey(entry: Entry) = entry.syllables.joinToString(" ")
@@ -100,10 +115,15 @@ class PinyinDictionary private constructor(
      * covers l); fuzzy rules apply to longer pieces. When the last piece is a prefix, words
      * spelling it exactly come first.
      */
-    fun matches(pieces: List<Piece>, limit: Int): List<Word> {
+    fun matches(pieces: List<Piece>, limit: Int): List<Word> = matchEntries(pieces, limit).map(::word)
+
+    /** The best few words for [pieces] with their scores (log weight plus learning), for sentence search. */
+    fun scoredMatches(pieces: List<Piece>, limit: Int): List<Pair<Word, Float>> = matchEntries(pieces, limit).map { word(it) to it.score }
+
+    private fun matchEntries(pieces: List<Piece>, limit: Int): List<Entry> {
         val normalized = pieces.map { fuzzy.normalize(it.text) }
         if (pieces.none { it.isPrefix }) {
-            return exact[normalized.joinToString(" ")].orEmpty().asSequence().map(::word).take(limit).toList()
+            return exact[normalized.joinToString(" ")].orEmpty().asSequence().take(limit).toList()
         }
         val lastIndex = normalized.lastIndex
         fun fitsPiece(entry: Entry, i: Int): Boolean {
@@ -120,7 +140,42 @@ class PinyinDictionary private constructor(
             .sortedWith(BEST_FIRST)
         val lastExact = candidates.asSequence().filter { it.syllables[lastIndex] == normalized[lastIndex] }
         val lastLonger = candidates.asSequence().filter { it.syllables[lastIndex] != normalized[lastIndex] }
-        return (lastExact + lastLonger).map(::word).take(limit).toList()
+        return (lastExact + lastLonger).take(limit).toList()
+    }
+
+    // ---- Sentence search ----
+
+    /** Every leading part of every word's initials key ("y", "y m", "y m y"…), built on first use. */
+    private var initialsPrefixes: HashSet<String>? = null
+
+    /**
+     * Whether some word's initials start with [initials] (first letters joined by spaces): lets a
+     * sentence search stop extending a run of syllables no word could match.
+     */
+    fun hasInitialsPrefix(initials: String): Boolean {
+        val set = initialsPrefixes ?: HashSet<String>().also { set ->
+            for (key in byInitials.keys) {
+                var at = key.indexOf(' ')
+                while (at > 0) {
+                    set += key.substring(0, at)
+                    at = key.indexOf(' ', at + 1)
+                }
+                set += key
+            }
+            initialsPrefixes = set
+        }
+        return initials in set
+    }
+
+    /** A word for 9-key sentence search: its score, and whether the digits were its 简拼. */
+    class NineKeyWord(val word: Word, val score: Float, val byInitials: Boolean)
+
+    /** The best word whose 9-key code is exactly [digits], and the best whose 简拼 is. */
+    fun nineKeyWords(digits: String): List<NineKeyWord> {
+        val index = nineKeyIndex()
+        val full = index.full[digits]?.firstOrNull()?.let { NineKeyWord(word(it), it.score, false) }
+        val initials = index.initials[digits]?.firstOrNull { it.raw.size == digits.length }?.let { NineKeyWord(word(it), it.score, true) }
+        return listOfNotNull(full, initials)
     }
 
     /** Longer words that start with [text], best first, as the characters still to type. */
@@ -143,6 +198,7 @@ class PinyinDictionary private constructor(
      * phrases the user built show up for their full pinyin and 简拼 alike.
      */
     fun learn(text: String, raw: List<String>, uses: Int) {
+        version++
         if (raw.isEmpty() || raw.size != PinyinUserData.characterCount(text) || raw.any { !isSyllable(it) }) return
         val key = raw.joinToString(" ") { normalizedBySyllable.getOrPut(it) { fuzzy.normalize(it) } }
         var entry = exact[key]?.firstOrNull { it.text == text && it.raw == raw }
@@ -157,6 +213,7 @@ class PinyinDictionary private constructor(
 
     /** Drops everything [learn] did. */
     fun forgetLearned() {
+        version++
         for (entry in learned) {
             if (entry.rank == Int.MAX_VALUE) {
                 exact[exactKey(entry)]?.remove(entry)

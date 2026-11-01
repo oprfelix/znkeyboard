@@ -219,6 +219,7 @@ internal fun TypingFeelSection() {
     var preview by remember { mutableStateOf(KeyboardSettings.readKeyPreviewEnabled(context)) }
     var autoCaps by remember { mutableStateOf(KeyboardSettings.readAutoCapitalizeEnabled(context)) }
     var doubleSpace by remember { mutableStateOf(KeyboardSettings.readDoubleSpacePeriodEnabled(context)) }
+    var numberRow by remember { mutableStateOf(KeyboardSettings.readNumberRowEnabled(context)) }
     CollapsibleSettingsSection(
         title = stringResource(R.string.feel_title),
         iconResId = R.drawable.ic_vibration_24,
@@ -247,6 +248,12 @@ internal fun TypingFeelSection() {
             description = stringResource(R.string.feel_double_space_desc),
             checked = doubleSpace,
             onCheckedChange = { doubleSpace = it; KeyboardSettings.saveDoubleSpacePeriodEnabled(context, it) },
+        )
+        SettingsSwitchRow(
+            title = stringResource(R.string.feel_number_row),
+            description = stringResource(R.string.feel_number_row_desc),
+            checked = numberRow,
+            onCheckedChange = { numberRow = it; KeyboardSettings.saveNumberRowEnabled(context, it) },
         )
     }
 }

@@ -128,6 +128,8 @@ class ZnKeyboardView @JvmOverloads constructor(
     private var shortcutRowState = ShortcutRowState(secondRowVisible = true)
     private var pinyinModeEnabled = false
     private var chineseKeyboard = dev.zain.znkeyboard.KeyboardSettings.ChineseKeyboard.Qwerty
+    /** Off: digits move to the top letter row's corners (long press types them) and letter keys grow. */
+    private var numberRowVisible = true
     /** 9-key pinyin spellings to offer beside the keys while composing; null shows punctuation. */
     private var nineKeySpellings: List<String>? = null
     private var voiceIndicator: VoiceIndicator? = null
@@ -291,6 +293,15 @@ class ZnKeyboardView @JvmOverloads constructor(
     fun setPinyinMode(enabled: Boolean) {
         if (pinyinModeEnabled != enabled) {
             pinyinModeEnabled = enabled
+            refreshHitTargets()
+            invalidate()
+        }
+    }
+
+    fun setNumberRowVisible(visible: Boolean) {
+        if (numberRowVisible != visible) {
+            numberRowVisible = visible
+            requestLayout()
             refreshHitTargets()
             invalidate()
         }
@@ -518,6 +529,13 @@ class ZnKeyboardView @JvmOverloads constructor(
             }
             "pinyin_mode" -> scheduleLongPress(pointerId, "pinyin_mode") {
                 callback?.onInputMethodPickerRequested()
+            }
+        }
+        // Without the number row, a long press on the top row types its corner digit.
+        val digit = key?.takeIf { it.id.startsWith("char_") }?.longPressHint?.singleOrNull()?.takeIf { it.isDigit() }
+        if (key != null && digit != null) {
+            scheduleLongPress(pointerId, key.id) {
+                handleKey(KeySpec("long_press_digit_$digit", "$digit", KeyIntent.Dispatch(KeyboardAction.Text("$digit"))))
             }
         }
         if (key?.id == "space") {
@@ -1016,7 +1034,9 @@ class ZnKeyboardView @JvmOverloads constructor(
                 textPaint.color = contentColor
                 textPaint.alpha = contentAlpha
                 val metrics = textPaint.fontMetrics
-                val baseline = bounds.centerY() - (metrics.ascent + metrics.descent) / 2f
+                // Letters sit a little above center, as on Gboard, where the eye expects them.
+                val lift = if (role == KeyRole.Character && hit.rowStyle == RowStyle.Standard) bounds.height() * LETTER_LIFT_FRACTION else 0f
+                val baseline = bounds.centerY() - (metrics.ascent + metrics.descent) / 2f - lift
                 canvas.drawText(key.label, labelBounds.centerX(), baseline, textPaint)
                 textPaint.typeface = letterTypeface
             }
@@ -1955,13 +1975,23 @@ class ZnKeyboardView @JvmOverloads constructor(
 
     private fun lettersOrOtherRows(): List<RowSpec> {
         return when (layoutMode) {
-            LayoutMode.Letters -> listOf(
-                numberRow(),
-                RowSpec(chars("qwertyuiop"), ImeLayout.STANDARD_ROW_WEIGHT),
-                RowSpec(chars("asdfghjkl"), ImeLayout.STANDARD_ROW_WEIGHT, layoutKeyCount = 10),
-                letterBottomRow(),
-                bottomRow(),
-            )
+            LayoutMode.Letters -> if (numberRowVisible) {
+                listOf(
+                    numberRow(),
+                    RowSpec(chars("qwertyuiop"), ImeLayout.STANDARD_ROW_WEIGHT),
+                    RowSpec(chars("asdfghjkl"), ImeLayout.STANDARD_ROW_WEIGHT, layoutKeyCount = 10),
+                    letterBottomRow(),
+                    bottomRow(),
+                )
+            } else {
+                val weight = ImeLayout.STANDARD_ROW_WEIGHT + NO_NUMBER_ROW_EXTRA_WEIGHT
+                listOf(
+                    RowSpec(chars("qwertyuiop", digitHints = true), weight),
+                    RowSpec(chars("asdfghjkl"), weight, layoutKeyCount = 10),
+                    letterBottomRow().let { it.copy(heightWeight = it.heightWeight + NO_NUMBER_ROW_EXTRA_WEIGHT) },
+                    bottomRow(),
+                )
+            }
             LayoutMode.Symbols -> listOf(
                 numberRow(),
                 RowSpec(symbols("@#\$%&-+()/", rowPrefix = "symbol_top"), ImeLayout.STANDARD_ROW_WEIGHT),
@@ -2483,8 +2513,9 @@ class ZnKeyboardView @JvmOverloads constructor(
         )
     }
 
-    private fun chars(source: String): List<KeySpec> {
-        return source.map { char ->
+    /** [digitHints]: 1–0 in the corners of the top row, typed by a long press (no number row). */
+    private fun chars(source: String, digitHints: Boolean = false): List<KeySpec> {
+        return source.mapIndexed { index, char ->
             val label = if (shiftState != ShiftState.Off) char.uppercaseChar().toString() else char.toString()
             KeySpec(
                 id = "char_$char",
@@ -2492,6 +2523,7 @@ class ZnKeyboardView @JvmOverloads constructor(
                 intent = KeyIntent.Dispatch(KeyboardAction.Text(label)),
                 role = KeyRole.Character,
                 consumesOneShotShift = true,
+                longPressHint = if (digitHints) TOP_ROW_DIGITS[index].toString() else null,
             )
         }
     }
@@ -2704,6 +2736,10 @@ class ZnKeyboardView @JvmOverloads constructor(
     )
 
     private companion object {
+        const val LETTER_LIFT_FRACTION = 0.04f
+        const val TOP_ROW_DIGITS = "1234567890"
+        /** Without the number row, each letter row takes this much more height (the keyboard still ends up shorter). */
+        const val NO_NUMBER_ROW_EXTRA_WEIGHT = 0.2f
         const val NINE_KEY_SIDE_SLOTS = 3
         val NINE_KEY_SIDE_MARKS = listOf("？", "！", "、")
         const val NINE_KEY_SIDE_WEIGHT = 1f

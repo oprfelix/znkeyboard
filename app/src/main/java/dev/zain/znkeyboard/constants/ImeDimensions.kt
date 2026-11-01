@@ -8,7 +8,8 @@ object ImeDimensions {
     const val TOP_PADDING_DP = 6
     const val BASE_BOTTOM_PADDING_DP = 8
     const val KEY_GAP_DP = 6
-    const val ROW_GAP_DP = 8
+    // Like Gboard: rows well apart, so a tap is clearly in one row.
+    const val ROW_GAP_DP = 11
     const val KEY_RADIUS_DP = 10
 
     const val MIN_BOTTOM_SYSTEM_CONTROL_GAP_DP = 16
@@ -25,11 +26,11 @@ object ImeDimensions {
         STANDARD_ROW_WEIGHT +
         BOTTOM_ROW_WEIGHT
 
-    const val KEY_LABEL_CHARACTER_TEXT_SIZE_SP = 23f
+    const val KEY_LABEL_CHARACTER_TEXT_SIZE_SP = 25f
     const val KEY_LABEL_NUMBER_TEXT_SIZE_SP = 19f
     const val KEY_LABEL_TOOLBAR_SYMBOL_TEXT_SIZE_SP = 18f
-    const val KEY_LABEL_FUNCTION_TEXT_SIZE_SP = 14f
-    const val KEY_LABEL_ACTION_TEXT_SIZE_SP = 14f
+    const val KEY_LABEL_FUNCTION_TEXT_SIZE_SP = 15f
+    const val KEY_LABEL_ACTION_TEXT_SIZE_SP = 15f
     const val KEY_LABEL_MIN_TEXT_SIZE_SP = 9f
     const val KEY_LABEL_SHRINK_STEP_SP = 0.5f
     const val KEY_LABEL_MAX_HEIGHT_FRACTION = 0.56f

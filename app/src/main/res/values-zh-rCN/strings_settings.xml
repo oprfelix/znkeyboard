@@ -116,7 +116,7 @@
     <string name="try_it">试一试</string>
     <string name="try_it_placeholder">在这里打字，感受一下</string>
     <string name="feel_title">手感</string>
-    <string name="feel_summary">振动、按键气泡、自动大写、双空格句号</string>
+    <string name="feel_summary">振动、按键气泡、自动大写、双空格句号、数字行</string>
     <string name="feel_haptics">按键振动</string>
     <string name="feel_haptics_desc">按键生效时轻轻一振。跟随系统的键盘振动设置。</string>
     <string name="feel_popup">按键气泡</string>
@@ -252,4 +252,6 @@
     <string name="chinese_keyboard_nine">九宫格</string>
     <string name="chinese_keyboard_stroke">笔画</string>
     <string name="chinese_keyboard_desc">九宫格：按数字键打拼音，左边一列可以选拼音，上滑数字键输入数字。笔画：按横竖撇点折，不确定的笔画用＊代替。九宫格右侧的「笔画/拼音」键可以随时切换。英文始终用全键盘。</string>
+    <string name="feel_number_row">数字行</string>
+    <string name="feel_number_row_desc">在字母上方显示一排数字。关闭后数字显示在第一排字母的右上角，长按输入，字母键会变高。</string>
 </resources>

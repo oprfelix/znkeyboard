@@ -54,6 +54,7 @@ object KeyboardSettings {
     private const val KEY_ADAPTIVE_TOUCH_ENABLED = "adaptive_touch_enabled"
     private const val KEY_KEY_HAPTICS_ENABLED = "key_haptics_enabled"
     private const val KEY_KEY_PREVIEW_ENABLED = "key_preview_enabled"
+    private const val KEY_NUMBER_ROW_ENABLED = "number_row_enabled"
     private const val KEY_AUTO_CAPITALIZE_ENABLED = "auto_capitalize_enabled"
     private const val KEY_DOUBLE_SPACE_PERIOD_ENABLED = "double_space_period_enabled"
     private const val KEY_PINYIN_MODE_ENABLED = "pinyin_mode_enabled"
@@ -218,6 +219,9 @@ object KeyboardSettings {
     fun readKeyHapticsEnabled(context: Context) = readFlag(context, KEY_KEY_HAPTICS_ENABLED, true)
     fun saveKeyHapticsEnabled(context: Context, enabled: Boolean) = saveFlag(context, KEY_KEY_HAPTICS_ENABLED, enabled)
     fun readKeyPreviewEnabled(context: Context) = readFlag(context, KEY_KEY_PREVIEW_ENABLED, true)
+    /** The row of digits above the letters; off puts them in the top row's corners (long press). */
+    fun readNumberRowEnabled(context: Context) = readFlag(context, KEY_NUMBER_ROW_ENABLED, true)
+    fun saveNumberRowEnabled(context: Context, enabled: Boolean) = saveFlag(context, KEY_NUMBER_ROW_ENABLED, enabled)
     fun saveKeyPreviewEnabled(context: Context, enabled: Boolean) = saveFlag(context, KEY_KEY_PREVIEW_ENABLED, enabled)
     fun readAutoCapitalizeEnabled(context: Context) = readFlag(context, KEY_AUTO_CAPITALIZE_ENABLED, true)
     fun saveAutoCapitalizeEnabled(context: Context, enabled: Boolean) = saveFlag(context, KEY_AUTO_CAPITALIZE_ENABLED, enabled)

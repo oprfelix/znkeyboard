@@ -41,6 +41,12 @@ fun main(args: Array<String>) {
     val first = NineKeyEngine.candidates("64426", dictionary).first { it.text == "你" }
     check("你 consumes 64", first.consumed == 2, first.consumed.toString())
 
+    for ((spelling, expected) in listOf("nihaoshijie" to "你好世界", "jintiantianqi" to "今天天气", "woxiangchifan" to "我想吃饭")) {
+        val digits = PinyinDictionary.nineKeyCode(spelling)
+        val first = NineKeyEngine.candidates(digits, dictionary).firstOrNull()
+        check("9-key sentence $digits -> $expected", first?.text == expected && first.consumed == digits.length, "${first?.text}")
+    }
+
     started = System.nanoTime()
     val zhong = strokes.candidates("szhs", dictionary).take(5).map { it.text }
     println("stroke query ms: ${(System.nanoTime() - started) / 1_000_000}")
