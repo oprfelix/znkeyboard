@@ -155,9 +155,15 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 class SettingsActivity : ComponentActivity() {
+    /** Set by the update notification: open the update dialog. */
+    private val showUpdateRequest = mutableStateOf(false)
+
     override fun onCreate(savedInstanceState: android.os.Bundle?) {
         super.onCreate(savedInstanceState)
         KeyboardSettings.migrateAgentProviders(this)
+        showUpdateRequest.value = intent?.getBooleanExtra(EXTRA_SHOW_UPDATE, false) == true
+        UpdateCheckJob.sync(this)
+        askForNotificationsOnce()
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.auto(AndroidColor.TRANSPARENT, AndroidColor.TRANSPARENT),
             navigationBarStyle = SystemBarStyle.auto(AndroidColor.TRANSPARENT, AndroidColor.TRANSPARENT),
@@ -184,18 +190,46 @@ class SettingsActivity : ComponentActivity() {
                         ShortcutsScreen(onBack = { shortcutsOpen = false })
                     } else {
                         stateHolder.SaveableStateProvider("settings") {
-                            SettingsScreen(onOpenShortcuts = { shortcutsOpen = true })
+                            SettingsScreen(
+                                onOpenShortcuts = { shortcutsOpen = true },
+                                showUpdateRequested = showUpdateRequest.value,
+                                onShowUpdateHandled = { showUpdateRequest.value = false },
+                            )
                         }
                     }
                 }
             }
         }
     }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (intent.getBooleanExtra(EXTRA_SHOW_UPDATE, false)) showUpdateRequest.value = true
+    }
+
+    /** The daily update check tells about new versions in a notification; ask once whether that's OK. */
+    private fun askForNotificationsOnce() {
+        if (!KeyboardSettings.readUpdateAutoCheck(this)) return
+        if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) return
+        val prefs = getSharedPreferences("update_prompts", MODE_PRIVATE)
+        if (prefs.getBoolean("asked_notifications", false)) return
+        prefs.edit().putBoolean("asked_notifications", true).apply()
+        requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1)
+    }
+
+    companion object {
+        const val EXTRA_SHOW_UPDATE = "dev.zain.znkeyboard.SHOW_UPDATE"
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SettingsScreen(onOpenShortcuts: () -> Unit) {
+private fun SettingsScreen(
+    onOpenShortcuts: () -> Unit,
+    showUpdateRequested: Boolean = false,
+    onShowUpdateHandled: () -> Unit = {},
+) {
     val context = LocalContext.current
     val focusManager = LocalFocusManager.current
     var heightScale by remember { mutableFloatStateOf(KeyboardSettings.readHeightScale(context)) }
@@ -261,6 +295,14 @@ private fun SettingsScreen(onOpenShortcuts: () -> Unit) {
     LaunchedEffect(Unit) {
         val due = System.currentTimeMillis() - updateLastCheckedAt >= UpdateDefaults.AUTO_CHECK_INTERVAL_MS
         if (updateAutoCheck && due) checkForUpdates(manual = false)
+    }
+
+    // From the update notification.
+    LaunchedEffect(showUpdateRequested) {
+        if (showUpdateRequested) {
+            availableRelease?.let { shownRelease = it }
+            onShowUpdateHandled()
+        }
     }
 
     shownRelease?.let { release -> UpdateDialog(release, onDismiss = { shownRelease = null }) }
@@ -559,6 +601,7 @@ private fun SettingsScreen(onOpenShortcuts: () -> Unit) {
                         onAutoCheckChange = { enabled ->
                             updateAutoCheck = enabled
                             KeyboardSettings.saveUpdateAutoCheck(context, enabled)
+                            UpdateCheckJob.sync(context)
                             if (enabled) checkForUpdates(manual = false)
                         },
                         onCheck = { checkForUpdates(manual = true) },

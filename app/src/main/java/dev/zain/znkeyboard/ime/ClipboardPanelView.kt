@@ -131,7 +131,7 @@ class ClipboardPanelView @JvmOverloads constructor(
             addView(
                 ImePanelChrome.backButton(
                     context = context,
-                    contentDescription = "Back to keyboard",
+                    contentDescription = context.getString(dev.zain.znkeyboard.R.string.ime_back_to_keyboard),
                     backgroundColor = PALETTE.function,
                     textColor = PALETTE.mutedText,
                     onClick = { callback?.onClipboardPanelClosed() },

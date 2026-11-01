@@ -68,6 +68,7 @@ object KeyboardSettings {
     private const val KEY_UPDATE_LATEST_DOWNLOAD_URL = "update_latest_download_url"
     private const val KEY_UPDATE_LATEST_PAGE_URL = "update_latest_page_url"
     private const val KEY_UPDATE_DISMISSED_VERSION = "update_dismissed_version"
+    private const val KEY_UPDATE_NOTIFIED_VERSION = "update_notified_version"
     private const val KEY_KEYBOARD_THEME = "keyboard_theme"
     private const val KEY_TYPING_MODEL_GENERATION = "typing_model_generation"
     private const val KEY_AGENT_MODE_ENABLED = "agent_mode_enabled"
@@ -238,7 +239,8 @@ object KeyboardSettings {
         saveFlag(context, KEY_PINYIN_PREDICTIONS_ENABLED, enabled)
 
     /** Off by default: checking contacts GitHub, so the user opts in. */
-    fun readUpdateAutoCheck(context: Context) = readFlag(context, KEY_UPDATE_AUTO_CHECK, false)
+    /** On by default, as on Mac and Windows: a daily look at the public release list. */
+    fun readUpdateAutoCheck(context: Context) = readFlag(context, KEY_UPDATE_AUTO_CHECK, true)
     fun saveUpdateAutoCheck(context: Context, enabled: Boolean) = saveFlag(context, KEY_UPDATE_AUTO_CHECK, enabled)
 
     /** When GitHub last answered a check, or 0 if never. */
@@ -268,6 +270,16 @@ object KeyboardSettings {
     }
 
     /** The version whose banner the user closed; a newer release shows the banner again. */
+    /** The newest version already announced in a notification, so each is announced once. */
+    fun readNotifiedUpdateVersion(context: Context): String? =
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).getString(KEY_UPDATE_NOTIFIED_VERSION, null)
+
+    fun saveNotifiedUpdateVersion(context: Context, version: String) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
+            .putString(KEY_UPDATE_NOTIFIED_VERSION, version)
+            .apply()
+    }
+
     fun readDismissedUpdateVersion(context: Context): String? =
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).getString(KEY_UPDATE_DISMISSED_VERSION, null)
 

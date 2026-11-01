@@ -280,7 +280,7 @@ internal class ClipboardHistoryListView @JvmOverloads constructor(
             background = previewButtonBackground()
             isClickable = true
             isFocusable = false
-            contentDescription = "Preview clipboard link"
+            contentDescription = context.getString(dev.zain.znkeyboard.R.string.ime_preview_link)
             setOnTouchListener { _, event ->
                 if (event.actionMasked == MotionEvent.ACTION_DOWN) {
                     parent?.requestDisallowInterceptTouchEvent(true)

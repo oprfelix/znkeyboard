@@ -117,6 +117,8 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         ClipboardLinkPreviewRepository.loadPersistedPreviews(this)
         registerClipboardListener()
         capturePrimaryClipboardText()
+        // Only schedules the settings app's daily check; the keyboard itself never goes online for it.
+        dev.zain.znkeyboard.UpdateCheckJob.sync(this)
     }
 
     override fun onCreateInputView(): View {
@@ -281,6 +283,8 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         if (activeSurface == KeyboardSurface.ClipboardSearch && handleClipboardSearchKeyboardAction(action, modifiers)) {
             return
         }
+        // The field is selected while a rewrite runs; a key (pinyin too) must not replace all of it.
+        if (agentLoading) cancelActiveAgentForEditorChange()
         // Predictions follow the last commit; any key but a letter starting the next word ends that.
         if (pinyinComposing.isEmpty() && !isLetterAction(action)) dismissPinyinPredictions()
         if (activeSurface == KeyboardSurface.Keyboard && handlePinyinAction(action, modifiers)) {
@@ -423,6 +427,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     private fun applyKeyboardSettings() {
         pinyinModeEnabled = KeyboardSettings.readPinyinModeEnabled(this)
         keyboardView?.setPinyinMode(pinyinModeEnabled)
+        if (activeSurface != KeyboardSurface.ClipboardSearch) keyboardView?.setEnterLabel(resolveEnterLabel(currentEditorInfo))
         refreshRewriteLabel()
         if (pinyinModeEnabled) ensurePinyinDictionary()
         pinyinPredictionsEnabled = KeyboardSettings.readPinyinPredictionsEnabled(this)
@@ -629,6 +634,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         pinyinModeEnabled = !pinyinModeEnabled
         KeyboardSettings.savePinyinModeEnabled(this, pinyinModeEnabled)
         keyboardView?.setPinyinMode(pinyinModeEnabled)
+        if (activeSurface != KeyboardSurface.ClipboardSearch) keyboardView?.setEnterLabel(resolveEnterLabel(currentEditorInfo))
         refreshRewriteLabel()
         if (pinyinModeEnabled) ensurePinyinDictionary()
         updateAutoShift()
@@ -1429,6 +1435,12 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         var committed = false
         inputConnection.beginBatchEdit()
         try {
+            if (pinyinComposing.isNotEmpty()) {
+                // Unpicked pinyin would otherwise stay in the text as letters before the paste.
+                noteOwnEdit()
+                inputConnection.setComposingText("", 1)
+                clearPinyinComposition()
+            }
             inputConnection.finishComposingText()
             committed = inputConnection.commitText(text, 1)
         } finally {
@@ -1438,7 +1450,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         if (committed) {
             showKeyboardPanel()
         } else {
-            Toast.makeText(this, "Couldn't paste clipboard item.", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, t("粘贴没有成功。", "Couldn't paste that item."), Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -1524,7 +1536,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
                         } else if (error is EmptyModelTextException) {
                             showVoiceHint(if (pinyinModeEnabled) "没听清，请再说一次。" else "Didn't catch that. Try again.")
                         } else {
-                            showAgentError(error.message ?: "Voice input failed.")
+                            showAgentError(friendlyError(error))
                         }
                     }
             }
@@ -1597,7 +1609,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         if (!isTargetStillCurrent(review.target)) {
             activeReview = null
             showKeyboardPanel()
-            showAgentError("Text changed. Run rewrite again.")
+            showAgentError(t("文字已经改动，请重新润色。", "The text changed. Run it again."))
             return
         }
 
@@ -1605,7 +1617,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         inputConnection.beginBatchEdit()
         try {
             if (!inputConnection.setSelection(review.target.replaceStart, review.target.replaceEnd)) {
-                showAgentError("Couldn't select the original text.")
+                showAgentError(t("找不到原来的文字，没有替换。", "Couldn't find the original text."))
                 return
             }
             committed = inputConnection.commitText(review.replacementText, 1)
@@ -1614,7 +1626,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         }
 
         if (!committed) {
-            showAgentError("Couldn't apply the rewrite.")
+            showAgentError(t("替换没有成功。", "Couldn't apply the result."))
             return
         }
 
@@ -1645,21 +1657,44 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         clipboardManager.setPrimaryClip(clip)
     }
 
+    /** The selected text when there is a selection (as on Mac and Windows), otherwise the whole field. */
     private fun captureRewriteTarget(): AgentEditTarget? {
         val snapshot = captureEditorSnapshot(MAX_REWRITE_SOURCE_CHARS + 1) ?: run {
-            showAgentError("Couldn't read the current field.")
+            showAgentError(t("读取不到这个输入框的文字。", "Couldn't read this field."))
             return null
         }
+        val selectionStart = minOf(snapshot.selectionStart, snapshot.selectionEnd)
+        val selectionEnd = maxOf(snapshot.selectionStart, snapshot.selectionEnd)
+        val localStart = selectionStart - snapshot.textStartOffset
+        val localEnd = selectionEnd - snapshot.textStartOffset
+        if (selectionEnd > selectionStart && localStart >= 0 && localEnd <= snapshot.text.length) {
+            val selected = snapshot.text.substring(localStart, localEnd)
+            if (selected.length > MAX_REWRITE_SOURCE_CHARS) {
+                showAgentError(t("文字太长，请分段处理（最多 5000 字）。", "Too long; do it in parts (5,000 characters max)."))
+                return null
+            }
+            if (selected.isNotBlank()) {
+                return AgentEditTarget(
+                    originalText = selected,
+                    replaceStart = selectionStart,
+                    replaceEnd = selectionEnd,
+                    restoreSelectionStart = selectionStart,
+                    restoreSelectionEnd = selectionEnd,
+                    // Already selected by the user; nothing to put back.
+                    selectionWasChangedForRequest = false,
+                )
+            }
+        }
         if (snapshot.textStartOffset != 0) {
-            showAgentError("Couldn't read the full field.")
+            showAgentError(t("这个输入框的文字太长，请先选中一部分。", "This field is too long; select part of it first."))
             return null
         }
         if (snapshot.text.length > MAX_REWRITE_SOURCE_CHARS) {
-            showAgentError("Text is too long to rewrite.")
+            showAgentError(t("文字太长，请分段处理（最多 5000 字）。", "Too long; do it in parts (5,000 characters max)."))
             return null
         }
         if (snapshot.text.isBlank()) {
-            showAgentError("No text to rewrite.")
+            showAgentError(t("输入框里还没有文字。", "There's no text yet."))
             return null
         }
 
@@ -1737,6 +1772,9 @@ class ZnKeyboardInputMethodService : InputMethodService(),
             }
             return
         }
+        // A running request selected the whole field: give the cursor back before the edit lands,
+        // or a key or paste would replace (and backspace delete) everything.
+        if (agentLoading) activeRequestTarget?.let(::restoreSelectionIfNeeded)
         requestGeneration++
         activeRequestTarget = null
         activeReview = null
@@ -1757,11 +1795,11 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         if (!isRewriteAvailable()) return
         val providerSettings = KeyboardSettings.readAgentProviderSettings(this)
         if (!providerSettings.isConfigured) {
-            showAgentError("Add API settings first.")
+            showAgentError(t("请先在设置里填好 API Key。", "Add your API key in Settings first."))
             return
         }
         if (selectTargetForRequest && !selectTargetText(target)) {
-            showAgentError("Couldn't select the current text.")
+            showAgentError(t("选不中这个输入框的文字。", "Couldn't select the text in this field."))
             return
         }
 
@@ -1793,7 +1831,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
                     }
                     .onFailure { error ->
                         restoreSelectionIfNeeded(target)
-                        showAgentError(error.message ?: "LLM request failed.")
+                        showAgentError(friendlyError(error))
                     }
                 renderSecondRow()
             }
@@ -1850,7 +1888,8 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     ): String {
         val connection = (endpoint.openConnection() as HttpURLConnection).apply {
             requestMethod = "POST"
-            connectTimeout = REQUEST_TIMEOUT_MS
+            connectTimeout = CONNECT_TIMEOUT_MS
+            // A whole answer in one piece: a long translation or a 90-second recording takes a while.
             readTimeout = REQUEST_TIMEOUT_MS
             doOutput = true
             setRequestProperty("Authorization", "Bearer ${providerSettings.apiKey}")
@@ -1909,14 +1948,14 @@ class ZnKeyboardInputMethodService : InputMethodService(),
                 .getJSONObject(0)
 
         // A cut-off answer is half a JSON object; say why instead of reporting a parse error.
-        if (choice.optString("finish_reason") == "length") throw IOException("Text is too long to rewrite.")
+        if (choice.optString("finish_reason") == "length") throw TooLongException()
 
         val message = choice.optJSONObject("message")
             ?: throw IOException("LLM response did not include a message.")
 
         val refusal = message.optNullableString("refusal")
         if (!refusal.isNullOrBlank()) {
-            throw IOException("LLM refused the request: ${refusal.take(ERROR_PREVIEW_CHARS)}")
+            throw RefusedException()
         }
 
         val structuredPayload = parseStructuredOutput(message.opt("content"), includeReasoningText)
@@ -2103,22 +2142,47 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     private fun applyLlmResult(target: AgentEditTarget, content: String) {
         val normalized = AsciiTextSanitizer.clean(content).trim()
         if (normalized.isBlank() || normalized.equals("null", ignoreCase = true)) {
-            showAgentError("No rewrite returned.")
+            showAgentError(t("AI 没有返回结果，请再试一次。", "The AI returned nothing. Try again."))
             return
         }
 
         if (normalized == target.originalText.trim()) {
             restoreSelectionIfNeeded(target)
-            showAgentError("No changes returned.")
+            showAgentError(t("没有需要修改的地方。", "Nothing to change."))
             return
         }
 
+        // The model drops surrounding spaces and line breaks; keep the original's so the text fits back in.
+        val leading = target.originalText.takeWhile { it.isWhitespace() }
+        val trailing = target.originalText.takeLastWhile { it.isWhitespace() }
         agentError = null
         activeReview = AgentReview(
             target = target,
-            replacementText = normalized,
+            replacementText = leading + normalized + trailing,
         )
         activeReview?.let(::showAgentReviewPanel)
+    }
+
+    /** Keyboard text follows the 中 / EN key, like the voice hints. */
+    private fun t(chinese: String, english: String): String = if (pinyinModeEnabled) chinese else english
+
+    /** What went wrong, in words, with the HTTP status for reference; never the server's raw reply. */
+    private fun friendlyError(error: Throwable): String = when (error) {
+        is TooLongException -> t("文字太长，请分段处理。", "Too long; do it in parts.")
+        is EmptyModelTextException -> t("AI 没有返回结果，请再试一次。", "The AI returned nothing. Try again.")
+        is LlmHttpException -> when (error.responseCode) {
+            400 -> t("请求被拒绝（HTTP 400），请检查模型名称。", "The request was rejected (HTTP 400). Check the model name.")
+            401, 403 -> t("API Key 无效或没有权限（HTTP ${error.responseCode}），请在设置里检查。", "The API key is invalid or not allowed (HTTP ${error.responseCode}). Check it in Settings.")
+            404 -> t("找不到这个模型或接口地址（HTTP 404），请在设置里检查。", "Model or API address not found (HTTP 404). Check Settings.")
+            402, 429 -> t("请求太频繁或额度已用完（HTTP ${error.responseCode}），稍后再试或检查账户余额。", "Too many requests or out of credit (HTTP ${error.responseCode}). Try later or check your account.")
+            in 500..599 -> t("AI 服务暂时不可用（HTTP ${error.responseCode}），请稍后再试。", "The AI service is unavailable right now (HTTP ${error.responseCode}). Try again later.")
+            else -> t("AI 请求失败（HTTP ${error.responseCode}）。", "The AI request failed (HTTP ${error.responseCode}).")
+        }
+        is java.net.SocketTimeoutException -> t("AI 服务响应超时，请稍后再试。", "The AI service took too long. Try again.")
+        is java.net.UnknownHostException, is java.net.ConnectException, is javax.net.ssl.SSLException ->
+            t("无法连接 AI 服务，请检查网络。", "Couldn't reach the AI service. Check your connection.")
+        is RefusedException -> t("AI 拒绝处理这段文字。", "The AI declined this text.")
+        else -> t("AI 请求失败，请稍后再试。", "The AI request failed. Try again later.")
     }
 
     private fun showAgentError(message: String) {
@@ -2199,12 +2263,13 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         if (imeOptions and EditorInfo.IME_FLAG_NO_ENTER_ACTION != 0) return "Enter"
 
         return when (imeOptions and EditorInfo.IME_MASK_ACTION) {
-            EditorInfo.IME_ACTION_DONE -> "Done"
-            EditorInfo.IME_ACTION_GO -> "Go"
-            EditorInfo.IME_ACTION_NEXT -> "Next"
-            EditorInfo.IME_ACTION_PREVIOUS -> "Prev"
+            // Enter and Search are icons; the rest are words, in the 中 / EN mode's language.
+            EditorInfo.IME_ACTION_DONE -> t("完成", "Done")
+            EditorInfo.IME_ACTION_GO -> t("前往", "Go")
+            EditorInfo.IME_ACTION_NEXT -> t("下一项", "Next")
+            EditorInfo.IME_ACTION_PREVIOUS -> t("上一项", "Prev")
             EditorInfo.IME_ACTION_SEARCH -> "Search"
-            EditorInfo.IME_ACTION_SEND -> "Send"
+            EditorInfo.IME_ACTION_SEND -> t("发送", "Send")
             else -> "Enter"
         }
     }
@@ -2322,6 +2387,11 @@ class ZnKeyboardInputMethodService : InputMethodService(),
 
     private class EmptyModelTextException(message: String) : IOException(message)
 
+    /** The answer was cut off at the token limit. */
+    private class TooLongException : IOException("Text is too long to rewrite.")
+
+    private class RefusedException : IOException("The model refused the request.")
+
     /** The clip held nothing loud enough to be speech, so it was never sent. */
     private class NoSpeechException : IOException("No speech in the recording.")
 
@@ -2371,6 +2441,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         const val OWN_EDIT_SETTLE_MS = 1_000L
         const val DOUBLE_SPACE_PERIOD_WINDOW_MS = 700L
         const val REQUEST_TIMEOUT_MS = AgentDefaults.REQUEST_TIMEOUT_MS
+        const val CONNECT_TIMEOUT_MS = AgentDefaults.CONNECT_TIMEOUT_MS
         const val MIN_REWRITE_LLM_TOKENS = AgentDefaults.MIN_REWRITE_LLM_TOKENS
         const val MAX_REWRITE_LLM_TOKENS = AgentDefaults.MAX_REWRITE_LLM_TOKENS
         const val CHARS_PER_OUTPUT_TOKEN_ESTIMATE = AgentDefaults.CHARS_PER_OUTPUT_TOKEN_ESTIMATE

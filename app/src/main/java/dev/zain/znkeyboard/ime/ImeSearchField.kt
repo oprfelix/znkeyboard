@@ -53,7 +53,7 @@ internal class ImeSearchField @JvmOverloads constructor(
         setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
     }
     private val clearButton = ImageButton(context).apply {
-        contentDescription = "Clear search"
+        contentDescription = context.getString(dev.zain.znkeyboard.R.string.ime_clear_search)
         background = ColorDrawable(Color.TRANSPARENT)
         isFocusable = false
         scaleType = ImageView.ScaleType.CENTER

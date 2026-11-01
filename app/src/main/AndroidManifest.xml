@@ -5,6 +5,11 @@
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <!-- Updates: the downloaded APK goes to the system installer, which asks the user to confirm. -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- Once ZnKeyboard installed itself, later updates may go through without asking again. -->
+    <uses-permission android:name="android.permission.UPDATE_PACKAGES_WITHOUT_USER_ACTION" />
+    <!-- The daily update check: a notification per new version, kept scheduled across restarts. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <application
         android:allowBackup="true"
@@ -20,6 +25,7 @@
         <activity
             android:name=".SettingsActivity"
             android:exported="true"
+            android:launchMode="singleTop"
             android:label="@string/app_name">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -30,6 +36,11 @@
         <receiver
             android:name=".UpdateInstallReceiver"
             android:exported="false" />
+
+        <service
+            android:name=".UpdateCheckJob"
+            android:exported="false"
+            android:permission="android.permission.BIND_JOB_SERVICE" />
 
         <service
             android:name=".ime.ZnKeyboardInputMethodService"

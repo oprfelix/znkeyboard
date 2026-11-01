@@ -13,7 +13,8 @@ object AgentDefaults {
 
     // Long enough for an email; a full-length Chinese answer still fits MAX_REWRITE_LLM_TOKENS.
     const val MAX_REWRITE_SOURCE_CHARS = 5_000
-    const val REQUEST_TIMEOUT_MS = 30_000
+    const val REQUEST_TIMEOUT_MS = 120_000
+    const val CONNECT_TIMEOUT_MS = 15_000
     const val MIN_REWRITE_LLM_TOKENS = 2_000
     // Most providers accept 8k output tokens; larger values are rejected by some (e.g. DeepSeek).
     const val MAX_REWRITE_LLM_TOKENS = 8_000
