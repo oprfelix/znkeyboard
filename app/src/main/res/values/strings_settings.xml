@@ -127,7 +127,7 @@
     <string name="feel_double_space_desc">Tap space twice quickly to end a sentence with \". \"</string>
     <string name="pinyin_title">Chinese pinyin</string>
     <string name="pinyin_summary">Fuzzy %1$d/%2$d</string>
-    <string name="pinyin_desc">Tap the 中/EN key at the bottom left to switch. Fuzzy sounds let either spelling of a pair find the same words.</string>
+    <string name="pinyin_desc">Tap the globe key at the bottom left to switch between pinyin and English. Fuzzy sounds let either spelling of a pair find the same words.</string>
     <string name="pinyin_fuzzy">Fuzzy sound</string>
     <string name="pinyin_learn">Learn frequent words</string>
     <string name="pinyin_learn_desc">Words you pick move up, and phrases you build from several picks are remembered. Kept only on this phone, never in password or incognito fields.</string>
@@ -249,4 +249,9 @@
     <string name="ime_preview_link">Preview clipboard link</string>
     <string name="update_channel">Updates</string>
     <string name="update_notification_text">Tap to update now; your settings and API key stay.</string>
+    <string name="chinese_keyboard_title">Chinese keyboard</string>
+    <string name="chinese_keyboard_qwerty">26 keys</string>
+    <string name="chinese_keyboard_nine">9 keys</string>
+    <string name="chinese_keyboard_stroke">Strokes</string>
+    <string name="chinese_keyboard_desc">9 keys: type pinyin with the digit keys, pick a spelling from the column on the left, and flick a digit key up for the digit. Strokes: tap 一 丨 丿 丶 乛, with ＊ for a stroke you are unsure of. The 笔画 / 拼音 key on the grid switches between them. English always uses 26 keys.</string>
 </resources>

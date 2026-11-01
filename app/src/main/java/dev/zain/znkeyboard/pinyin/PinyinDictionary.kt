@@ -83,6 +83,7 @@ class PinyinDictionary private constructor(
         exact.getOrPut(exactKey(entry)) { mutableListOf() }.add(entry)
         byInitials.getOrPut(initialsKey(entry)) { mutableListOf() }.add(entry)
         if (entry.text.length > 1) byFirstChar.getOrPut(entry.text[0]) { mutableListOf() }.add(entry)
+        nineKey?.add(entry)
     }
 
     private fun exactKey(entry: Entry) = entry.syllables.joinToString(" ")
@@ -161,6 +162,7 @@ class PinyinDictionary private constructor(
                 exact[exactKey(entry)]?.remove(entry)
                 byInitials[initialsKey(entry)]?.remove(entry)
                 if (entry.text.length > 1) byFirstChar[entry.text[0]]?.remove(entry)
+                nineKey?.remove(entry)
             } else {
                 entry.score = entry.base
                 reposition(entry)
@@ -173,6 +175,179 @@ class PinyinDictionary private constructor(
         resort(exact[exactKey(entry)], entry)
         resort(byInitials[initialsKey(entry)], entry)
         if (entry.text.length > 1) resort(byFirstChar[entry.text[0]], entry)
+        nineKey?.let { index ->
+            resort(index.full[index.fullKey(entry)], entry)
+            resort(index.initials[index.initialsKey(entry)], entry)
+        }
+    }
+
+    // ---- 9-key (九宫格) ----
+
+    /** Built on first use, so 26-key typing pays nothing for it. */
+    private var nineKey: NineKeyIndex? = null
+
+    /** Words found for 9-key digits: [digits] is how many of the unlocked digits it uses. */
+    class NineKeyMatch(val word: Word, val digits: Int)
+
+    /** Digit codes of words, of their initials (简拼) and of every syllable. */
+    private inner class NineKeyIndex {
+        val full = HashMap<String, MutableList<Entry>>()
+        val initials = HashMap<String, MutableList<Entry>>()
+        /** Code → syllables spelled with it, most used first. */
+        val syllablesByCode = HashMap<String, List<String>>()
+        /** Syllable → its most used single character, for ranking spellings and stroke input. */
+        val topChar = HashMap<String, Entry>()
+
+        fun fullKey(entry: Entry) = entry.raw.joinToString("") { nineKeyCode(it) }
+        fun initialsKey(entry: Entry) = entry.raw.joinToString("") { nineKeyCode(it.take(1)) }
+
+        fun add(entry: Entry) {
+            full.getOrPut(fullKey(entry)) { mutableListOf() }.add(entry)
+            if (entry.raw.size >= 2) initials.getOrPut(initialsKey(entry)) { mutableListOf() }.add(entry)
+        }
+
+        fun remove(entry: Entry) {
+            full[fullKey(entry)]?.remove(entry)
+            initials[initialsKey(entry)]?.remove(entry)
+        }
+
+        init {
+            val singles = HashMap<String, MutableList<Entry>>()
+            for (bucket in exact.values) {
+                for (entry in bucket) {
+                    add(entry)
+                    if (entry.raw.size == 1) singles.getOrPut(entry.raw[0]) { mutableListOf() }.add(entry)
+                }
+            }
+            for (bucket in full.values) bucket.sortWith(BEST_FIRST)
+            for (bucket in initials.values) bucket.sortWith(BEST_FIRST)
+            val usage = singles.mapValues { (_, entries) -> entries.minWith(BEST_FIRST) }
+            topChar += usage
+            syllablesByCode += usage.keys.groupBy { nineKeyCode(it) }
+                .mapValues { (_, spellings) -> spellings.sortedWith(compareBy(BEST_FIRST) { usage.getValue(it) }) }
+        }
+    }
+
+    private fun nineKeyIndex(): NineKeyIndex = nineKey ?: NineKeyIndex().also { nineKey = it }
+
+    /**
+     * Words for 9-key input: [locked] syllables the user picked from the spelling list, then
+     * [digits] (2–9). [boundaries] are digit offsets where the user typed a separator, which a
+     * word must split at. Best first: words using every digit, the last syllable possibly still
+     * being typed, then 简拼, then words using a leading part of the digits.
+     */
+    fun nineKeyMatches(locked: List<String>, digits: String, boundaries: Set<Int>): List<NineKeyMatch> {
+        val index = nineKeyIndex()
+        val lockedCode = locked.joinToString("") { nineKeyCode(it) }
+        val lockedNormalized = locked.map { fuzzy.normalize(it) }
+        val seen = HashSet<String>()
+        val result = ArrayList<NineKeyMatch>()
+
+        fun fits(entry: Entry, used: Int): Boolean {
+            if (entry.raw.size <= locked.size && used > 0) return false
+            if (lockedNormalized.indices.any { entry.syllables.getOrNull(it) != lockedNormalized[it] }) return false
+            // Separators the user typed must fall between this word's syllables.
+            if (boundaries.isNotEmpty()) {
+                val ends = HashSet<Int>()
+                var at = -lockedCode.length
+                for (syllable in entry.raw) {
+                    at += syllable.length
+                    if (at > 0) ends += at
+                }
+                if (boundaries.any { it in 1 until used && it !in ends }) return false
+            }
+            return true
+        }
+
+        fun take(entries: Sequence<Entry>, used: Int, limit: Int) {
+            var added = 0
+            for (entry in entries) {
+                if (added >= limit) break
+                if (seen.add(entry.text)) {
+                    result += NineKeyMatch(word(entry), used)
+                    added++
+                }
+            }
+        }
+
+        // Every digit used. When that only spells single characters (64 → 你, 米…), 简拼 words
+        // (64 → 你好) come after the first few rather than after all of them.
+        val whole = index.full[lockedCode + digits].orEmpty().filter { fits(it, digits.length) }
+        val singlesOnly = locked.isEmpty() && whole.isNotEmpty() && whole.all { it.raw.size == 1 }
+        if (singlesOnly && digits.length >= 2) {
+            take(whole.asSequence(), digits.length, SINGLES_BEFORE_INITIALS)
+            take(index.initials[digits].orEmpty().asSequence().filter { it.raw.size == digits.length }, digits.length, INITIALS_LIMIT)
+        }
+        take(whole.asSequence(), digits.length, FULL_LIMIT)
+        // The last syllable still being typed: complete it from every syllable code it starts.
+        val growing = ArrayList<Entry>()
+        for (split in digits.length - 1 downTo maxOf(0, digits.length - MAX_CODE_LENGTH + 1)) {
+            val tail = digits.substring(split)
+            val head = lockedCode + digits.substring(0, split)
+            for (code in index.syllablesByCode.keys) {
+                if (code.length <= tail.length || !code.startsWith(tail)) continue
+                index.full[head + code]?.forEach { entry ->
+                    if (nineKeyCode(entry.raw.last()) == code && fits(entry, digits.length)) growing += entry
+                }
+            }
+        }
+        take(growing.sortedWith(BEST_FIRST).asSequence(), digits.length, FULL_LIMIT)
+        // 简拼: one digit per character.
+        if (locked.isEmpty() && digits.length >= 2) {
+            take(index.initials[digits].orEmpty().asSequence().filter { it.raw.size == digits.length }, digits.length, INITIALS_LIMIT)
+        }
+        // A leading part of the digits; the rest stays for the next pick.
+        for (used in digits.length - 1 downTo 1) {
+            val entries = index.full[lockedCode + digits.substring(0, used)].orEmpty().asSequence().filter { fits(it, used) }
+            take(entries, used, if (used <= MAX_CODE_LENGTH) SINGLE_LIMIT else PARTIAL_LIMIT)
+        }
+        // Everything locked and nothing typed after it.
+        if (digits.isEmpty() && locked.isNotEmpty()) {
+            take(index.full[lockedCode].orEmpty().asSequence().filter { it.raw.size == locked.size && fits(it, 0) }, 0, FULL_LIMIT)
+        }
+        return result
+    }
+
+    /** Syllables a run of digits can start with, longest and most used first, then its letters. */
+    fun nineKeySpellings(digits: String): List<String> {
+        if (digits.isEmpty()) return emptyList()
+        val index = nineKeyIndex()
+        val result = ArrayList<String>()
+        for (length in minOf(MAX_CODE_LENGTH, digits.length) downTo 1) {
+            result += index.syllablesByCode[digits.substring(0, length)].orEmpty()
+        }
+        NINE_KEY_LETTERS[digits[0]]?.forEach { letter -> if ("$letter" !in result) result += "$letter" }
+        return result
+    }
+
+    /** The likeliest pinyin for [digits], for showing what is being typed (ni'hao for 64426). */
+    fun nineKeySpell(digits: String): List<String> {
+        val result = ArrayList<String>()
+        var at = 0
+        while (at < digits.length) {
+            val spelling = nineKeySpellings(digits.substring(at)).firstOrNull() ?: break
+            result += spelling
+            at += spelling.length
+        }
+        return result
+    }
+
+    /** A character's score (with what the user picked) and pinyin, for ranking stroke input. */
+    fun characterInfo(char: String): Pair<Float, List<String>>? {
+        val entry = characters()[char] ?: return null
+        return entry.score to entry.raw
+    }
+
+    private var characterIndex: HashMap<String, Entry>? = null
+
+    private fun characters(): HashMap<String, Entry> = characterIndex ?: HashMap<String, Entry>().also { map ->
+        for (bucket in exact.values) for (entry in bucket) {
+            if (entry.text.length == 1) {
+                val current = map[entry.text]
+                if (current == null || BEST_FIRST.compare(entry, current) < 0) map[entry.text] = entry
+            }
+        }
+        characterIndex = map
     }
 
     /** Moves [entry] to its place in the otherwise sorted [bucket]. */
@@ -215,6 +390,23 @@ class PinyinDictionary private constructor(
         private const val LEARN_BONUS = 4f
 
         private val BEST_FIRST = compareByDescending<Entry> { it.score }.thenBy { it.rank }
+
+        private const val FULL_LIMIT = 30
+        private const val INITIALS_LIMIT = 10
+        private const val SINGLES_BEFORE_INITIALS = 6
+        private const val PARTIAL_LIMIT = 8
+        private const val SINGLE_LIMIT = 40
+        private const val MAX_CODE_LENGTH = 6
+
+        /** Phone keypad letters; ü is typed as v, on 8. */
+        private val NINE_KEY_LETTERS = mapOf(
+            '2' to "abc", '3' to "def", '4' to "ghi", '5' to "jkl",
+            '6' to "mno", '7' to "pqrs", '8' to "tuv", '9' to "wxyz",
+        )
+        private val NINE_KEY_DIGIT = NINE_KEY_LETTERS.flatMap { (digit, letters) -> letters.map { it to digit } }.toMap()
+
+        /** "nihao" → "64426". */
+        fun nineKeyCode(text: String): String = buildString(text.length) { for (c in text) append(NINE_KEY_DIGIT[c] ?: c) }
 
         fun load(reader: BufferedReader, rules: Set<PinyinFuzzyRule>): PinyinDictionary {
             val rows = ArrayList<Row>(200_000)

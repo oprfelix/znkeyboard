@@ -47,6 +47,7 @@ ZnKeyboard learns how *your* thumbs actually hit each key and decodes every tap 
 - **Next-word suggestions:** after a commit the bar suggests what comes next: words you typed after it before, then longer dictionary words it starts (中国 → 人, 人民, 共产党…). Picking one keeps the chain going; any other key dismisses them.
 - Learning stays on the device (and inside the password-encrypted backup), is skipped in password and incognito fields, and can be turned off or cleared in Settings → Typing → Chinese pinyin, as can suggestions.
 - Dictionary: 8,757 characters and the 150,000 most frequent words from [rime-ice](https://github.com/iDvel/rime-ice) (GPL‑3.0), with a few joke weights corrected.
+- 9-key (九宫格) pinyin and stroke (笔画) input; stroke data for the dictionary's characters from [rime-stroke](https://github.com/rime/rime-stroke) (LGPL‑3.0).
 
 ### 🌐 润色 / AI 翻译: polish and translate
 - In both modes the row starts **润色 | AI 翻译为 [EN ▾]** — labelled **Polish | Translate** in EN mode. **润色** only polishes what you typed; **AI 翻译为** polishes it and translates it into the language on the chip inside that button — 14 languages ordered by international use: **EN, ZH (Simplified), TW (Traditional Chinese), ES, FR, AR, RU, PT, DE, JA, KO, ID, VI, TH** (text already in that language is just polished). Tap the chip, or long‑press the button, to switch language. Settings → AI & voice → *Translate to* sets the same choice.
@@ -197,4 +198,4 @@ the Free Software Foundation, either version 3 of the License, or
 (at your option) any later version.
 ```
 
-The pinyin dictionary (`app/src/main/assets/pinyin/dict.tsv`) is derived from [rime-ice](https://github.com/iDvel/rime-ice), also GPL‑3.0.
+The pinyin dictionary (`app/src/main/assets/pinyin/dict.tsv`) is derived from [rime-ice](https://github.com/iDvel/rime-ice), also GPL‑3.0. The stroke table (`app/src/main/assets/stroke/strokes.tsv`) is derived from [rime-stroke](https://github.com/rime/rime-stroke) (LGPL‑3.0); rebuild it with `tools/stroke/build_strokes.py`.

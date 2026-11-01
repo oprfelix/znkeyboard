@@ -127,7 +127,7 @@
     <string name="feel_double_space_desc">快速点两下空格，用“. ”结束句子。</string>
     <string name="pinyin_title">中文拼音</string>
     <string name="pinyin_summary">模糊音 %1$d/%2$d</string>
-    <string name="pinyin_desc">点键盘左下方的 中/EN 键切换。开启模糊音后，一对读音中任意一种拼法都能打出同样的字。</string>
+    <string name="pinyin_desc">点键盘左下方的地球键在拼音和英文之间切换。开启模糊音后，一对读音中任意一种拼法都能打出同样的字。</string>
     <string name="pinyin_fuzzy">模糊音</string>
     <string name="pinyin_learn">学习常用词</string>
     <string name="pinyin_learn_desc">常选的词会排到前面，分几次选出的词组会被记住。只保存在本机，密码框和无痕模式不学习。</string>
@@ -247,4 +247,9 @@
     <string name="ime_preview_link">预览剪贴板链接</string>
     <string name="update_channel">更新提醒</string>
     <string name="update_notification_text">点这里立即更新，设置和 API Key 都会保留。</string>
+    <string name="chinese_keyboard_title">中文键盘</string>
+    <string name="chinese_keyboard_qwerty">全键盘</string>
+    <string name="chinese_keyboard_nine">九宫格</string>
+    <string name="chinese_keyboard_stroke">笔画</string>
+    <string name="chinese_keyboard_desc">九宫格：按数字键打拼音，左边一列可以选拼音，上滑数字键输入数字。笔画：按横竖撇点折，不确定的笔画用＊代替。九宫格右侧的「笔画/拼音」键可以随时切换。英文始终用全键盘。</string>
 </resources>

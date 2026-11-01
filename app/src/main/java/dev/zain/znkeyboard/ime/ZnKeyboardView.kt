@@ -127,6 +127,9 @@ class ZnKeyboardView @JvmOverloads constructor(
     private var keyboardRowOrder = KeyboardSettings.DEFAULT_KEYBOARD_ROW_ORDER
     private var shortcutRowState = ShortcutRowState(secondRowVisible = true)
     private var pinyinModeEnabled = false
+    private var chineseKeyboard = dev.zain.znkeyboard.KeyboardSettings.ChineseKeyboard.Qwerty
+    /** 9-key pinyin spellings to offer beside the keys while composing; null shows punctuation. */
+    private var nineKeySpellings: List<String>? = null
     private var voiceIndicator: VoiceIndicator? = null
     private var voiceInputEnabled = true
     private var voiceCancelArmed = false
@@ -293,6 +296,28 @@ class ZnKeyboardView @JvmOverloads constructor(
         }
     }
 
+    fun setChineseKeyboard(keyboard: dev.zain.znkeyboard.KeyboardSettings.ChineseKeyboard) {
+        if (chineseKeyboard != keyboard) {
+            chineseKeyboard = keyboard
+            requestLayout()
+            refreshHitTargets()
+            invalidate()
+        }
+    }
+
+    fun setNineKeySpellings(spellings: List<String>?) {
+        val next = spellings?.takeIf { it.isNotEmpty() }
+        if (nineKeySpellings != next) {
+            nineKeySpellings = next
+            refreshHitTargets()
+            invalidate()
+        }
+    }
+
+    /** The 9-key grid replaces the letters while typing Chinese with it. */
+    private val nineKeyActive: Boolean
+        get() = layoutMode == LayoutMode.Letters && pinyinModeEnabled && chineseKeyboard.isNineKey
+
     fun setVoiceInputEnabled(enabled: Boolean) {
         if (voiceInputEnabled != enabled) {
             voiceInputEnabled = enabled
@@ -309,10 +334,11 @@ class ZnKeyboardView @JvmOverloads constructor(
     }
 
     /**
-     * The space key's corner: 拼音 names the Chinese keyboard (the globe switches it); in English
+     * The space key's corner: 拼音 or 笔画 names the Chinese keyboard (the globe switches it); in English
      * it marks that a long press records speech, while voice input is on.
      */
     private fun spaceLongPressHint(): String? = when {
+        pinyinModeEnabled && chineseKeyboard == dev.zain.znkeyboard.KeyboardSettings.ChineseKeyboard.NineKeyStroke -> "笔画"
         pinyinModeEnabled -> "拼音"
         !voiceInputEnabled -> null
         else -> "voice"
@@ -539,6 +565,12 @@ class ZnKeyboardView @JvmOverloads constructor(
                 continue
             }
 
+            // 9-key: a flick up on a digit key types the digit instead of its letters.
+            val digitKey = touch.currentKey?.takeIf { (it.intent as? KeyIntent.Dispatch)?.action is KeyboardAction.NineKeyDigit }
+            if (digitKey != null && !touch.slid) {
+                if (touch.downY - y >= dp(NINE_KEY_SWIPE_UP_DP)) touch.swipedUp = true
+                continue
+            }
             if (!touch.slid) {
                 // Contact centroids drift while a finger rolls through a tap. Keep the touch-down key
                 // until the finger has clearly travelled, then allow deliberate slide-to-correct.
@@ -694,7 +726,12 @@ class ZnKeyboardView @JvmOverloads constructor(
                 touch?.heldAsModifier != true
             ) {
                 touch?.currentKey?.let { key ->
-                    handleKey(key, touch.learningSample(key), shiftHeld = shiftHeld && nextPointerId == pointerId)
+                    val digit = ((key.intent as? KeyIntent.Dispatch)?.action as? KeyboardAction.NineKeyDigit)?.digit
+                    if (touch.swipedUp && digit != null) {
+                        handleKey(KeySpec("nine_digit_$digit", "$digit", KeyIntent.Dispatch(KeyboardAction.Text("$digit"))))
+                    } else {
+                        handleKey(key, touch.learningSample(key), shiftHeld = shiftHeld && nextPointerId == pointerId)
+                    }
                 }
             }
             if (nextPointerId == pointerId) {
@@ -1707,6 +1744,8 @@ class ZnKeyboardView @JvmOverloads constructor(
             KeyboardAction.Backspace -> learner.onBackspace()
             KeyboardAction.Enter -> learner.onCommitted('\n', null)
             is KeyboardAction.KeyCode -> learner.onContextChanged(null)
+            // 9-key Chinese input teaches the pinyin learner, not the touch model.
+            else -> Unit
         }
     }
 
@@ -1907,7 +1946,15 @@ class ZnKeyboardView @JvmOverloads constructor(
             KeyboardSettings.KeyboardRow.Second.id to secondRow(),
         )
         val buttonRows = keyboardRowOrder.mapNotNull { rowId -> buttonRowSpecs[rowId] }
-        val mainRows = when (layoutMode) {
+        val mainRows = when {
+            nineKeyActive -> nineKeyRows()
+            else -> lettersOrOtherRows()
+        }
+        return buttonRows + mainRows
+    }
+
+    private fun lettersOrOtherRows(): List<RowSpec> {
+        return when (layoutMode) {
             LayoutMode.Letters -> listOf(
                 numberRow(),
                 RowSpec(chars("qwertyuiop"), ImeLayout.STANDARD_ROW_WEIGHT),
@@ -1931,8 +1978,75 @@ class ZnKeyboardView @JvmOverloads constructor(
             )
             LayoutMode.PhonePad -> phonePadRows()
         }
-        return buttonRows + mainRows
     }
+
+    /**
+     * 九宫格: a list beside the keys (spellings while composing pinyin, punctuation otherwise),
+     * three rows of 3 keys, delete / 重输 / the pinyin–stroke switch, then the usual bottom row.
+     * Rows are taller, as there is no number row; swipe up on a digit key types the digit.
+     */
+    private fun nineKeyRows(): List<RowSpec> {
+        val stroke = chineseKeyboard == dev.zain.znkeyboard.KeyboardSettings.ChineseKeyboard.NineKeyStroke
+        val spellings = if (stroke) null else nineKeySpellings
+        val side = (0 until NINE_KEY_SIDE_SLOTS).map { slot ->
+            val spelling = spellings?.getOrNull(slot)
+            when {
+                spelling != null -> KeySpec("nine_side_$slot", spelling, KeyIntent.Dispatch(KeyboardAction.NineKeySpelling(slot)), NINE_KEY_SIDE_WEIGHT, KeyRole.Function)
+                spellings != null -> KeySpec("nine_side_$slot", "", KeyIntent.Dispatch(KeyboardAction.Text("")), NINE_KEY_SIDE_WEIGHT, KeyRole.Function, enabled = false)
+                else -> KeySpec("nine_side_$slot", NINE_KEY_SIDE_MARKS[slot], KeyIntent.Dispatch(KeyboardAction.Text(NINE_KEY_SIDE_MARKS[slot])), NINE_KEY_SIDE_WEIGHT, KeyRole.Function)
+            }
+        }
+        val backspace = KeySpec("nine_backspace", "Del", KeyIntent.Dispatch(KeyboardAction.Backspace), NINE_KEY_SIDE_WEIGHT, KeyRole.Function, icon = KeyIcon.Delete)
+        val clear = KeySpec("nine_clear", "重输", KeyIntent.Dispatch(KeyboardAction.ClearComposition), NINE_KEY_SIDE_WEIGHT, KeyRole.Function)
+        val toggle = KeySpec("nine_toggle", if (stroke) "拼音" else "笔画", KeyIntent.Dispatch(KeyboardAction.ToggleNineKeyInput), NINE_KEY_SIDE_WEIGHT, KeyRole.Function)
+        val grid: List<List<KeySpec>> = if (stroke) {
+            listOf(
+                listOf(strokeKey('h', "一"), strokeKey('s', "丨"), strokeKey('p', "丿")),
+                listOf(strokeKey('n', "丶"), strokeKey('z', "乛"), strokeKey('*', "＊", "通配")),
+                listOf(markKey("："), markKey("；"), markKey("…")),
+            )
+        } else {
+            listOf(
+                listOf(nineDigitKey('1', "分词"), nineDigitKey('2', "ABC"), nineDigitKey('3', "DEF")),
+                listOf(nineDigitKey('4', "GHI"), nineDigitKey('5', "JKL"), nineDigitKey('6', "MNO")),
+                listOf(nineDigitKey('7', "PQRS"), nineDigitKey('8', "TUV"), nineDigitKey('9', "WXYZ")),
+            )
+        }
+        val rowWeight = ImeLayout.STANDARD_ROW_WEIGHT * NINE_KEY_ROW_SCALE
+        return listOf(
+            RowSpec(listOf(side[0]) + grid[0] + backspace, rowWeight),
+            RowSpec(listOf(side[1]) + grid[1] + clear, rowWeight),
+            RowSpec(listOf(side[2]) + grid[2] + toggle, rowWeight),
+            bottomRow(),
+        )
+    }
+
+    /** Letters big, the digit small in the corner (swipe up types it). */
+    private fun nineDigitKey(digit: Char, letters: String): KeySpec = KeySpec(
+        id = "nine_$digit",
+        label = letters,
+        intent = KeyIntent.Dispatch(KeyboardAction.NineKeyDigit(digit)),
+        weight = NINE_KEY_MAIN_WEIGHT,
+        role = KeyRole.Character,
+        longPressHint = digit.toString(),
+    )
+
+    private fun strokeKey(stroke: Char, mark: String, hint: String? = null): KeySpec = KeySpec(
+        id = "stroke_$stroke",
+        label = mark,
+        intent = KeyIntent.Dispatch(KeyboardAction.Stroke(stroke)),
+        weight = NINE_KEY_MAIN_WEIGHT,
+        role = KeyRole.Character,
+        longPressHint = hint,
+    )
+
+    private fun markKey(mark: String): KeySpec = KeySpec(
+        id = "stroke_mark_$mark",
+        label = mark,
+        intent = KeyIntent.Dispatch(KeyboardAction.Text(mark)),
+        weight = NINE_KEY_MAIN_WEIGHT,
+        role = KeyRole.Character,
+    )
 
     private fun numberRow(): RowSpec {
         return RowSpec(chars("1234567890"), ImeLayout.STANDARD_ROW_WEIGHT, style = RowStyle.Numbers)
@@ -2527,6 +2641,8 @@ class ZnKeyboardView @JvmOverloads constructor(
         var backspaceGesture: BackspaceGestureTouch? = null,
         var spaceCursorDrag: SpaceCursorDragTouch? = null,
         var voice: VoiceTouch? = null,
+        /** 9-key: flicked up on a digit key, which then types the digit. */
+        var swipedUp: Boolean = false,
     )
 
     private class VoiceTouch(val startY: Float)
@@ -2588,6 +2704,13 @@ class ZnKeyboardView @JvmOverloads constructor(
     )
 
     private companion object {
+        const val NINE_KEY_SIDE_SLOTS = 3
+        val NINE_KEY_SIDE_MARKS = listOf("？", "！", "、")
+        const val NINE_KEY_SIDE_WEIGHT = 1f
+        const val NINE_KEY_MAIN_WEIGHT = 1.35f
+        /** Four rows fill the height five rows take on the 26-key keyboard. */
+        const val NINE_KEY_ROW_SCALE = 1.33f
+        const val NINE_KEY_SWIPE_UP_DP = 22f
         const val DISABLED_KEY_ALPHA = 118
         const val DISABLED_CONTENT_ALPHA = 130
         const val LONG_PRESS_HINT_ALPHA = 170
@@ -2648,4 +2771,14 @@ sealed class KeyboardAction {
     data class KeyCode(val keyCode: Int) : KeyboardAction()
     data object Backspace : KeyboardAction()
     data object Enter : KeyboardAction()
+    /** 9-key pinyin: a digit key (2–9), or 1 for a syllable separator. */
+    data class NineKeyDigit(val digit: Char) : KeyboardAction()
+    /** 9-key pinyin: the spelling picked from the list beside the keys. */
+    data class NineKeySpelling(val index: Int) : KeyboardAction()
+    /** 9-key strokes: h s p n z (横 竖 撇 点 折) or * for any. */
+    data class Stroke(val stroke: Char) : KeyboardAction()
+    /** 重输: drops what is being composed. */
+    data object ClearComposition : KeyboardAction()
+    /** 9-key: switches between pinyin and strokes. */
+    data object ToggleNineKeyInput : KeyboardAction()
 }

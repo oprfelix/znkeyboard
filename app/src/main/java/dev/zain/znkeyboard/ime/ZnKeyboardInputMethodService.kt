@@ -35,10 +35,12 @@ import dev.zain.znkeyboard.typing.AdaptiveTypingEngine
 import org.json.JSONArray
 import org.json.JSONException
 import org.json.JSONObject
+import dev.zain.znkeyboard.pinyin.NineKeyEngine
 import dev.zain.znkeyboard.pinyin.PinyinDictionary
+import dev.zain.znkeyboard.pinyin.PinyinEngine
 import dev.zain.znkeyboard.pinyin.PinyinLearner
 import dev.zain.znkeyboard.pinyin.PinyinUserData
-import dev.zain.znkeyboard.pinyin.PinyinEngine
+import dev.zain.znkeyboard.pinyin.StrokeIndex
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
@@ -56,7 +58,16 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     // Loaded off the main thread; null until ready, and pinyin input passes through until then.
     @Volatile private var pinyinDictionary: PinyinDictionary? = null
     private var pinyinDictionaryLoading = false
+    /**
+     * What is being composed: letters on the 26-key keyboard, locked syllables and digits on the
+     * 9-key pinyin grid ("ni'4426"), stroke letters on the stroke grid ("szh").
+     */
     private var pinyinComposing = ""
+    private var chineseKeyboard = KeyboardSettings.ChineseKeyboard.Qwerty
+    /** The spellings shown beside the 9-key grid, in the order NineKeySpelling indexes them. */
+    private var nineKeySpellingOptions: List<String> = emptyList()
+    @Volatile private var strokeIndex: StrokeIndex? = null
+    private var strokeIndexLoading = false
     private var pinyinCandidates: List<PinyinEngine.Candidate> = emptyList()
     // Shown in the candidate bar after a commit, while nothing is composing.
     private var pinyinPredictions: List<PinyinLearner.Prediction> = emptyList()
@@ -310,6 +321,8 @@ class ZnKeyboardInputMethodService : InputMethodService(),
                 }
             }
             is KeyboardAction.Text -> handleText(action.value, modifiers)
+            // 9-key keys outside pinyin (a password field, say): nothing to compose.
+            else -> Unit
         }
     }
 
@@ -437,6 +450,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         keyboardView?.setPinyinMode(pinyinModeEnabled)
         if (activeSurface != KeyboardSurface.ClipboardSearch) keyboardView?.setEnterLabel(resolveEnterLabel(currentEditorInfo))
         refreshRewriteLabel()
+        setChineseKeyboard(KeyboardSettings.readChineseKeyboard(this), save = false)
         if (pinyinModeEnabled) ensurePinyinDictionary()
         pinyinPredictionsEnabled = KeyboardSettings.readPinyinPredictionsEnabled(this)
         val heightScale = KeyboardSettings.readHeightScale(this)
@@ -589,6 +603,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
                 }
             }
             is KeyboardAction.Text -> searchView.appendQueryText(action.value)
+            else -> Unit
         }
         return true
     }
@@ -738,6 +753,8 @@ class ZnKeyboardInputMethodService : InputMethodService(),
                     .bufferedReader(Charsets.UTF_8)
                     .use { PinyinDictionary.load(it, rules) }
                 for (word in saved?.words() ?: snapshot.orEmpty()) dictionary.learn(word.text, word.syllables, word.uses)
+                // Build the 9-key index here rather than on the first key press.
+                if (chineseKeyboard.isNineKey) dictionary.nineKeySpellings("2")
                 dictionary
             }.getOrNull()
             mainHandler.post {
@@ -798,6 +815,39 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         }
         val composing = pinyinComposing.isNotEmpty()
         when (action) {
+            is KeyboardAction.NineKeyDigit -> {
+                if (action.digit == '1') {
+                    // 分词: a syllable boundary, only inside a composition.
+                    if (composing && !pinyinComposing.endsWith(NineKeyEngine.SEPARATOR)) {
+                        updatePinyinComposition(pinyinComposing + NineKeyEngine.SEPARATOR)
+                    }
+                } else {
+                    updatePinyinComposition(pinyinComposing + action.digit)
+                }
+                return true
+            }
+            is KeyboardAction.NineKeySpelling -> {
+                val spelling = nineKeySpellingOptions.getOrNull(action.index) ?: return true
+                updatePinyinComposition(NineKeyEngine.lock(pinyinComposing, spelling))
+                return true
+            }
+            is KeyboardAction.Stroke -> {
+                updatePinyinComposition(pinyinComposing + action.stroke)
+                return true
+            }
+            KeyboardAction.ClearComposition -> {
+                if (composing) updatePinyinComposition("")
+                return true
+            }
+            KeyboardAction.ToggleNineKeyInput -> {
+                if (composing) updatePinyinComposition("")
+                setChineseKeyboard(
+                    if (chineseKeyboard == KeyboardSettings.ChineseKeyboard.NineKeyStroke) KeyboardSettings.ChineseKeyboard.NineKeyPinyin
+                    else KeyboardSettings.ChineseKeyboard.NineKeyStroke,
+                    save = true,
+                )
+                return true
+            }
             is KeyboardAction.Text -> {
                 val value = action.value
                 val char = value.singleOrNull()
@@ -836,7 +886,10 @@ class ZnKeyboardInputMethodService : InputMethodService(),
             }
             KeyboardAction.Backspace -> {
                 if (!composing) return false
-                updatePinyinComposition(pinyinComposing.dropLast(1))
+                updatePinyinComposition(
+                    if (chineseKeyboard == KeyboardSettings.ChineseKeyboard.NineKeyPinyin) NineKeyEngine.backspace(pinyinComposing)
+                    else pinyinComposing.dropLast(1),
+                )
                 return true
             }
             KeyboardAction.Enter -> {
@@ -864,16 +917,76 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         val inputConnection = currentInputConnection ?: return
         val dictionary = pinyinDictionary ?: return
         pinyinComposing = composing
-        pinyinCandidates = if (composing.isEmpty()) emptyList() else PinyinEngine.candidates(composing, dictionary)
+        pinyinCandidates = when {
+            composing.isEmpty() -> emptyList()
+            chineseKeyboard == KeyboardSettings.ChineseKeyboard.NineKeyPinyin -> NineKeyEngine.candidates(composing, dictionary)
+            chineseKeyboard == KeyboardSettings.ChineseKeyboard.NineKeyStroke -> strokeIndex?.candidates(composing, dictionary).orEmpty()
+            else -> PinyinEngine.candidates(composing, dictionary)
+        }
         pinyinPredictions = emptyList()
         noteOwnEdit()
         if (composing.isEmpty()) {
             inputConnection.setComposingText("", 1)
             inputConnection.finishComposingText()
         } else {
-            inputConnection.setComposingText(composing, 1)
+            inputConnection.setComposingText(composingDisplay(), 1)
         }
         renderPinyinBar()
+    }
+
+    /** The composition as the field and the bar show it: pinyin for digits, stroke marks for strokes. */
+    private fun composingDisplay(): String {
+        val dictionary = pinyinDictionary
+        return when {
+            pinyinComposing.isEmpty() -> ""
+            chineseKeyboard == KeyboardSettings.ChineseKeyboard.NineKeyPinyin && dictionary != null ->
+                NineKeyEngine.display(pinyinComposing, dictionary, pinyinCandidates.firstOrNull())
+            chineseKeyboard == KeyboardSettings.ChineseKeyboard.NineKeyStroke -> StrokeIndex.display(pinyinComposing)
+            else -> pinyinComposing
+        }
+    }
+
+    /** The spelling list beside the 9-key grid follows the digits not yet locked. */
+    private fun refreshNineKeySpellings() {
+        val dictionary = pinyinDictionary
+        nineKeySpellingOptions = if (
+            chineseKeyboard == KeyboardSettings.ChineseKeyboard.NineKeyPinyin && pinyinComposing.isNotEmpty() && dictionary != null
+        ) {
+            NineKeyEngine.spellings(pinyinComposing, dictionary).take(NINE_KEY_SPELLING_SLOTS)
+        } else {
+            emptyList()
+        }
+        keyboardView?.setNineKeySpellings(nineKeySpellingOptions.takeIf { pinyinComposing.isNotEmpty() })
+    }
+
+    /** Switches between 26-key, 9-key pinyin and stroke input; [save] remembers it as the setting. */
+    private fun setChineseKeyboard(keyboard: KeyboardSettings.ChineseKeyboard, save: Boolean) {
+        if (save) KeyboardSettings.saveChineseKeyboard(this, keyboard)
+        chineseKeyboard = keyboard
+        // Password, number and terminal fields type no Chinese; they get the letters instead.
+        val info = currentEditorInfo
+        val chineseHere = !isRawKeyEventEditor(info) && !isSensitiveEditor(info) && !shouldUsePhonePadMode(info)
+        keyboardView?.setChineseKeyboard(if (chineseHere) keyboard else KeyboardSettings.ChineseKeyboard.Qwerty)
+        if (keyboard == KeyboardSettings.ChineseKeyboard.NineKeyStroke) ensureStrokeIndex()
+        refreshNineKeySpellings()
+    }
+
+    private fun ensureStrokeIndex() {
+        if (strokeIndex != null || strokeIndexLoading) return
+        strokeIndexLoading = true
+        val appContext = applicationContext
+        Thread {
+            val loaded = runCatching {
+                appContext.assets.open(STROKE_ASSET).bufferedReader(Charsets.UTF_8).use { StrokeIndex.load(it) }
+            }.getOrNull()
+            mainHandler.post {
+                strokeIndexLoading = false
+                strokeIndex = loaded
+            }
+        }.apply {
+            name = "ZnKeyboardStrokeLoad"
+            start()
+        }
     }
 
     /** [byHand]: tapped or picked by number, as opposed to space taking the first candidate. */
@@ -940,11 +1053,13 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     }
 
     private fun renderPinyinBar() {
+        // Every change to the composition ends here, so the spelling list follows it too.
+        refreshNineKeySpellings()
         val bar = pinyinBar ?: return
         if (pinyinComposing.isEmpty() && pinyinPredictions.isNotEmpty()) {
             bar.render("", pinyinPredictions.map { it.text }, pinyinBarTools())
         } else {
-            bar.render(pinyinComposing, pinyinCandidates.map { it.text })
+            bar.render(composingDisplay(), pinyinCandidates.map { it.text })
         }
     }
 
@@ -960,13 +1075,25 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         )
     }
 
+    /** A key that starts or continues a composition: a letter, a 9-key digit or a stroke. */
     private fun isLetterAction(action: KeyboardAction): Boolean =
-        action is KeyboardAction.Text && action.value.singleOrNull()?.lowercaseChar() in 'a'..'z'
+        action is KeyboardAction.Text && action.value.singleOrNull()?.lowercaseChar() in 'a'..'z' ||
+            action is KeyboardAction.NineKeyDigit && action.digit != '1' ||
+            action is KeyboardAction.Stroke
 
-    /** Puts the typed letters into the field as-is, e.g. for Enter or leaving the keyboard. */
+    /**
+     * Puts the typed letters into the field as-is, e.g. for Enter or leaving the keyboard: 9-key
+     * digits as their likeliest pinyin; strokes have no text of their own, so they just go.
+     */
     private fun commitPinyinRaw() {
         if (pinyinComposing.isEmpty()) return
-        val raw = pinyinComposing.replace(PinyinEngine.SEPARATOR.toString(), "")
+        val dictionary = pinyinDictionary
+        val raw = when {
+            chineseKeyboard == KeyboardSettings.ChineseKeyboard.NineKeyPinyin && dictionary != null ->
+                NineKeyEngine.raw(pinyinComposing, dictionary, pinyinCandidates.firstOrNull())
+            chineseKeyboard == KeyboardSettings.ChineseKeyboard.NineKeyStroke -> ""
+            else -> pinyinComposing.replace(PinyinEngine.SEPARATOR.toString(), "")
+        }
         currentInputConnection?.let { inputConnection ->
             noteOwnEdit()
             inputConnection.commitText(raw, 1)
@@ -2478,6 +2605,8 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         const val OWN_EDIT_SETTLE_MS = 1_000L
         const val DOUBLE_SPACE_PERIOD_WINDOW_MS = 700L
         const val REQUEST_TIMEOUT_MS = AgentDefaults.REQUEST_TIMEOUT_MS
+        const val STROKE_ASSET = "stroke/strokes.tsv"
+        const val NINE_KEY_SPELLING_SLOTS = 3
         const val CONNECT_TIMEOUT_MS = AgentDefaults.CONNECT_TIMEOUT_MS
         const val MIN_REWRITE_LLM_TOKENS = AgentDefaults.MIN_REWRITE_LLM_TOKENS
         const val MAX_REWRITE_LLM_TOKENS = AgentDefaults.MAX_REWRITE_LLM_TOKENS

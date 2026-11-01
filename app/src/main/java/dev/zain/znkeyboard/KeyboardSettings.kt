@@ -68,6 +68,7 @@ object KeyboardSettings {
     private const val KEY_UPDATE_LATEST_DOWNLOAD_URL = "update_latest_download_url"
     private const val KEY_UPDATE_LATEST_PAGE_URL = "update_latest_page_url"
     private const val KEY_UPDATE_DISMISSED_VERSION = "update_dismissed_version"
+    private const val KEY_CHINESE_KEYBOARD = "chinese_keyboard"
     private const val KEY_UPDATE_NOTIFIED_VERSION = "update_notified_version"
     private const val KEY_KEYBOARD_THEME = "keyboard_theme"
     private const val KEY_TYPING_MODEL_GENERATION = "typing_model_generation"
@@ -226,6 +227,27 @@ object KeyboardSettings {
 
     /** Whether letters go to the pinyin composer (中) instead of straight into the field (EN). */
     fun readPinyinModeEnabled(context: Context) = readFlag(context, KEY_PINYIN_MODE_ENABLED, false)
+
+    /** How Chinese is typed: 26-key pinyin, or the 9-key grid with pinyin or strokes. */
+    enum class ChineseKeyboard(val id: String) {
+        Qwerty("qwerty"),
+        NineKeyPinyin("nine_pinyin"),
+        NineKeyStroke("nine_stroke"),
+        ;
+
+        val isNineKey: Boolean get() = this != Qwerty
+
+        companion object {
+            fun fromId(id: String?) = entries.firstOrNull { it.id == id } ?: Qwerty
+        }
+    }
+
+    fun readChineseKeyboard(context: Context): ChineseKeyboard =
+        ChineseKeyboard.fromId(context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).getString(KEY_CHINESE_KEYBOARD, null))
+
+    fun saveChineseKeyboard(context: Context, keyboard: ChineseKeyboard) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit().putString(KEY_CHINESE_KEYBOARD, keyboard.id).apply()
+    }
     fun savePinyinModeEnabled(context: Context, enabled: Boolean) =
         saveFlag(context, KEY_PINYIN_MODE_ENABLED, enabled)
 
