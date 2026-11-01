@@ -24,7 +24,16 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -141,12 +150,33 @@ internal fun AboutUpdateSection(
     }
 }
 
-/** Release notes with Download (the APK, installed over this version) and the release page. */
+/**
+ * Release notes with Update Now: the APK is downloaded here and handed to the system installer,
+ * which asks to confirm. Settings and the API key stay. The release page stays one tap away.
+ */
 @Composable
 internal fun UpdateDialog(release: UpdateChecker.Release, onDismiss: () -> Unit) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var job by remember { mutableStateOf<Job?>(null) }
+    var fraction by remember { mutableFloatStateOf(0f) }
+    var status by remember { mutableStateOf<String?>(null) }
+    val busy = job?.isActive == true
+
+    fun start() {
+        status = null
+        fraction = 0f
+        job = scope.launch {
+            when (val outcome = UpdateInstaller.install(context, release) { value -> fraction = value }) {
+                UpdateInstaller.Outcome.Started -> status = context.getString(R.string.update_install_confirm)
+                UpdateInstaller.Outcome.NeedsPermission -> status = context.getString(R.string.update_install_permission)
+                is UpdateInstaller.Outcome.Failed -> status = outcome.message
+            }
+        }
+    }
+
     AlertDialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = { if (!busy) onDismiss() },
         title = { Text(stringResource(R.string.update_available, release.version)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -154,21 +184,28 @@ internal fun UpdateDialog(release: UpdateChecker.Release, onDismiss: () -> Unit)
                     text = UpdateChecker.plainNotes(release.notes),
                     style = MaterialTheme.typography.bodySmall,
                     modifier = Modifier
-                        .heightIn(max = 360.dp)
+                        .heightIn(max = 300.dp)
                         .verticalScroll(rememberScrollState()),
                 )
+                if (busy) {
+                    Text(stringResource(R.string.update_install_downloading), style = MaterialTheme.typography.bodyMedium)
+                    LinearProgressIndicator(progress = { fraction }, modifier = Modifier.fillMaxWidth())
+                }
+                status?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary) }
                 TextButton(onClick = { openUrl(context, release.pageUrl) }) {
                     Text(stringResource(R.string.update_release_page))
                 }
             }
         },
         confirmButton = {
-            TextButton(onClick = {
-                openUrl(context, release.downloadUrl)
-                onDismiss()
-            }) { Text(stringResource(R.string.update_download)) }
+            TextButton(onClick = ::start, enabled = !busy) { Text(stringResource(R.string.update_now)) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.update_later)) } },
+        dismissButton = {
+            TextButton(onClick = {
+                job?.cancel()
+                onDismiss()
+            }) { Text(stringResource(if (busy) R.string.update_install_cancel else R.string.update_later)) }
+        },
     )
 }
 

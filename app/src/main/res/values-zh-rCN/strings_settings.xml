@@ -226,6 +226,15 @@
     <string name="update_download">下载</string>
     <string name="update_release_page">打开发布页</string>
     <string name="update_later">以后再说</string>
+    <string name="update_now">立即更新</string>
+    <string name="update_install_downloading">正在下载新版本…</string>
+    <string name="update_install_confirm">下载完成，请在系统弹出的窗口里点「更新」。设置和 API Key 都会保留。</string>
+    <string name="update_install_permission">请在打开的设置页里允许 ZnKeyboard「安装未知应用」，然后回到这里再点「立即更新」。只需设置一次。</string>
+    <string name="update_install_cancel">取消</string>
+    <string name="update_install_no_apk">这个版本没有提供安装包，请到发布页下载。</string>
+    <string name="update_install_download_failed">下载失败，请检查网络后再试。</string>
+    <string name="update_install_not_trusted">下载的安装包不是 ZnKeyboard 或签名不一致，为安全起见没有安装。</string>
+    <string name="update_install_failed">安装没有完成，可以到发布页手动下载安装。</string>
     <string name="update_just_checked">已是最新 · 刚刚检查</string>
     <string name="pinyin_summary_learn">学习</string>
     <string name="pinyin_summary_predict">联想</string>
