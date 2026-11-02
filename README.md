@@ -144,6 +144,9 @@ tools/liquidnav/verify_liquid_nav.sh
 # Verify the pinyin engine (segmentation, 简拼, fuzzy sounds) against the bundled dictionary
 tools/pinyin/verify_pinyin.sh
 
+# Score pinyin accuracy on 8,000 typed clauses (full, 简拼, mixed, with slips); see tools/pinyin/bench/README.md
+tools/pinyin/bench/run_bench.sh
+
 # Rebuild app/src/main/assets/pinyin/dict.tsv from rime-ice (see the script for the download commands)
 tools/pinyin/build_dict.py 8105.dict.yaml base.dict.yaml app/src/main/assets/pinyin/dict.tsv
 ```
