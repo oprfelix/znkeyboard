@@ -100,15 +100,16 @@ object PinyinEngine {
         }
 
     /**
-     * The whole input read as one sentence (when that takes more than one word, or reads past a
-     * slip), then the words for its leading part.
+     * The whole input read as one sentence (when that takes more than one word, reads past a
+     * slip, or the language model prefers another word than the dictionary's first), then the
+     * words for its leading part.
      */
     fun candidates(input: String, dictionary: PinyinDictionary): List<Candidate> {
         val words = wordCandidates(input, dictionary)
         val sentence = SentenceDecoder.decode(input, dictionary) ?: return words
         val typed = input.replace(SEPARATOR.toString(), "")
         val corrected = sentence.spelling.replace(" ", "") != typed
-        if (sentence.parts.size < 2 && !corrected) return words
+        if (sentence.parts.size < 2 && !corrected && dictionary.languageModel == null) return words
         val top = words.firstOrNull()
         if (top != null && top.text == sentence.text && top.consumed >= input.length) return words
         val whole = Candidate(sentence.text, input.length, sentence.parts.flatMap { it.syllables }, sentence.parts, sentence.spelling)

@@ -1,7 +1,10 @@
 import dev.zain.znkeyboard.pinyin.PinyinDictionary
 import dev.zain.znkeyboard.pinyin.PinyinEngine
 import dev.zain.znkeyboard.pinyin.PinyinFuzzyRule
+import dev.zain.znkeyboard.pinyin.PinyinLanguageModel
 import java.io.File
+import java.io.RandomAccessFile
+import java.nio.channels.FileChannel
 
 /**
  * Scores the pinyin engine on tools/pinyin/bench/bench.tsv: tools/pinyin/bench/run_bench.sh.
@@ -65,6 +68,12 @@ fun main(args: Array<String>) {
     val strict = File(args[0]).bufferedReader().use { PinyinDictionary.load(it, emptySet()) }
     // The keyboard starts with every fuzzy sound on; --strict measures without them.
     val dictionary = if ("--strict" in options) strict else strict.withFuzzy(PinyinFuzzyRule.DEFAULTS)
+    option("--lm")?.let { path ->
+        val buffer = RandomAccessFile(path, "r").use { it.channel.map(FileChannel.MapMode.READ_ONLY, 0, it.length()) }
+        val model = PinyinLanguageModel.load(buffer) ?: error("$path is not a language model")
+        dictionary.languageModel = model
+        check(dictionary.languageModel != null) { "$path was built for another dictionary" }
+    }
     val latencyEvery = option("--latency-every")?.toInt() ?: 10
     val cases = File(args[1]).readLines()
         .filter { !it.startsWith("#") && !it.startsWith("set\t") && it.isNotBlank() }
@@ -100,7 +109,7 @@ fun main(args: Array<String>) {
         }
     }
 
-    println("fuzzy sounds: " + if ("--strict" in options) "off" else "default (all on)")
+    println("fuzzy sounds: " + (if ("--strict" in options) "off" else "default (all on)") + "; language model: " + (option("--lm") ?: "none"))
     println("%-18s %5s %6s %6s %6s %6s %6s".format("set", "cases", "top1%", "top1~%", "top3%", "CER%", "none%"))
     val sets = cases.map { it.set }.distinct()
     for (set in sets) {

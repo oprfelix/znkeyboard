@@ -8,6 +8,9 @@ Usage:
 
 Output rows are `text<TAB>space-separated pinyin<TAB>weight`, sorted by weight
 descending. Every character is kept; words are capped at MAX_WORDS by weight.
+
+The language model (assets/pinyin/lm.bin) names words by their order in this file, so rebuild it
+with tools/pinyin/lm/build_lm.py after every change here.
 """
 import sys
 

@@ -2,7 +2,7 @@
 
 A modern, privacy-respecting custom keyboard (input method editor) for Android, built with Kotlin and Jetpack Compose. ZnKeyboard pairs a fast custom typing surface with **Chinese pinyin input** and a built‑in **AI assistant** that polishes your text — or polishes and translates it for customers abroad — using your own API key — Google Gemini built in, or any OpenAI‑compatible endpoint.
 
-> This is a modified fork of [zainbits/zn-keyboard](https://github.com/zainbits/zn-keyboard). It adds pinyin input and AI polish and translate (润色 / AI 翻译), and removes the GIF, emoji, text-snippet and macro features to keep the keyboard small (release APK ≈ 4.6 MB). Screenshots below are from upstream and predate these changes.
+> This is a modified fork of [zainbits/zn-keyboard](https://github.com/zainbits/zn-keyboard). It adds pinyin input and AI polish and translate (润色 / AI 翻译), and removes the GIF, emoji, text-snippet and macro features to keep the keyboard small (release APK ≈ 22 MB, 16 MB of it the pinyin language model). Screenshots below are from upstream and predate these changes.
 
 ![Platform](https://img.shields.io/badge/platform-Android%2016%2B-3DDC84?logo=android&logoColor=white)
 ![Language](https://img.shields.io/badge/kotlin-2.3-7F52FF?logo=kotlin&logoColor=white)
@@ -47,6 +47,7 @@ ZnKeyboard learns how *your* thumbs actually hit each key and decodes every tap 
 - **Next-word suggestions:** after a commit the bar suggests what comes next: words you typed after it before, then longer dictionary words it starts (中国 → 人, 人民, 共产党…). Picking one keeps the chain going; any other key dismisses them.
 - Learning stays on the device (and inside the password-encrypted backup), is skipped in password and incognito fields, and can be turned off or cleared in Settings → Typing → Chinese pinyin, as can suggestions.
 - Dictionary: 8,757 characters and the 150,000 most frequent words from [rime-ice](https://github.com/iDvel/rime-ice) (GPL‑3.0), with a few joke weights corrected.
+- **Reads whole sentences in context:** a word-pair language model (16 MB, trained on forum and blog text) ranks readings by what usually follows what, so `xiawuliangdiankaihui` gives 下午两点开会 rather than 下午亮点开会. On the pinyin benchmark it lifts full-pinyin sentences read right by one press of space from 53% to 67% ([tools/pinyin/lm/README.md](tools/pinyin/lm/README.md)).
 - 9-key (九宫格) pinyin and stroke (笔画) input; stroke data for the dictionary's characters from [rime-stroke](https://github.com/rime/rime-stroke) (LGPL‑3.0).
 
 ### 🌐 润色 / AI 翻译: polish and translate
@@ -149,6 +150,9 @@ tools/pinyin/bench/run_bench.sh
 
 # Rebuild app/src/main/assets/pinyin/dict.tsv from rime-ice (see the script for the download commands)
 tools/pinyin/build_dict.py 8105.dict.yaml base.dict.yaml app/src/main/assets/pinyin/dict.tsv
+
+# Rebuild the pinyin language model; needed after every dict.tsv change (see tools/pinyin/lm/README.md)
+tools/pinyin/lm/build_lm.py app/src/main/assets/pinyin/dict.tsv tools/pinyin/bench/bench.tsv app/src/main/assets/pinyin/lm.bin fw2.parquet --docs 400000 --min-count 8
 ```
 
 Install on a connected device/emulator with `./gradlew :app:installDebug` (or `adb install -r`).
@@ -201,4 +205,4 @@ the Free Software Foundation, either version 3 of the License, or
 (at your option) any later version.
 ```
 
-The pinyin dictionary (`app/src/main/assets/pinyin/dict.tsv`) is derived from [rime-ice](https://github.com/iDvel/rime-ice), also GPL‑3.0. The stroke table (`app/src/main/assets/stroke/strokes.tsv`) is derived from [rime-stroke](https://github.com/rime/rime-stroke) (LGPL‑3.0); rebuild it with `tools/stroke/build_strokes.py`.
+The pinyin dictionary (`app/src/main/assets/pinyin/dict.tsv`) is derived from [rime-ice](https://github.com/iDvel/rime-ice), also GPL‑3.0. The stroke table (`app/src/main/assets/stroke/strokes.tsv`) is derived from [rime-stroke](https://github.com/rime/rime-stroke) (LGPL‑3.0); rebuild it with `tools/stroke/build_strokes.py`. The pinyin language model (`app/src/main/assets/pinyin/lm.bin`) holds word-pair statistics computed from [FineWeb-2](https://huggingface.co/datasets/HuggingFaceFW/fineweb-2) (ODC‑By 1.0, from Common Crawl); no text from it is included.

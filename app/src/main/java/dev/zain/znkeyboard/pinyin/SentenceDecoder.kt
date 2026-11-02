@@ -5,10 +5,14 @@ package dev.zain.znkeyboard.pinyin
  * dictionary words, so "womingtianxiangqupashan" becomes 我明天想去爬山 in one candidate.
  *
  * Every split is tried: whole syllables, 简拼 initials ("ymy" for 有没有), mixes of the two, and
- * syllables with one typing slip (min → ming, xang → xiang, xiamg → xiang, xinag → xiang). Each
- * word costs a fixed amount less its score (log weight plus what the user picked), so fewer,
- * commoner words win; slips and initials cost extra, so a correct spelling is never "fixed".
- * Pure Kotlin and main-thread only, like [PinyinDictionary].
+ * syllables with one typing slip (min → ming, xang → xiang, xiamg → xiang, xinag → xiang); slips
+ * and initials cost extra, so a correct spelling is never "fixed".
+ *
+ * Without a language model each word costs a fixed amount less its score (log weight plus what
+ * the user picked), so fewer, commoner words win. With one ([PinyinDictionary.languageModel]),
+ * a word costs less the likelier it is after the word before it, and the search keeps the best
+ * few readings ending in different words at each position (a beam), so context can pick
+ * 两点 over 亮点 or 四川菜 over 四川才. Pure Kotlin and main-thread only, like [PinyinDictionary].
  */
 object SentenceDecoder {
     /**
@@ -20,30 +24,46 @@ object SentenceDecoder {
     /** One way to read input[start, end): a whole syllable (possibly corrected) or the start of one. */
     private class Piece(val end: Int, val text: String, val isPrefix: Boolean, val cost: Float)
 
-    private class Step(val cost: Float, val from: Int, val word: PinyinDictionary.Word?, val pieces: List<Piece>)
+    /** A word over a run of pieces: [cost] is what the pieces and fuzzy sounds add to the word's own. */
+    private class Edge(val end: Int, val pieces: List<Piece>, val match: PinyinDictionary.Match, val cost: Float)
+
+    /** A reading up to some position, ending in [word] (null at the start and after a separator). */
+    private class Step(val cost: Float, val previous: Step?, val word: PinyinDictionary.Word?, val pieces: List<Piece>, val context: Int)
 
     fun decode(input: String, dictionary: PinyinDictionary): Sentence? {
         val n = input.length
         if (n == 0 || n > MAX_INPUT) return null
+        val model = dictionary.languageModel
+        val beam = if (model == null) 1 else BEAM
+        val choices = if (model == null) 1 else LM_CHOICES
         val piecesAt = arrayOfNulls<List<Piece>>(n)
         fun pieces(at: Int): List<Piece> = piecesAt[at] ?: readPieces(input, at, dictionary).also { piecesAt[at] = it }
 
-        val best = arrayOfNulls<Step>(n + 1)
-        best[0] = Step(0f, -1, null, emptyList())
+        fun wordCost(edge: Edge, context: Int): Float {
+            val match = edge.match
+            if (model == null) return WORD_COST - match.score + edge.cost
+            val id = match.word.id
+            val logP = if (id >= 0) model.logP(context, id) else match.score - match.learned - dictionary.logTotalWeight
+            return LM_WORD_COST - LM_WEIGHT * logP - match.learned + edge.cost
+        }
+
+        val best = Array(n + 1) { ArrayList<Step>(beam) }
+        best[0] += Step(0f, null, null, emptyList(), model?.start ?: -1)
         for (start in 0 until n) {
-            val here = best[start] ?: continue
+            val here = best[start]
+            if (here.isEmpty()) continue
             if (input[start] == PinyinEngine.SEPARATOR) {
-                relax(best, start + 1, Step(here.cost, start, null, emptyList()))
+                for (step in here) relax(best[start + 1], Step(step.cost, step, null, emptyList(), step.context), beam)
                 continue
             }
             // Runs of pieces from here, as long as some word's initials still start that way. A
             // separator only splits syllables, so a word may run across it (xi'an → 西安).
+            val edges = ArrayList<Edge>()
             fun extend(at: Int, run: MutableList<Piece>, initials: String) {
                 if (run.isNotEmpty()) {
-                    val match = bestMatch(run, dictionary)
-                    if (match != null) {
-                        val cost = here.cost + WORD_COST - match.second + run.sumOf { it.cost.toDouble() }.toFloat()
-                        relax(best, at, Step(cost, start, match.first, run.toList()))
+                    val pieceCost = run.sumOf { it.cost.toDouble() }.toFloat()
+                    for ((match, fuzzyCost) in bestMatches(run, dictionary, choices)) {
+                        edges += Edge(at, run.toList(), match, pieceCost + fuzzyCost)
                     }
                 }
                 if (run.size >= MAX_WORD_SYLLABLES || at >= n) return
@@ -60,18 +80,32 @@ object SentenceDecoder {
                 }
             }
             extend(start, ArrayList(), "")
+            for (step in here) {
+                for (edge in edges) {
+                    val target = best[edge.end]
+                    // -ln P is never negative, so a word costs at least this much: skip the lookup
+                    // when even that can't make the beam.
+                    if (model != null && target.size >= beam &&
+                        target.last().cost <= step.cost + LM_WORD_COST + edge.cost - edge.match.learned
+                    ) continue
+                    val word = edge.match.word
+                    relax(target, Step(step.cost + wordCost(edge, step.context), step, word, edge.pieces, word.id), beam)
+                }
+            }
         }
 
-        val last = best[n] ?: return null
+        val last = best[n].minByOrNull { step ->
+            step.cost + if (model != null && step.context >= 0) -LM_WEIGHT * model.logP(step.context, model.end) else 0f
+        } ?: return null
         val words = ArrayList<PinyinDictionary.Word>()
         val spelling = ArrayList<String>()
-        var step: Step = last
-        while (step.from >= 0) {
+        var step: Step? = last
+        while (step != null) {
             step.word?.let { word ->
                 words += word
                 spelling += step.pieces.joinToString(" ") { it.text }
             }
-            step = best[step.from] ?: break
+            step = step.previous
         }
         words.reverse()
         spelling.reverse()
@@ -115,32 +149,44 @@ object SentenceDecoder {
     }
 
     /** Lookups repeat from keystroke to keystroke; kept until the dictionary changes. */
-    private val matchCache = HashMap<String, Pair<PinyinDictionary.Word, Float>?>()
+    private val matchCache = HashMap<String, List<Pair<PinyinDictionary.Match, Float>>>()
     private var cachedFor: PinyinDictionary? = null
     private var cachedVersion = -1
 
-    private fun bestMatch(run: List<Piece>, dictionary: PinyinDictionary): Pair<PinyinDictionary.Word, Float>? {
+    /** The best [limit] words for [run], best first, each with what its fuzzy sounds cost. */
+    private fun bestMatches(run: List<Piece>, dictionary: PinyinDictionary, limit: Int): List<Pair<PinyinDictionary.Match, Float>> {
         if (cachedFor !== dictionary || cachedVersion != dictionary.version || matchCache.size > MAX_CACHE) {
             matchCache.clear()
             cachedFor = dictionary
             cachedVersion = dictionary.version
         }
-        val key = run.joinToString(" ") { if (it.isPrefix) "${it.text}*" else it.text }
+        val key = run.joinToString(" ") { if (it.isPrefix) "${it.text}*" else it.text } + "/$limit"
         return matchCache.getOrPut(key) {
             // Fuzzy sounds let shan find 上 (shang); a word spelled the way it was typed comes first
-            // unless the other is much commoner. The score returned already carries that cost.
-            dictionary.scoredMatches(run.map { PinyinDictionary.Piece(it.text, it.isPrefix) }, FUZZY_CHOICES)
-                .map { (word, score) ->
-                    val fuzzy = run.indices.count { i -> !run[i].isPrefix && word.syllables.getOrNull(i) != run[i].text }
-                    word to score - FUZZY_COST * fuzzy
+            // unless the other is much commoner.
+            dictionary.scoredMatches(run.map { PinyinDictionary.Piece(it.text, it.isPrefix) }, maxOf(FUZZY_CHOICES, limit))
+                .map { match ->
+                    val fuzzy = run.indices.count { i -> !run[i].isPrefix && match.word.syllables.getOrNull(i) != run[i].text }
+                    match to FUZZY_COST * fuzzy
                 }
-                .maxByOrNull { it.second }
+                .sortedBy { (match, fuzzyCost) -> fuzzyCost - match.score }
+                .take(limit)
         }
     }
 
-    private fun relax(best: Array<Step?>, at: Int, step: Step) {
-        val current = best[at]
-        if (current == null || step.cost < current.cost) best[at] = step
+    /** Adds [step] to [steps], the best [beam] readings at one position, one per last word. */
+    private fun relax(steps: ArrayList<Step>, step: Step, beam: Int) {
+        val same = steps.indexOfFirst { it.context == step.context && (step.context >= 0 || it.word?.text == step.word?.text) }
+        if (same >= 0) {
+            if (steps[same].cost <= step.cost) return
+            steps.removeAt(same)
+        } else if (steps.size >= beam) {
+            if (steps.last().cost <= step.cost) return
+            steps.removeAt(steps.lastIndex)
+        }
+        var at = steps.size
+        while (at > 0 && steps[at - 1].cost > step.cost) at--
+        steps.add(at, step)
     }
 
     /**
@@ -223,6 +269,13 @@ object SentenceDecoder {
 
     /** Per word: above any word's score, so a word always costs something and fewer words win. */
     private const val WORD_COST = 22f
+
+    /** With a language model: readings kept per position, and words tried per run of pieces. */
+    private const val BEAM = 6
+    private const val LM_CHOICES = 8
+    /** With a language model, per word on top of its -ln P; favours fewer, longer words. */
+    private const val LM_WORD_COST = 1f
+    private const val LM_WEIGHT = 0.6f
     private const val INITIAL_COST = 2.5f
     private const val INITIAL_BEFORE_VOWEL_COST = 9f
     private const val VOWELS = "aoe"

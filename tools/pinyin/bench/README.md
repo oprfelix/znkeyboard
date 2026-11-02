@@ -6,6 +6,8 @@ correction or language modelling can be compared by numbers instead of by feel.
 ```bash
 # Score the engine (about 2 minutes; JDK 17+ in JAVA_HOME, Gradle build run once first)
 tools/pinyin/bench/run_bench.sh
+# With the language model the keyboard ships (see tools/pinyin/lm/README.md)
+tools/pinyin/bench/run_bench.sh --lm app/src/main/assets/pinyin/lm.bin
 # Fuzzy sounds off, and every case written out for diffing against another run
 tools/pinyin/bench/run_bench.sh --strict --cases /tmp/cases.tsv
 ```
@@ -69,3 +71,17 @@ Mac: mean 3.7 ms, median 0.4 ms, p95 20 ms, max 127 ms (long inputs).
 What the failures show: words are ranked by frequency alone, so context-dependent homophones go
 wrong (上床把, 我再次薯条, 告诉锅里, 好像级); 简拼 of a whole clause almost never reads right; and
 one slip takes a clause from about 53% to 23%.
+
+## With the language model (`--lm app/src/main/assets/pinyin/lm.bin`)
+
+| set | top1 | top1~ | top3 | CER |
+|---|---:|---:|---:|---:|
+| full | 67.2% (+13.8) | 72.8% | 67.5% | 7.8% |
+| initials | 6.0% (+3.1) | 6.5% | 7.4% | 68.3% |
+| mixed | 25.0% (+12.2) | 26.8% | 25.8% | 32.0% |
+| typo | 30.3% (+7.6) | 32.9% | 30.6% | 21.8% |
+| **all** | **32.1% (+9.2)** | **34.7%** | **32.8%** | **32.5%** |
+
+By length, `full` is 74.2% short, 67.3% medium, 59.8% long. Per keystroke on the same Mac: mean
+3.0 ms, median 0.4 ms, p95 14 ms, max 129 ms, no slower than without the model. The model was
+tuned on a separate dev set, not on this file.

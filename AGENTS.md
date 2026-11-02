@@ -12,6 +12,7 @@
 - There are no unit tests; `./gradlew :app:assembleRelease` succeeding is the compile check.
 - After changing `typing/` (`TouchModel`, `CharLanguageModel`, `TouchDecoder`, `TypingLearner`), run the engine check. It needs a word list that is not in the repo:
   `curl -sSLO https://norvig.com/ngrams/count_1w.txt && tools/typing/verify_engine.sh count_1w.txt` (don't commit `count_1w.txt`).
+- `assets/pinyin/lm.bin` only fits the `dict.tsv` it was built from (word ids are the dictionary's texts in order); after changing `dict.tsv`, rebuild it with `tools/pinyin/lm/build_lm.py`, or the keyboard silently ranks without it.
 - After changing ranking, segmentation or correction in `pinyin/`, run `tools/pinyin/verify_sentence.sh` and `tools/pinyin/bench/run_bench.sh`, and compare the scores with the baseline in [tools/pinyin/bench/README.md](tools/pinyin/bench/README.md).
 - After changing `liquidnav/LiquidNavModel.kt` or `constants/LiquidNavMotion.kt`, run `tools/liquidnav/verify_liquid_nav.sh`. Tune motion visually in `previews/liquid-nav-drop.html`, which mirrors the engine and shader.
 - Keyboard behavior is device-facing; say so when a change still needs testing in a real text field.

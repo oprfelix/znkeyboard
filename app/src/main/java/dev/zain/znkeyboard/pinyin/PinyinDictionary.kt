@@ -11,18 +11,27 @@ import kotlin.math.ln
  * Words rank by log weight plus a bonus for how often the user picked them ([learn]); words
  * the user built that the dictionary lacks are added with a modest base. Learning mutates the
  * index, so after construction the dictionary is main-thread only.
+ *
+ * Each distinct text has an id, its order of first appearance in dict.tsv, which is how
+ * [languageModel] names words. Words the user built have none (-1).
  */
 class PinyinDictionary private constructor(
     val fuzzy: PinyinFuzzy,
     private val rows: List<Row>,
 ) {
-    class Row(val text: String, val syllables: List<String>, val weight: Long)
+    class Row(val text: String, val syllables: List<String>, val weight: Long, val id: Int)
 
     /** One typed piece: a whole syllable that must match exactly, or the start of one. */
     data class Piece(val text: String, val isPrefix: Boolean)
 
-    /** A dictionary word: its text and raw pinyin, one syllable per character. */
-    class Word(val text: String, val syllables: List<String>)
+    /** A dictionary word: its text and raw pinyin, one syllable per character; [id] is -1 for built words. */
+    class Word(val text: String, val syllables: List<String>, val id: Int = -1)
+
+    /**
+     * A word found for typed pieces: [score] is what it ranks by (log weight plus learning),
+     * [learned] the part of it the user's picks added.
+     */
+    class Match(val word: Word, val score: Float, val learned: Float)
 
     /** A suggestion to type after a committed word: [suffix] completes it into [word]. */
     class Continuation(val suffix: String, val word: Word)
@@ -34,6 +43,7 @@ class PinyinDictionary private constructor(
         val raw: List<String>,
         val rank: Int,
         val base: Float,
+        val id: Int,
     ) {
         var score = base
     }
@@ -65,10 +75,23 @@ class PinyinDictionary private constructor(
     /** Every syllable as spelled in the dictionary (zhong, lv…), for typo correction. */
     val rawSyllables = HashSet<String>()
 
+    /** Distinct texts, the ids [languageModel] uses. */
+    private val wordCount = (rows.maxOfOrNull { it.id } ?: -1) + 1
+
+    /** ln of all weights together: a word's base less this is its share, ln P. */
+    val logTotalWeight = ln(rows.sumOf { it.weight.coerceAtLeast(1L).toDouble() }).toFloat()
+
+    /** Ranks whole sentences by context; only kept when it was built for these rows. */
+    var languageModel: PinyinLanguageModel? = null
+        set(value) {
+            field = value?.takeIf { it.fits(wordCount, rows.size) }
+            version++
+        }
+
     init {
         rows.forEachIndexed { rank, row ->
             rawSyllables += row.syllables
-            index(newEntry(row.text, row.syllables, rank, ln(row.weight.coerceAtLeast(1L).toFloat())))
+            index(newEntry(row.text, row.syllables, rank, ln(row.weight.coerceAtLeast(1L).toFloat()), row.id))
         }
         for (raw in rawSyllables) {
             val normalized = fuzzy.normalize(raw)
@@ -79,9 +102,9 @@ class PinyinDictionary private constructor(
     }
 
     // Only a few hundred distinct syllables exist; share one normalized string for each.
-    private fun newEntry(text: String, raw: List<String>, rank: Int, base: Float): Entry {
+    private fun newEntry(text: String, raw: List<String>, rank: Int, base: Float, id: Int): Entry {
         val normalized = raw.map { normalizedBySyllable.getOrPut(it) { fuzzy.normalize(it) } }
-        return Entry(text, normalized.toTypedArray(), raw, rank, base)
+        return Entry(text, normalized.toTypedArray(), raw, rank, base, id)
     }
 
     // Rows arrive in weight order, so appending keeps every bucket sorted.
@@ -117,8 +140,9 @@ class PinyinDictionary private constructor(
      */
     fun matches(pieces: List<Piece>, limit: Int): List<Word> = matchEntries(pieces, limit).map(::word)
 
-    /** The best few words for [pieces] with their scores (log weight plus learning), for sentence search. */
-    fun scoredMatches(pieces: List<Piece>, limit: Int): List<Pair<Word, Float>> = matchEntries(pieces, limit).map { word(it) to it.score }
+    /** The best few words for [pieces] with their scores, for sentence search. */
+    fun scoredMatches(pieces: List<Piece>, limit: Int): List<Match> =
+        matchEntries(pieces, limit).map { Match(word(it), it.score, it.score - it.base) }
 
     private fun matchEntries(pieces: List<Piece>, limit: Int): List<Entry> {
         val normalized = pieces.map { fuzzy.normalize(it.text) }
@@ -203,7 +227,7 @@ class PinyinDictionary private constructor(
         val key = raw.joinToString(" ") { normalizedBySyllable.getOrPut(it) { fuzzy.normalize(it) } }
         var entry = exact[key]?.firstOrNull { it.text == text && it.raw == raw }
         if (entry == null) {
-            entry = newEntry(text, raw, Int.MAX_VALUE, NEW_WORD_BASE)
+            entry = newEntry(text, raw, Int.MAX_VALUE, NEW_WORD_BASE, -1)
             index(entry)
         }
         // A phrase the user built gains from its second pick on: one accidental build (我们 + 一气)
@@ -442,7 +466,7 @@ class PinyinDictionary private constructor(
         bucket.add(low, entry)
     }
 
-    private fun word(entry: Entry) = Word(entry.text, entry.raw)
+    private fun word(entry: Entry) = Word(entry.text, entry.raw, entry.id)
 
     /** Raw initials each piece may start with; only n = l can change a first letter. */
     private fun initialsKeys(pieces: List<Piece>): List<String> {
@@ -460,7 +484,8 @@ class PinyinDictionary private constructor(
     }
 
     /** A fresh index under [rules], without anything learned; the caller re-applies its words. */
-    fun withFuzzy(rules: Set<PinyinFuzzyRule>): PinyinDictionary = PinyinDictionary(PinyinFuzzy(rules), rows)
+    fun withFuzzy(rules: Set<PinyinFuzzyRule>): PinyinDictionary =
+        PinyinDictionary(PinyinFuzzy(rules), rows).also { it.languageModel = languageModel }
 
     companion object {
         /** About the weight of an ordinary two-character word. */
@@ -492,6 +517,7 @@ class PinyinDictionary private constructor(
             val rows = ArrayList<Row>(200_000)
             // Rows repeat the same few hundred syllables; keep one copy of each string.
             val syllableCache = HashMap<String, String>()
+            val ids = HashMap<String, Int>(200_000)
             reader.forEachLine { line ->
                 val firstTab = line.indexOf('\t')
                 val secondTab = line.indexOf('\t', firstTab + 1)
@@ -499,7 +525,8 @@ class PinyinDictionary private constructor(
                     val syllables = line.substring(firstTab + 1, secondTab).split(' ')
                         .map { syllableCache.getOrPut(it) { it } }
                     val weight = line.substring(secondTab + 1).toLongOrNull() ?: 1L
-                    rows += Row(line.substring(0, firstTab), syllables, weight)
+                    val text = line.substring(0, firstTab)
+                    rows += Row(text, syllables, weight, ids.getOrPut(text) { ids.size })
                 }
             }
             return PinyinDictionary(PinyinFuzzy(rules), rows)

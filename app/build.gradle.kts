@@ -27,6 +27,11 @@ android {
         versionName = "1.9.2"
     }
 
+    androidResources {
+        // pinyin/lm.bin is memory-mapped straight from the APK, which needs it stored uncompressed.
+        noCompress += "bin"
+    }
+
     signingConfigs {
         if (releaseSigning != null) {
             create("release") {

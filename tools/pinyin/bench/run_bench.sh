@@ -2,7 +2,8 @@
 # Compiles the pure-Kotlin pinyin engine with BenchHarness.kt using the Kotlin compiler in the
 # Gradle cache (run a Gradle build once first), then scores it on bench.tsv.
 #
-# Usage: tools/pinyin/bench/run_bench.sh [--strict] [--cases out.tsv] [--latency-every N]
+# Usage: tools/pinyin/bench/run_bench.sh [--lm lm.bin] [--strict] [--cases out.tsv] [--latency-every N]
+#   --lm lm.bin        rank sentences with this language model (app/src/main/assets/pinyin/lm.bin)
 #   --strict           fuzzy sounds off (the keyboard starts with all of them on)
 #   --cases out.tsv    also write every case with what the engine gave, for diffing two runs
 #   --latency-every N  time every keystroke of every Nth case (default 10, 0 to skip)
@@ -23,6 +24,6 @@ OUT="$(mktemp -d)"
 P=app/src/main/java/dev/zain/znkeyboard/pinyin
 "$JAVA_HOME/bin/java" -cp "$CP" org.jetbrains.kotlin.cli.jvm.K2JVMCompiler -jdk-home "$JAVA_HOME" \
   -no-stdlib -no-reflect -classpath "$STD" -nowarn -d "$OUT" \
-  "$P/PinyinFuzzy.kt" "$P/PinyinDictionary.kt" "$P/PinyinEngine.kt" "$P/PinyinUserData.kt" "$P/PinyinLearner.kt" "$P/SentenceDecoder.kt" \
+  "$P/PinyinFuzzy.kt" "$P/PinyinDictionary.kt" "$P/PinyinLanguageModel.kt" "$P/PinyinEngine.kt" "$P/PinyinUserData.kt" "$P/PinyinLearner.kt" "$P/SentenceDecoder.kt" \
   tools/pinyin/bench/BenchHarness.kt
 "$JAVA_HOME/bin/java" -cp "$OUT:$STD" BenchHarnessKt app/src/main/assets/pinyin/dict.tsv tools/pinyin/bench/bench.tsv "$@"

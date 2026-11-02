@@ -38,12 +38,15 @@ import org.json.JSONObject
 import dev.zain.znkeyboard.pinyin.NineKeyEngine
 import dev.zain.znkeyboard.pinyin.PinyinDictionary
 import dev.zain.znkeyboard.pinyin.PinyinEngine
+import dev.zain.znkeyboard.pinyin.PinyinLanguageModel
 import dev.zain.znkeyboard.pinyin.PinyinLearner
 import dev.zain.znkeyboard.pinyin.PinyinUserData
 import dev.zain.znkeyboard.pinyin.StrokeIndex
+import java.io.FileInputStream
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
+import java.nio.channels.FileChannel
 import java.util.Locale
 
 class ZnKeyboardInputMethodService : InputMethodService(),
@@ -780,6 +783,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
                 val dictionary = current?.withFuzzy(rules) ?: appContext.assets.open(PINYIN_DICTIONARY_ASSET)
                     .bufferedReader(Charsets.UTF_8)
                     .use { PinyinDictionary.load(it, rules) }
+                        .also { it.languageModel = loadPinyinLanguageModel(appContext) }
                 for (word in saved?.words() ?: snapshot.orEmpty()) dictionary.learn(word.text, word.syllables, word.uses)
                 // Build the 9-key index here rather than on the first key press.
                 if (chineseKeyboard.isNineKey) dictionary.nineKeySpellings("2")
@@ -801,6 +805,18 @@ class ZnKeyboardInputMethodService : InputMethodService(),
             }
         }.start()
     }
+
+    /**
+     * The sentence model, memory-mapped from the APK (stored uncompressed, see build.gradle.kts)
+     * so it costs no heap; null if it is missing or unreadable, and sentences rank as before.
+     */
+    private fun loadPinyinLanguageModel(context: Context): PinyinLanguageModel? = runCatching {
+        context.assets.openFd(PINYIN_LANGUAGE_MODEL_ASSET).use { fd ->
+            FileInputStream(fd.fileDescriptor).channel.use { channel ->
+                PinyinLanguageModel.load(channel.map(FileChannel.MapMode.READ_ONLY, fd.startOffset, fd.length))
+            }
+        }
+    }.onFailure { Log.w(TAG, "pinyin language model unavailable", it) }.getOrNull()
 
     /** Settings cleared or restored learned pinyin while the keyboard was away: drop ours and reread. */
     private fun reloadPinyinLearningIfReset() {
@@ -2632,6 +2648,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         const val CURSOR_DRAG_MAX_CHARS = 120
         const val TYPING_CONTEXT_CHARS = 16
         const val PINYIN_DICTIONARY_ASSET = "pinyin/dict.tsv"
+        const val PINYIN_LANGUAGE_MODEL_ASSET = "pinyin/lm.bin"
         const val MAX_PINYIN_PREDICTIONS = 16
         val CHINESE_PUNCTUATION = mapOf(
             ',' to "，",
