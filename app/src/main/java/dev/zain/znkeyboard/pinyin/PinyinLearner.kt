@@ -23,22 +23,30 @@ class PinyinLearner(var data: PinyinUserData) {
     var previous: String? = null
         private set
 
+    /** The dictionary id of the last word picked (-1 if none or unknown): context for the model. */
+    private var previousId = -1
+
+    /** The last word committed, for reading the next input on from it; null after a break. */
+    val context: SentenceDecoder.Context?
+        get() = previous?.let { SentenceDecoder.Context(it, previousId) }
+
     private val phraseText = StringBuilder()
     private val phraseSyllables = ArrayList<String>()
     private var phrasePicks = 0
     private var phraseChosenByHand = false
 
-    /** One candidate committed from the current composition. */
-    fun onPick(text: String, syllables: List<String>, byHand: Boolean) {
+    /** One candidate committed from the current composition; [id] is its dictionary word's. */
+    fun onPick(text: String, syllables: List<String>, byHand: Boolean, id: Int = -1) {
         if (learningEnabled) {
             learnWord(text, syllables)
-            previous?.let { data.learnPair(it, text) }
+            previous?.let { learnPair(it, text) }
         }
         phraseText.append(text)
         phraseSyllables += syllables
         phrasePicks++
         phraseChosenByHand = phraseChosenByHand || byHand
         previous = text
+        previousId = id
     }
 
     /** The composition is fully converted. */
@@ -46,6 +54,7 @@ class PinyinLearner(var data: PinyinUserData) {
         if (learningEnabled && phrasePicks >= 2 && phraseChosenByHand && phraseSyllables.size <= MAX_PHRASE_SYLLABLES) {
             val phrase = phraseText.toString()
             learnWord(phrase, phraseSyllables.toList())
+            // Pairs follow the phrase; the model keeps its last word as context, which it knows.
             previous = phrase
         }
         resetPhrase()
@@ -55,6 +64,7 @@ class PinyinLearner(var data: PinyinUserData) {
     fun onCompositionAbandoned() {
         resetPhrase()
         previous = null
+        previousId = -1
     }
 
     fun onPredictionPicked(prediction: Prediction) {
@@ -62,9 +72,11 @@ class PinyinLearner(var data: PinyinUserData) {
         if (word != null) {
             if (learningEnabled) learnWord(word.text, word.syllables)
             previous = word.text
+            previousId = word.id
         } else {
-            if (learningEnabled) previous?.let { data.learnPair(it, prediction.text) }
+            if (learningEnabled) previous?.let { learnPair(it, prediction.text) }
             previous = prediction.text
+            previousId = -1
         }
     }
 
@@ -72,12 +84,16 @@ class PinyinLearner(var data: PinyinUserData) {
     fun forget(text: String) {
         data.forgetWord(text)
         dictionary?.forget(text)
-        if (previous == text) previous = null
+        if (previous == text) {
+            previous = null
+            previousId = -1
+        }
     }
 
     /** Something other than pinyin was typed, or the caret moved: the next word has no context. */
     fun breakChain() {
         previous = null
+        previousId = -1
     }
 
     /** Words the user typed after [previous] before, then continuations from the dictionary. */
@@ -96,9 +112,15 @@ class PinyinLearner(var data: PinyinUserData) {
         return result
     }
 
-    /** Re-applies every learned word, e.g. to a dictionary rebuilt for new fuzzy rules. */
+    /** Re-applies learned words ([words], all by default) and every pair, e.g. to a dictionary rebuilt for new fuzzy rules. */
     fun applyTo(dictionary: PinyinDictionary, words: Collection<PinyinUserData.Word> = data.words()) {
         for (word in words) dictionary.learn(word.text, word.syllables, word.uses)
+        for ((previous, next, uses) in data.pairs()) dictionary.learnPair(previous, next, uses)
+    }
+
+    private fun learnPair(previous: String, next: String) {
+        val uses = data.learnPair(previous, next)
+        dictionary?.learnPair(previous, next, uses)
     }
 
     private fun learnWord(text: String, syllables: List<String>) {

@@ -1,5 +1,8 @@
 package dev.zain.znkeyboard.pinyin
 
+import kotlin.math.exp
+import kotlin.math.ln
+
 /**
  * Whole-sentence input: finds the best way to read all of the typed pinyin as a row of
  * dictionary words, so "womingtianxiangqupashan" becomes 我明天想去爬山 in one candidate.
@@ -32,8 +35,21 @@ object SentenceDecoder {
     /** A word over a run of pieces: [cost] is what the pieces and fuzzy sounds add to the word's own. */
     private class Edge(val end: Int, val pieces: List<Piece>, val match: PinyinDictionary.Match, val cost: Float)
 
-    /** A reading up to some position, ending in [word] (null at the start and after a separator). */
-    private class Step(val cost: Float, val previous: Step?, val word: PinyinDictionary.Word?, val pieces: List<Piece>, val context: Int)
+    /**
+     * A reading up to some position, ending in [word] (null at the start and after a separator);
+     * [context] is the last word's model id and [text] its text, carried across separators.
+     */
+    private class Step(
+        val cost: Float,
+        val previous: Step?,
+        val word: PinyinDictionary.Word?,
+        val pieces: List<Piece>,
+        val context: Int,
+        val text: String?,
+    )
+
+    /** The word committed just before this input, so its first word is read in context. */
+    class Context(val text: String, val id: Int)
 
     /**
      * Per input position, -ln P(tap | key) for each letter a–z less the best key's (0 for the best,
@@ -43,7 +59,7 @@ object SentenceDecoder {
         fun costs(at: Int): FloatArray?
     }
 
-    fun decode(input: String, dictionary: PinyinDictionary, taps: Taps? = null): Sentence? {
+    fun decode(input: String, dictionary: PinyinDictionary, taps: Taps? = null, before: Context? = null): Sentence? {
         val n = input.length
         if (n == 0 || n > MAX_INPUT) return null
         val model = dictionary.languageModel
@@ -52,21 +68,40 @@ object SentenceDecoder {
         val piecesAt = arrayOfNulls<List<Piece>>(n)
         fun pieces(at: Int): List<Piece> = piecesAt[at] ?: readPieces(input, at, dictionary, taps).also { piecesAt[at] = it }
 
-        fun wordCost(edge: Edge, context: Int): Float {
+        val learnedUses = dictionary.learnedUses
+        fun wordCost(edge: Edge, step: Step): Float {
             val match = edge.match
             if (model == null) return WORD_COST - match.score + edge.cost
             val id = match.word.id
-            val logP = if (id >= 0) model.logP(context, id) else match.score - match.learned - dictionary.logTotalWeight
-            return LM_WORD_COST - LM_WEIGHT * logP - match.learned + edge.cost
+            var logP = if (id >= 0) model.logP(step.context, id) else match.score - match.learned - dictionary.logTotalWeight
+            // What the user picks is a second, personal model mixed in: how often they chose this
+            // word, and this word after the last one. Probabilities, so however often a word was
+            // picked it costs something, and its characters can't outbid it one by one.
+            val pairTotal = step.text?.let(dictionary::pairTotal) ?: 0
+            if (learnedUses > 0 || pairTotal > 0) {
+                var keep = 1f
+                var personal = 0f
+                if (learnedUses > 0) {
+                    keep -= PICKS_WEIGHT
+                    personal += PICKS_WEIGHT * match.uses / learnedUses
+                }
+                if (pairTotal > 0) {
+                    keep -= PAIRS_WEIGHT
+                    personal += PAIRS_WEIGHT * dictionary.pairUses(step.text!!, match.word.text) / pairTotal
+                }
+                logP = ln(keep * exp(logP) + personal)
+            }
+            return LM_WORD_COST - LM_WEIGHT * logP + edge.cost
         }
 
         val best = Array(n + 1) { ArrayList<Step>(beam) }
-        best[0] += Step(0f, null, null, emptyList(), model?.start ?: -1)
+        val startContext = before?.id?.takeIf { it >= 0 && model != null } ?: model?.start ?: -1
+        best[0] += Step(0f, null, null, emptyList(), startContext, before?.text)
         for (start in 0 until n) {
             val here = best[start]
             if (here.isEmpty()) continue
             if (input[start] == PinyinEngine.SEPARATOR) {
-                for (step in here) relax(best[start + 1], Step(step.cost, step, null, emptyList(), step.context), beam)
+                for (step in here) relax(best[start + 1], Step(step.cost, step, null, emptyList(), step.context, step.text), beam)
                 continue
             }
             // Runs of pieces from here, as long as some word's initials still start that way. A
@@ -99,10 +134,10 @@ object SentenceDecoder {
                     // -ln P is never negative, so a word costs at least this much: skip the lookup
                     // when even that can't make the beam.
                     if (model != null && target.size >= beam &&
-                        target.last().cost <= step.cost + LM_WORD_COST + edge.cost - edge.match.learned
+                        target.last().cost <= step.cost + LM_WORD_COST + edge.cost
                     ) continue
                     val word = edge.match.word
-                    relax(target, Step(step.cost + wordCost(edge, step.context), step, word, edge.pieces, word.id), beam)
+                    relax(target, Step(step.cost + wordCost(edge, step), step, word, edge.pieces, word.id, word.text), beam)
                 }
             }
         }
@@ -123,7 +158,7 @@ object SentenceDecoder {
         words.reverse()
         spelling.reverse()
         if (words.isEmpty()) return null
-        val parts = words.map { PinyinEngine.Candidate(it.text, n, it.syllables) }
+        val parts = words.map { PinyinEngine.Candidate(it.text, n, it.syllables, id = it.id) }
         return Sentence(words.joinToString("") { it.text }, parts, spelling.joinToString(" "), last.cost)
     }
 
@@ -307,6 +342,9 @@ object SentenceDecoder {
     /** With a language model, per word on top of its -ln P; favours fewer, longer words. */
     private const val LM_WORD_COST = 1f
     private const val LM_WEIGHT = 0.6f
+    /** Shares of the personal models in a word's probability: the user's picks, and their pairs. */
+    private const val PICKS_WEIGHT = 0.05f
+    private const val PAIRS_WEIGHT = 0.1f
     private const val INITIAL_COST = 2.5f
     private const val INITIAL_BEFORE_VOWEL_COST = 9f
     private const val VOWELS = "aoe"

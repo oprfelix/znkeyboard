@@ -12,7 +12,8 @@ object PinyinEngine {
     /**
      * [consumed] is how many input characters picking this candidate uses up; [syllables] is
      * its raw pinyin, one per character, for learning. A whole sentence also has its [parts]
-     * (the words, learned one by one) and its [spelling] as read, slips corrected.
+     * (the words, learned one by one) and its [spelling] as read, slips corrected. [id] is the
+     * dictionary word's (see [PinyinDictionary.Word.id]).
      */
     data class Candidate(
         val text: String,
@@ -20,6 +21,7 @@ object PinyinEngine {
         val syllables: List<String>,
         val parts: List<Candidate>? = null,
         val spelling: String? = null,
+        val id: Int = -1,
     )
 
     const val SEPARATOR = '\''
@@ -104,9 +106,15 @@ object PinyinEngine {
      * slip, or the language model prefers another word than the dictionary's first), then the
      * words for its leading part.
      */
-    fun candidates(input: String, dictionary: PinyinDictionary, taps: SentenceDecoder.Taps? = null): List<Candidate> {
+    /** [before] is the word committed just before, so the sentence reads on from it. */
+    fun candidates(
+        input: String,
+        dictionary: PinyinDictionary,
+        taps: SentenceDecoder.Taps? = null,
+        before: SentenceDecoder.Context? = null,
+    ): List<Candidate> {
         val words = wordCandidates(input, dictionary)
-        val sentence = SentenceDecoder.decode(input, dictionary, taps) ?: return words
+        val sentence = SentenceDecoder.decode(input, dictionary, taps, before) ?: return words
         val typed = input.replace(SEPARATOR.toString(), "")
         val corrected = sentence.spelling.replace(" ", "") != typed
         if (sentence.parts.size < 2 && !corrected && dictionary.languageModel == null) return words
@@ -132,7 +140,7 @@ object PinyinEngine {
             var consumed = syllables[count - 1].end
             if (consumed < input.length && input[consumed] == SEPARATOR) consumed++
             for (word in words) {
-                if (seen.add(word.text)) result += Candidate(word.text, consumed, word.syllables)
+                if (seen.add(word.text)) result += Candidate(word.text, consumed, word.syllables, id = word.id)
                 if (result.size >= MAX_CANDIDATES) return result
             }
         }

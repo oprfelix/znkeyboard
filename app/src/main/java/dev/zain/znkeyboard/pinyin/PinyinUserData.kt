@@ -43,9 +43,9 @@ class PinyinUserData {
         pairCount = following.values.sumOf { it.size }
     }
 
-    /** Records that [next] was typed right after [previous]. */
-    fun learnPair(previous: String, next: String) {
-        if (previous.isEmpty() || next.isEmpty()) return
+    /** Records that [next] was typed right after [previous]; returns how often it now has been. */
+    fun learnPair(previous: String, next: String): Int {
+        if (previous.isEmpty() || next.isEmpty()) return 0
         clock++
         val list = following.getOrPut(previous) { ArrayList(2) }
         val pair = list.firstOrNull { it.next == next } ?: Follower(next, 0, 0).also {
@@ -54,8 +54,14 @@ class PinyinUserData {
         }
         pair.uses = (pair.uses + 1).coerceAtMost(MAX_USES)
         pair.lastUsed = clock
+        val uses = pair.uses
         if (pairCount > MAX_PAIRS) prunePairs()
+        return uses
     }
+
+    /** Every learned pair: (previous, next, uses). */
+    fun pairs(): List<Triple<String, String, Int>> =
+        following.flatMap { (previous, list) -> list.map { Triple(previous, it.next, it.uses) } }
 
     /** Words typed after [previous] before, most used first. */
     fun nextWords(previous: String, limit: Int): List<String> {

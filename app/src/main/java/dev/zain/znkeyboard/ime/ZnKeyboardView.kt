@@ -163,6 +163,10 @@ class ZnKeyboardView @JvmOverloads constructor(
     var letterTapCosts: FloatArray? = null
         private set
 
+    /** The touch learner's record of that tap, so pinyin can relabel it when a reading corrects it. */
+    var letterTapSample: TypingLearner.Sample? = null
+        private set
+
     // Reused for taps in flight; more than the fingers that can be down at once.
     private val tapCostPool = Array(TAP_COST_POOL) { FloatArray(26) }
     private var tapCostNext = 0
@@ -760,11 +764,14 @@ class ZnKeyboardView @JvmOverloads constructor(
                     if (touch.swipedUp && digit != null) {
                         handleKey(KeySpec("nine_digit_$digit", "$digit", KeyIntent.Dispatch(KeyboardAction.Text("$digit"))))
                     } else {
+                        val sample = touch.learningSample(key)
                         letterTapCosts = touch.tapCosts?.takeIf { !touch.slid }
+                        letterTapSample = sample
                         try {
-                            handleKey(key, touch.learningSample(key), shiftHeld = shiftHeld && nextPointerId == pointerId)
+                            handleKey(key, sample, shiftHeld = shiftHeld && nextPointerId == pointerId)
                         } finally {
                             letterTapCosts = null
+                            letterTapSample = null
                         }
                     }
                 }

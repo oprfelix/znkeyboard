@@ -1,6 +1,10 @@
 import dev.zain.znkeyboard.pinyin.PinyinDictionary
 import dev.zain.znkeyboard.pinyin.PinyinEngine
 import dev.zain.znkeyboard.pinyin.PinyinFuzzyRule
+import dev.zain.znkeyboard.pinyin.PinyinLanguageModel
+import dev.zain.znkeyboard.pinyin.SentenceDecoder
+import java.io.RandomAccessFile
+import java.nio.channels.FileChannel
 import dev.zain.znkeyboard.pinyin.PinyinLearner
 import dev.zain.znkeyboard.pinyin.PinyinTapBuffer
 import dev.zain.znkeyboard.pinyin.PinyinUserData
@@ -177,6 +181,37 @@ fun main(args: Array<String>) {
         type("", null)
         type("w", tap(6f))
         check("taps start over after a commit", markers() == "6", markers())
+        val sample = Any()
+        taps.follow("w", "wo", tap(7f), sample)
+        taps.follow("wo", "o", null)
+        check("a tap's token moves with it", taps.token(0) === sample, "${taps.token(0)}")
+    }
+    run {
+        fun subs(typed: String, spelling: String) = PinyinTapBuffer.substitutions(typed, spelling).joinToString(",") { "${it.first}${it.second}" }
+        check("substitution found", subs("wlaini", "wo ai ni") == "1o", subs("wlaini", "wo ai ni"))
+        check("separators keep typed indexes", subs("xi'qn", "xi an") == "3a", subs("xi'qn", "xi an"))
+        check("a swap is not a substitution", subs("xinag", "xiang") == "", subs("xinag", "xiang"))
+        check("a dropped letter is not one", subs("xang", "xiang") == "", subs("xang", "xiang"))
+        check("简拼 as typed has none", subs("wmyqkdy", "w m y q k d y") == "", subs("wmyqkdy", "w m y q k d y"))
+    }
+    // With the language model, as the keyboard ships.
+    args.getOrNull(1)?.let { path ->
+        val model = RandomAccessFile(path, "r").use { PinyinLanguageModel.load(it.channel.map(FileChannel.MapMode.READ_ONLY, 0, it.length())) }
+        val withModel = fuzzy.withFuzzy(fuzzy.fuzzy.rules).also { it.languageModel = model }
+        check("model fits the dictionary", withModel.languageModel != null, "")
+        fun first(input: String, before: SentenceDecoder.Context? = null) = PinyinEngine.candidates(input, withModel, null, before).firstOrNull()?.text
+        // Picks are a share of a probability, so a much-picked character can't outbid whole words.
+        val heavy = PinyinLearner(PinyinUserData()).also { it.dictionary = withModel }
+        repeat(300) { heavy.onPick("你", listOf("ni"), byHand = true); heavy.onPick("狗", listOf("gou"), byHand = true); heavy.breakChain() }
+        check("heavy picks don't split words", first("tiantian") == "天天" && first("gougou") == "狗狗", "${first("tiantian")} ${first("gougou")}")
+        // What the user typed after a word lifts it there.
+        val pairs = PinyinLearner(PinyinUserData()).also { it.dictionary = withModel }
+        val plain = first("shi")
+        repeat(5) { pairs.onPick("历史", listOf("li", "shi"), byHand = true); pairs.onPick("诗", listOf("shi"), byHand = true); pairs.breakChain() }
+        pairs.onPick("历史", listOf("li", "shi"), byHand = true)
+        check("a learned pair reads on from the word before", first("shi", pairs.context) == "诗" && plain != "诗", "$plain -> ${first("shi", pairs.context)}")
+        withModel.forgetLearned()
+        check("forgetting drops pairs too", withModel.pairTotal("历史") == 0 && withModel.learnedUses == 0, "")
     }
 
     if (failures > 0) {

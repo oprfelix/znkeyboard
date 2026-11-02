@@ -29,9 +29,10 @@ class PinyinDictionary private constructor(
 
     /**
      * A word found for typed pieces: [score] is what it ranks by (log weight plus learning),
-     * [learned] the part of it the user's picks added.
+     * [learned] the part of it the user's picks added, [uses] the picks that count toward it
+     * (see [learnedUses]).
      */
-    class Match(val word: Word, val score: Float, val learned: Float)
+    class Match(val word: Word, val score: Float, val learned: Float, val uses: Int)
 
     /** A suggestion to type after a committed word: [suffix] completes it into [word]. */
     class Continuation(val suffix: String, val word: Word)
@@ -46,6 +47,9 @@ class PinyinDictionary private constructor(
         val id: Int,
     ) {
         var score = base
+
+        /** Picks that count: all of them for a dictionary word, from the second on for a built one. */
+        var uses = 0
     }
 
     /** Normalized syllables joined by spaces → entries, best first. */
@@ -65,6 +69,14 @@ class PinyinDictionary private constructor(
 
     /** Entries whose score [learn] changed, so [forgetLearned] can undo it. */
     private val learned = HashSet<Entry>()
+
+    /** Every learned word's [Entry.uses] together: P(word) among the user's picks is uses / this. */
+    var learnedUses = 0
+        private set
+
+    /** Words the user typed right after a word, with how often ([learnPair]). */
+    private val pairs = HashMap<String, HashMap<String, Int>>()
+    private val pairTotals = HashMap<String, Int>()
 
     private val normalizedBySyllable = HashMap<String, String>()
 
@@ -142,7 +154,7 @@ class PinyinDictionary private constructor(
 
     /** The best few words for [pieces] with their scores, for sentence search. */
     fun scoredMatches(pieces: List<Piece>, limit: Int): List<Match> =
-        matchEntries(pieces, limit).map { Match(word(it), it.score, it.score - it.base) }
+        matchEntries(pieces, limit).map { Match(word(it), it.score, it.score - it.base, it.uses) }
 
     private fun matchEntries(pieces: List<Piece>, limit: Int): List<Entry> {
         val normalized = pieces.map { fuzzy.normalize(it.text) }
@@ -234,15 +246,44 @@ class PinyinDictionary private constructor(
         // must not push a dictionary word with the same pinyin (我们一起) aside.
         val bonus = if (entry.rank == Int.MAX_VALUE) ln(uses.toFloat().coerceAtLeast(1f)) else ln(1f + uses)
         entry.score = entry.base + LEARN_BONUS * bonus
+        val counted = if (entry.rank == Int.MAX_VALUE) (uses - 1).coerceAtLeast(0) else uses
+        learnedUses += counted - entry.uses
+        entry.uses = counted
         learned += entry
         reposition(entry)
+    }
+
+    /** Applies [uses] times that the user typed [next] right after [previous]. */
+    fun learnPair(previous: String, next: String, uses: Int) {
+        if (previous.isEmpty() || next.isEmpty()) return
+        version++
+        val old = pairs.getOrPut(previous) { HashMap(4) }.put(next, uses) ?: 0
+        pairTotals[previous] = (pairTotals[previous] ?: 0) + uses - old
+    }
+
+    /** How often the user typed [next] right after [previous]. */
+    fun pairUses(previous: String, next: String): Int = pairs[previous]?.get(next) ?: 0
+
+    /** How often the user typed anything after [previous] (that was learned as a pair). */
+    fun pairTotal(previous: String): Int = pairTotals[previous] ?: 0
+
+    private fun forgetPairs(text: String) {
+        pairs.remove(text)
+        pairTotals.remove(text)
+        for ((previous, next) in pairs) {
+            val uses = next.remove(text) ?: continue
+            pairTotals[previous] = (pairTotals[previous] ?: 0) - uses
+        }
     }
 
     /** Undoes [learn] for one word: a dictionary word goes back to its own rank, a built one goes. */
     fun forget(text: String) {
         version++
+        forgetPairs(text)
         for (entry in learned.filter { it.text == text }) {
             learned -= entry
+            learnedUses -= entry.uses
+            entry.uses = 0
             if (entry.rank == Int.MAX_VALUE) {
                 exact[exactKey(entry)]?.remove(entry)
                 byInitials[initialsKey(entry)]?.remove(entry)
@@ -261,7 +302,11 @@ class PinyinDictionary private constructor(
     /** Drops everything [learn] did. */
     fun forgetLearned() {
         version++
+        pairs.clear()
+        pairTotals.clear()
+        learnedUses = 0
         for (entry in learned) {
+            entry.uses = 0
             if (entry.rank == Int.MAX_VALUE) {
                 exact[exactKey(entry)]?.remove(entry)
                 byInitials[initialsKey(entry)]?.remove(entry)

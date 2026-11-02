@@ -11,6 +11,8 @@ import kotlin.math.abs
  *   strong evidence the original touch was aimed at "e". When the replacement is a spatial neighbour,
  *   the deleted touch is learned as a sample of the replacement key. This is exactly the signal that
  *   teaches the model about its own mistakes.
+ * - **Accepted corrections:** when pinyin reads a tap as another key (wl → wo) and the user takes
+ *   that reading, [correct] relabels the tap, so it teaches the key that was meant.
  */
 class TypingLearner(
     private val touchModel: () -> TouchModel,
@@ -25,7 +27,13 @@ class TypingLearner(
         val centersYDp: FloatArray,
         val pitchXDp: Float,
         val pitchYDp: Float,
-    )
+    ) {
+        /** The key the user meant, when a later reading corrected the tap ([correct]); -1 otherwise. */
+        var correctedLetter = -1
+
+        /** Learned already, so a correction has to be learned on its own. */
+        var confirmed = false
+    }
 
     private class Entry(val char: Char, val sample: Sample?, var timeMillis: Long)
 
@@ -101,6 +109,24 @@ class TypingLearner(
         deleted.clear()
     }
 
+    /**
+     * The user accepted a reading that took [sample]'s tap as [letter]. A neighbouring key is
+     * learned instead of the one typed: right away if the tap was already confirmed, else when it is.
+     */
+    fun correct(sample: Sample, letter: Int) {
+        if (!learningEnabled || letter == sample.letter || letter !in 0 until TouchModel.LETTER_COUNT) return
+        val targetX = sample.centersXDp[letter]
+        val targetY = sample.centersYDp[letter]
+        if (abs(sample.xDp - targetX) > NEIGHBOUR_X_PITCHES * sample.pitchXDp) return
+        if (abs(sample.yDp - targetY) > NEIGHBOUR_Y_PITCHES * sample.pitchYDp) return
+        if (!sample.confirmed) {
+            sample.correctedLetter = letter
+            return
+        }
+        confirmations++
+        touchModel().learn(letter, sample.xDp - targetX, sample.yDp - targetY, sample.pitchXDp, sample.pitchYDp)
+    }
+
     private fun relabel(replaced: Entry, replacement: Char, replacementSample: Sample?, now: Long) {
         val original = replaced.sample ?: return
         if (replacement == replaced.char || replacement !in 'a'..'z') return
@@ -127,13 +153,15 @@ class TypingLearner(
         confirmations++
         entry.sample?.let { sample ->
             if (sample.letter == entry.char - 'a') {
+                val letter = if (sample.correctedLetter >= 0) sample.correctedLetter else sample.letter
                 touchModel().learn(
-                    sample.letter,
-                    sample.xDp - sample.centersXDp[sample.letter],
-                    sample.yDp - sample.centersYDp[sample.letter],
+                    letter,
+                    sample.xDp - sample.centersXDp[letter],
+                    sample.yDp - sample.centersYDp[letter],
                     sample.pitchXDp,
                     sample.pitchYDp,
                 )
+                sample.confirmed = true
             }
         }
         if (entry.char != ' ' || confirmed1 != ' ') {

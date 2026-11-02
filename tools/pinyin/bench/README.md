@@ -8,6 +8,8 @@ correction or language modelling can be compared by numbers instead of by feel.
 tools/pinyin/bench/run_bench.sh
 # As the keyboard ships: the language model (tools/pinyin/lm/README.md) and each letter's tap
 tools/pinyin/bench/run_bench.sh --lm app/src/main/assets/pinyin/lm.bin --taps
+# One set typed in order by a user who fixes every mistake, learning as they go
+tools/pinyin/bench/run_bench.sh --lm app/src/main/assets/pinyin/lm.bin --taps --learn --set full
 # Fuzzy sounds off, and every case written out for diffing against another run
 tools/pinyin/bench/run_bench.sh --strict --cases /tmp/cases.tsv
 ```
@@ -110,3 +112,25 @@ more than 4 worse are not tried, and with a tap two-letter pieces may be correct
 Clean input is unchanged, and keystrokes got faster: mean 1.8 ms, p95 7.6 ms, max 78 ms, since
 the capped alternatives are fewer than the neighbour table. What `typo` still misses is mostly
 dropped letters, which leave no tap to go on, and slips that type another valid syllable.
+
+## Learning (`--learn --set S`)
+
+The cases of one set are typed in order; after each, the learner is taught the right words as the
+user would pick them (by hand when the first candidate was wrong). Only one set at a time, since
+the same clause is in all four. The file runs short to long, so compare like halves:
+
+| set | second half, no learning | second half, learning |
+|---|---:|---:|
+| full | 64.8% | 65.4% |
+| mixed | 19.5% | 21.1% |
+| typo | 38.1% | 39.1% |
+
+On the dev set the full-pinyin gain was larger (64.6% → 67.8%). Most fixes are names and phrases
+typed before (玛丽 rather than 马力); a few recently picked characters now win where they
+shouldn't (住在 → 助在).
+
+Until this change, learning added 4 · ln(1 + picks) to a word's score with no limit. With the language
+model's small per-word cost, much-picked characters (你, 是, 狗) then cost less than nothing, so
+splitting input into them always won: in this simulation the second half of `full` fell to 3%.
+Picks and the pairs the user typed are now a personal model mixed into each word's probability
+(5% picks, 10% pairs after the previous word), which can never make a word free.

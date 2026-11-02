@@ -2,9 +2,10 @@
 # Compiles the pure-Kotlin pinyin engine with BenchHarness.kt using the Kotlin compiler in the
 # Gradle cache (run a Gradle build once first), then scores it on bench.tsv.
 #
-# Usage: tools/pinyin/bench/run_bench.sh [--lm lm.bin] [--taps] [--strict] [--cases out.tsv] [--latency-every N]
+# Usage: tools/pinyin/bench/run_bench.sh [--lm lm.bin] [--taps] [--learn --set S] [--strict] [--cases out.tsv] [--latency-every N]
 #   --lm lm.bin        rank sentences with this language model (app/src/main/assets/pinyin/lm.bin)
 #   --taps             give the decoder each letter's tap, as the keyboard does
+#   --learn --set S    one set (full, initials, mixed, typo) typed in order, learning as a user would
 #   --strict           fuzzy sounds off (the keyboard starts with all of them on)
 #   --cases out.tsv    also write every case with what the engine gave, for diffing two runs
 #   --latency-every N  time every keystroke of every Nth case (default 10, 0 to skip)

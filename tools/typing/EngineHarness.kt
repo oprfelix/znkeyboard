@@ -81,6 +81,25 @@ fun main(args: Array<String>) {
         learner.onCommitted('a', sA); learner.flush()
         check("No learning when personalization disallowed", model.samplesFor(0) == 0f)
     }
+    run {
+        // pinyin read a tap that typed 'l' as 'o' (wl -> wo) and the user took that reading
+        var model = TouchModel(); val lm = CharLanguageModel(); var t = 0L
+        val learner = TypingLearner({ model }, lm, { t })
+        val o = 'o' - 'a'; val l = 'l' - 'a'
+        val sL = TypingLearner.Sample(l, cx[l], cy[l] - 20f, cx, cy, PX, PY)
+        learner.onCommitted('w', null); learner.onCommitted('l', sL)
+        learner.correct(sL, o); learner.flush()
+        check("Accepted correction teaches 'o', not 'l'", model.samplesFor(o) > 0.9f && model.samplesFor(l) == 0f)
+        model = TouchModel()
+        val late = TypingLearner.Sample(l, cx[l], cy[l] - 20f, cx, cy, PX, PY)
+        learner.onCommitted('l', late); learner.flush()
+        learner.correct(late, o)
+        check("Correction after confirmation still teaches 'o'", model.samplesFor(o) > 0.9f)
+        model = TouchModel()
+        val far = TypingLearner.Sample(l, cx[l], cy[l], cx, cy, PX, PY)
+        learner.onCommitted('l', far); learner.correct(far, 'q' - 'a'); learner.flush()
+        check("A correction to a far key is ignored", model.samplesFor('q' - 'a') == 0f && model.samplesFor(l) > 0.9f)
+    }
 
     // --- end-to-end: same typist model as tools/typing/touch_simulation.py ---
     val users = 30; val letters = 4000

@@ -2,6 +2,8 @@ import dev.zain.znkeyboard.pinyin.PinyinDictionary
 import dev.zain.znkeyboard.pinyin.PinyinEngine
 import dev.zain.znkeyboard.pinyin.PinyinFuzzyRule
 import dev.zain.znkeyboard.pinyin.PinyinLanguageModel
+import dev.zain.znkeyboard.pinyin.PinyinLearner
+import dev.zain.znkeyboard.pinyin.PinyinUserData
 import dev.zain.znkeyboard.pinyin.SentenceDecoder
 import dev.zain.znkeyboard.typing.CharLanguageModel
 import dev.zain.znkeyboard.typing.TouchDecoder
@@ -25,8 +27,31 @@ import java.nio.channels.FileChannel
  * With --taps the decoder also gets each letter's tap (bench.tsv's last column), scored against
  * every key by the keyboard's own [TouchDecoder] with an untrained touch model, as on a fresh
  * install.
+ *
+ * With --learn (and --set to pick one set, since every clause is in all four) the cases are a
+ * user's typing, in order: after each, the learner is taught the right words, as if the user
+ * picked them (by hand when the first candidate was wrong). Rows "first half" and "second half"
+ * show what that learning changed.
  */
-private class Case(val set: String, val bucket: String, val typed: String, val expected: String, val taps: String?)
+private class Case(val set: String, val bucket: String, val typed: String, val expected: String, val pinyin: String, val taps: String?)
+
+/** Splits [case]'s expected text into the fewest dictionary words that spell its pinyin. */
+private fun expectedWords(case: Case, dictionary: PinyinDictionary): List<PinyinDictionary.Word>? {
+    val syllables = case.pinyin.split(' ')
+    val text = case.expected
+    if (syllables.size != text.length) return null
+    val best = arrayOfNulls<List<PinyinDictionary.Word>>(syllables.size + 1)
+    best[0] = emptyList()
+    for (start in syllables.indices) {
+        val here = best[start] ?: continue
+        for (end in start + 1..minOf(syllables.size, start + 6)) {
+            val pieces = syllables.subList(start, end).map { PinyinDictionary.Piece(it, isPrefix = false) }
+            val word = dictionary.matches(pieces, 200).firstOrNull { it.text == text.substring(start, end) } ?: continue
+            if (best[end] == null || best[end]!!.size > here.size + 1) best[end] = here + word
+        }
+    }
+    return best[syllables.size]
+}
 
 /** The keyboard build_bench.py taps on: 411 dp wide, keys 40.5 × 54 dp, rows offset 0, ½ and 1½ keys. */
 private object BenchKeyboard {
@@ -121,7 +146,9 @@ fun main(args: Array<String>) {
     val latencyEvery = option("--latency-every")?.toInt() ?: 10
     val cases = File(args[1]).readLines()
         .filter { !it.startsWith("#") && !it.startsWith("set\t") && it.isNotBlank() }
-        .map { line -> line.split("\t").let { Case(it[0], it[1], it[2], it[3], it.getOrNull(6)) } }
+        .map { line -> line.split("\t").let { Case(it[0], it[1], it[2], it[3], it[4], it.getOrNull(6)) } }
+        .filter { case -> option("--set")?.let { it == case.set } ?: true }
+    val learner = if ("--learn" in options) PinyinLearner(PinyinUserData()).also { it.dictionary = dictionary } else null
     val useTaps = "--taps" in options
     val tapsFor = cases.associateWith { if (useTaps) tapsOf(it) else null }
 
@@ -140,11 +167,17 @@ fun main(args: Array<String>) {
         val top3 = candidates.take(3).any { it.text == case.expected && it.consumed >= case.typed.length }
         val reading = whole.firstOrNull()?.text ?: ""
         val edits = editDistance(case.expected, reading).coerceAtMost(case.expected.length)
-        for (key in listOf("${case.set} ${case.bucket}", "${case.set} all", "all")) {
+        val half = if (learner == null) null else if (index < cases.size / 2) "first half" else "second half"
+        for (key in listOfNotNull("${case.set} ${case.bucket}", "${case.set} all", "all", half)) {
             tallies.getOrPut(key) { Tally() }.add(top1, top1Pronoun, top3, whole.isEmpty(), edits, case.expected.length)
         }
         val rank = candidates.indexOfFirst { it.text == case.expected && it.consumed >= case.typed.length }
         lines += listOf(case.set, case.bucket, case.typed, case.expected, reading, if (rank < 0) "-" else "${rank + 1}").joinToString("\t")
+        if (learner != null) {
+            expectedWords(case, dictionary)?.forEach { learner.onPick(it.text, it.syllables, byHand = !top1, id = it.id) }
+            learner.onCompositionDone()
+            learner.breakChain()
+        }
 
         if (latencyEvery > 0 && index % latencyEvery == 0) {
             for (end in 1..case.typed.length) {
@@ -155,7 +188,7 @@ fun main(args: Array<String>) {
         }
     }
 
-    println("fuzzy sounds: " + (if ("--strict" in options) "off" else "default (all on)") + "; language model: " + (option("--lm") ?: "none") + "; taps: " + if (useTaps) "yes" else "no")
+    println("fuzzy sounds: " + (if ("--strict" in options) "off" else "default (all on)") + "; language model: " + (option("--lm") ?: "none") + "; taps: " + (if (useTaps) "yes" else "no") + if (learner != null) "; learning as it goes" else "")
     println("%-18s %5s %6s %6s %6s %6s %6s".format("set", "cases", "top1%", "top1~%", "top3%", "CER%", "none%"))
     val sets = cases.map { it.set }.distinct()
     for (set in sets) {
@@ -164,6 +197,7 @@ fun main(args: Array<String>) {
         println()
     }
     println(tallies.getValue("all").row("all"))
+    if (learner != null) for (half in listOf("first half", "second half")) tallies[half]?.let { println(it.row("learning, $half")) }
     if (keystrokes.isNotEmpty()) {
         val sorted = keystrokes.sorted()
         println("per keystroke (%d timed): mean %.2f ms, p50 %.2f, p95 %.2f, max %.2f".format(

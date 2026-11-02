@@ -32,6 +32,7 @@ import dev.zain.znkeyboard.R
 import dev.zain.znkeyboard.constants.AgentDefaults
 import dev.zain.znkeyboard.constants.ImeColors
 import dev.zain.znkeyboard.typing.AdaptiveTypingEngine
+import dev.zain.znkeyboard.typing.TypingLearner
 import org.json.JSONArray
 import org.json.JSONException
 import org.json.JSONObject
@@ -788,6 +789,8 @@ class ZnKeyboardInputMethodService : InputMethodService(),
                     .use { PinyinDictionary.load(it, rules) }
                         .also { it.languageModel = loadPinyinLanguageModel(appContext) }
                 for (word in saved?.words() ?: snapshot.orEmpty()) dictionary.learn(word.text, word.syllables, word.uses)
+                // Pairs from data in memory are applied on the main thread below, with the newest words.
+                saved?.pairs()?.forEach { (previous, next, uses) -> dictionary.learnPair(previous, next, uses) }
                 // Build the 9-key index here rather than on the first key press.
                 if (chineseKeyboard.isNineKey) dictionary.nineKeySpellings("2")
                 dictionary
@@ -909,7 +912,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
                     }
                     char != null && char in 'a'..'z' && englishRun && !composing -> return false
                     char != null && char.lowercaseChar() in 'a'..'z' -> {
-                        updatePinyinComposition(pinyinComposing + char.lowercaseChar(), keyboardView?.letterTapCosts)
+                        updatePinyinComposition(pinyinComposing + char.lowercaseChar(), keyboardView?.letterTapCosts, keyboardView?.letterTapSample)
                         return true
                     }
                     !composing -> {
@@ -970,17 +973,20 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         return CHINESE_PUNCTUATION[char]
     }
 
-    /** [tap]: how the tap that typed the one letter added fitted each key, if it came from a tap. */
-    private fun updatePinyinComposition(composing: String, tap: FloatArray? = null) {
+    /**
+     * [tap]: how the tap that typed the one letter added fitted each key, if it came from a tap;
+     * [sample] is the touch learner's record of it.
+     */
+    private fun updatePinyinComposition(composing: String, tap: FloatArray? = null, sample: TypingLearner.Sample? = null) {
         val inputConnection = currentInputConnection ?: return
         val dictionary = pinyinDictionary ?: return
-        pinyinTaps.follow(pinyinComposing, composing, tap)
+        pinyinTaps.follow(pinyinComposing, composing, tap, sample)
         pinyinComposing = composing
         pinyinCandidates = when {
             composing.isEmpty() -> emptyList()
             chineseKeyboard == KeyboardSettings.ChineseKeyboard.NineKeyPinyin -> NineKeyEngine.candidates(composing, dictionary)
             chineseKeyboard == KeyboardSettings.ChineseKeyboard.NineKeyStroke -> strokeIndex?.candidates(composing, dictionary).orEmpty()
-            else -> PinyinEngine.candidates(composing, dictionary, pinyinTaps)
+            else -> PinyinEngine.candidates(composing, dictionary, pinyinTaps, pinyinLearner.context)
         }
         pinyinPredictions = emptyList()
         noteOwnEdit()
@@ -1055,12 +1061,18 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         val inputConnection = currentInputConnection ?: return
         val remaining = pinyinComposing.substring(candidate.consumed.coerceAtMost(pinyinComposing.length))
             .trimStart(PinyinEngine.SEPARATOR)
+        // A reading that took a tap as another key teaches the touch model that key (wl → wo).
+        candidate.spelling?.let { spelling ->
+            for ((at, letter) in PinyinTapBuffer.substitutions(pinyinComposing.substring(0, candidate.consumed.coerceAtMost(pinyinComposing.length)), spelling)) {
+                (pinyinTaps.token(at) as? TypingLearner.Sample)?.let { typingEngine.learner.correct(it, letter - 'a') }
+            }
+        }
         noteOwnEdit()
         inputConnection.beginBatchEdit()
         inputConnection.commitText(candidate.text, 1)
         // A whole sentence teaches its words one by one (and which follows which), not itself.
-        candidate.parts?.forEach { part -> pinyinLearner.onPick(part.text, part.syllables, byHand) }
-            ?: pinyinLearner.onPick(candidate.text, candidate.syllables, byHand)
+        candidate.parts?.forEach { part -> pinyinLearner.onPick(part.text, part.syllables, byHand, part.id) }
+            ?: pinyinLearner.onPick(candidate.text, candidate.syllables, byHand, candidate.id)
         if (remaining.isEmpty()) {
             pinyinLearner.onCompositionDone()
             pinyinComposing = ""
