@@ -52,7 +52,7 @@ class ZnKeyboardView @JvmOverloads constructor(
         fun onClipboardPanelRequested()
         fun onAgentRewriteRequested()
         fun onPinyinModeToggled()
-        /** Long-press on the globe: the system's list of keyboards. */
+        /** Long-press on the 中/英 key: the system's list of keyboards. */
         fun onInputMethodPickerRequested() {}
         fun onTranslateLanguageMenuRequested()
         fun onAgentPolishOnlyRequested()
@@ -341,10 +341,6 @@ class ZnKeyboardView @JvmOverloads constructor(
         }
     }
 
-    /** The 9-key grid replaces the letters while typing Chinese with it. */
-    private val nineKeyActive: Boolean
-        get() = layoutMode == LayoutMode.Letters && pinyinModeEnabled && chineseKeyboard.isNineKey
-
     fun setVoiceInputEnabled(enabled: Boolean) {
         if (voiceInputEnabled != enabled) {
             voiceInputEnabled = enabled
@@ -353,22 +349,14 @@ class ZnKeyboardView @JvmOverloads constructor(
         }
     }
 
-    /** The letters-row space bar says how to start voice input, since nothing else on the keyboard does. */
-    private fun spaceLabel(): String = when {
-        !voiceInputEnabled -> "space"
-        pinyinModeEnabled -> "按住说话"
-        else -> "hold to talk"
-    }
-
     /**
-     * The space key's corner: 拼音 or 笔画 names the Chinese keyboard (the globe switches it); in English
-     * it marks that a long press records speech, while voice input is on.
+     * The space bar names what typing goes into now (拼音, 笔画 or English), as the language key
+     * switches it; a microphone in its corner marks that holding it records speech.
      */
-    private fun spaceLongPressHint(): String? = when {
-        pinyinModeEnabled && chineseKeyboard == dev.zain.znkeyboard.KeyboardSettings.ChineseKeyboard.NineKeyStroke -> "笔画"
-        pinyinModeEnabled -> "拼音"
-        !voiceInputEnabled -> null
-        else -> "voice"
+    private fun spaceLabel(): String = when {
+        !pinyinModeEnabled -> "English"
+        chineseKeyboard == dev.zain.znkeyboard.KeyboardSettings.ChineseKeyboard.NineKeyStroke -> "笔画"
+        else -> "拼音"
     }
 
     fun setVoiceIndicator(indicator: VoiceIndicator?) {
@@ -421,7 +409,9 @@ class ZnKeyboardView @JvmOverloads constructor(
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         // Each visible row adds its own height, so showing or hiding a row never resizes the keys.
-        val rows = layoutRows()
+        // Pages are measured as the letters page: symbols, with a row more, share the same height
+        // rather than making the keyboard jump when the page changes.
+        val rows = rows(LayoutMode.Letters)
         val rowWeightSum = rows.fold(0f) { total, row -> total + row.heightWeight }
         val desiredHeight = (
             dp(ImeLayout.TOP_PADDING_DP.toFloat()) +
@@ -543,7 +533,7 @@ class ZnKeyboardView @JvmOverloads constructor(
             "space" -> scheduleLongPress(pointerId, "space") {
                 startVoiceTouch(pointerId)
             }
-            "pinyin_mode" -> scheduleLongPress(pointerId, "pinyin_mode") {
+            PINYIN_MODE_KEY_ID -> scheduleLongPress(pointerId, PINYIN_MODE_KEY_ID) {
                 callback?.onInputMethodPickerRequested()
             }
         }
@@ -1042,6 +1032,8 @@ class ZnKeyboardView @JvmOverloads constructor(
             drawRewriteLoadingContent(canvas, key.label, labelBounds, contentColor, contentAlpha)
         } else if (key.chip) {
             drawLanguageChipContent(canvas, key.label, bounds, contentColor, contentAlpha)
+        } else if (key.id == PINYIN_MODE_KEY_ID) {
+            drawLanguageToggle(canvas, bounds, contentColor, contentAlpha)
         } else key.icon?.let {
             drawIcon(canvas, it, bounds, contentColor, contentAlpha)
         } ?: run {
@@ -1066,6 +1058,7 @@ class ZnKeyboardView @JvmOverloads constructor(
             }
         }
         drawLongPressHint(canvas, key.longPressHint, bounds, contentColor, contentAlpha)
+        if (key.id == "space" && voiceInputEnabled) drawMicHint(canvas, bounds, contentColor, contentAlpha)
 
         if (key.id == "shift" && shiftState == ShiftState.Locked) {
             drawShiftLockIndicator(canvas, bounds, contentColor)
@@ -1391,6 +1384,49 @@ class ZnKeyboardView @JvmOverloads constructor(
         textPaint.textAlign = Paint.Align.CENTER
     }
 
+    /** The space bar's corner microphone: hold to talk. */
+    private fun drawMicHint(canvas: Canvas, bounds: RectF, color: Int, alpha: Int) {
+        val size = (sp(ImeDimensions.LONG_PRESS_HINT_TEXT_SIZE_SP) * MIC_HINT_SCALE)
+            .coerceAtMost(bounds.height() * ImeDimensions.LONG_PRESS_HINT_MAX_HEIGHT_FRACTION * MIC_HINT_SCALE)
+        iconPaint.color = color
+        iconPaint.alpha = min(alpha, LONG_PRESS_HINT_ALPHA)
+        iconPaint.strokeWidth = 2.2f
+        iconPaint.style = Paint.Style.STROKE
+        canvas.save()
+        canvas.translate(bounds.right - dp(5f) - size, bounds.top + dp(4f))
+        canvas.scale(size / ImeLayout.ICON_VIEWPORT, size / ImeLayout.ICON_VIEWPORT)
+        canvas.drawRoundRect(9f, 3f, 15f, 14f, 3f, 3f, iconPaint)
+        canvas.drawArc(5.5f, 4.5f, 18.5f, 17.5f, 0f, 180f, false, iconPaint)
+        canvas.drawLine(12f, 17.5f, 12f, 21f, iconPaint)
+        canvas.restore()
+    }
+
+    /** 中/英 on the language key: the language typing now at full strength, the other faded. */
+    private fun drawLanguageToggle(canvas: Canvas, bounds: RectF, color: Int, alpha: Int) {
+        val chinese = pinyinModeEnabled
+        val big = sp(ImeDimensions.KEY_LABEL_FUNCTION_TEXT_SIZE_SP * LANGUAGE_KEY_ACTIVE_SCALE)
+            .coerceAtMost(bounds.height() * ImeDimensions.KEY_LABEL_MAX_HEIGHT_FRACTION)
+        val small = big * LANGUAGE_KEY_INACTIVE_SCALE
+        val parts = listOf("中" to chinese, "/" to false, "英" to !chinese)
+        textPaint.typeface = labelTypeface
+        textPaint.color = color
+        val widths = parts.map { (text, active) ->
+            textPaint.textSize = if (active) big else small
+            textPaint.measureText(text)
+        }
+        textPaint.textSize = big
+        val metrics = textPaint.fontMetrics
+        val baseline = bounds.centerY() - (metrics.ascent + metrics.descent) / 2f
+        var left = bounds.centerX() - widths.sum() / 2f
+        parts.forEachIndexed { index, (text, active) ->
+            textPaint.textSize = if (active) big else small
+            textPaint.alpha = if (active) alpha else (alpha * LANGUAGE_KEY_INACTIVE_ALPHA).toInt()
+            canvas.drawText(text, left + widths[index] / 2f, baseline, textPaint)
+            left += widths[index]
+        }
+        textPaint.typeface = letterTypeface
+    }
+
     private fun drawRewriteLoadingWash(canvas: Canvas, bounds: RectF, radius: Float) {
         val shader = loadingGradientShader(bounds)
         val progress = loadingProgress()
@@ -1497,8 +1533,7 @@ class ZnKeyboardView @JvmOverloads constructor(
     }
 
     private fun drawIcon(canvas: Canvas, icon: KeyIcon, bounds: RectF, color: Int, alpha: Int) {
-        // The globe is the language switch; drawn larger so it reads at a glance.
-        val iconSize = min(bounds.width(), bounds.height()) * if (icon == KeyIcon.Globe) GLOBE_ICON_FRACTION else 0.5f
+        val iconSize = min(bounds.width(), bounds.height()) * 0.5f
         val left = bounds.centerX() - iconSize / 2f
         val top = bounds.centerY() - iconSize / 2f
 
@@ -1521,7 +1556,6 @@ class ZnKeyboardView @JvmOverloads constructor(
             KeyIcon.Enter -> drawEnterIcon(canvas)
             KeyIcon.Space -> drawSpaceIcon(canvas)
             KeyIcon.Clipboard -> drawClipboardIcon(canvas)
-            KeyIcon.Globe -> drawGlobeIcon(canvas)
         }
         canvas.restore()
     }
@@ -1643,14 +1677,6 @@ class ZnKeyboardView @JvmOverloads constructor(
             lineTo(12f, 18f)
         }
         canvas.drawPath(path, iconPaint)
-    }
-
-    private fun drawGlobeIcon(canvas: Canvas) {
-        canvas.drawCircle(12f, 12f, 9f, iconPaint)
-        canvas.drawOval(RectF(8f, 3f, 16f, 21f), iconPaint)
-        canvas.drawLine(3f, 12f, 21f, 12f, iconPaint)
-        canvas.drawLine(4.6f, 7.5f, 19.4f, 7.5f, iconPaint)
-        canvas.drawLine(4.6f, 16.5f, 19.4f, 16.5f, iconPaint)
     }
 
     private fun drawSpaceIcon(canvas: Canvas) {
@@ -1921,14 +1947,18 @@ class ZnKeyboardView @JvmOverloads constructor(
         val bottomPadding = dp(bottomPaddingDp.toFloat()) + bottomSystemControlGapPx
         val keyGap = dp(ImeLayout.KEY_GAP_DP.toFloat())
         val rowGap = dp(ImeLayout.ROW_GAP_DP.toFloat())
-        val rowWeightSum = rows.fold(0f) { total, row -> total + row.heightWeight }
         val usableHeight = totalHeight - topPadding - bottomPadding - rowGap * (rows.size - 1)
-        val unitHeight = usableHeight / rowWeightSum
+        // Toolbar rows keep their size; key rows share the rest, so a page with more rows than the
+        // letters (symbols) fits the same height with slightly shorter keys.
+        val toolbarUnit = ImeLayout.rowUnitHeightPx(context, heightScale)
+        val toolbarHeight = rows.filter { it.style == RowStyle.Toolbar }.fold(0f) { total, row -> total + row.heightWeight * toolbarUnit }
+        val keyRowWeightSum = rows.filter { it.style != RowStyle.Toolbar }.fold(0f) { total, row -> total + row.heightWeight }
+        val unitHeight = if (keyRowWeightSum > 0f) (usableHeight - toolbarHeight) / keyRowWeightSum else toolbarUnit
 
         val visualRows = mutableListOf<List<VisualKey>>()
         var top = topPadding
         rows.forEach { row ->
-            val rowHeight = row.heightWeight * unitHeight
+            val rowHeight = row.heightWeight * if (row.style == RowStyle.Toolbar) toolbarUnit else unitHeight
             val keys = row.keys
             val keyWeightSum = keys.fold(0f) { total, key -> total + key.weight }
             val layoutKeyCount = row.layoutKeyCount ?: keys.size
@@ -1988,21 +2018,22 @@ class ZnKeyboardView @JvmOverloads constructor(
 
     private fun midpoint(start: Float, end: Float): Float = start + (end - start) / 2f
 
-    private fun rows(): List<RowSpec> {
+    /** The rows of page [mode]: the toolbar rows, then its keys. */
+    private fun rows(mode: LayoutMode = layoutMode): List<RowSpec> {
         val buttonRowSpecs = mapOf(
             KeyboardSettings.KeyboardRow.Upper.id to terminalRow(),
             KeyboardSettings.KeyboardRow.Second.id to secondRow(),
         )
         val buttonRows = keyboardRowOrder.mapNotNull { rowId -> buttonRowSpecs[rowId] }
         val mainRows = when {
-            nineKeyActive -> nineKeyRows()
-            else -> lettersOrOtherRows()
+            mode == LayoutMode.Letters && pinyinModeEnabled && chineseKeyboard.isNineKey -> nineKeyRows()
+            else -> lettersOrOtherRows(mode)
         }
         return buttonRows + mainRows
     }
 
-    private fun lettersOrOtherRows(): List<RowSpec> {
-        return when (layoutMode) {
+    private fun lettersOrOtherRows(mode: LayoutMode): List<RowSpec> {
+        return when (mode) {
             LayoutMode.Letters -> if (numberRowVisible) {
                 listOf(
                     numberRow(),
@@ -2134,6 +2165,7 @@ class ZnKeyboardView @JvmOverloads constructor(
                 enabled = true,
             )
         }.toMutableList()
+        if (!shortcutRowState.aiVisible) keys.removeAll { it.intent == KeyIntent.AgentRewrite }
         val languageCode = translateLanguageCode
         val rewriteIndex = keys.indexOfFirst { it.intent == KeyIntent.AgentRewrite }
         if (languageCode != null && rewriteIndex >= 0) {
@@ -2437,7 +2469,6 @@ class ZnKeyboardView @JvmOverloads constructor(
                 KeyIntent.Dispatch(KeyboardAction.Text(" ")),
                 4.7f,
                 KeyRole.Function,
-                longPressHint = spaceLongPressHint(),
             )
         }
         keys += KeySpec(
@@ -2480,7 +2511,6 @@ class ZnKeyboardView @JvmOverloads constructor(
                 KeyIntent.Dispatch(KeyboardAction.Text(" ")),
                 ImeDimensions.SPACE_KEY_WEIGHT,
                 KeyRole.Function,
-                longPressHint = spaceLongPressHint(),
             )
             keys += KeySpec(
                 "numeric_layout_toggle",
@@ -2506,7 +2536,6 @@ class ZnKeyboardView @JvmOverloads constructor(
                 KeyIntent.Dispatch(KeyboardAction.Text(" ")),
                 ImeDimensions.SPACE_KEY_WEIGHT,
                 KeyRole.Function,
-                longPressHint = spaceLongPressHint(),
             )
             keys += KeySpec(
                 "bottom_period",
@@ -2529,15 +2558,17 @@ class ZnKeyboardView @JvmOverloads constructor(
         )
     }
 
-    /** The globe switches between pinyin and English; the space key's corner says which is on. */
+    /**
+     * 中/英 switches between Chinese and English, the one on drawn bright ([drawLanguageToggle]).
+     * Not a globe: the system already shows one beside the keyboard, for switching keyboards.
+     */
     private fun pinyinModeKeySpec(): KeySpec {
         return KeySpec(
-            id = "pinyin_mode",
-            label = if (pinyinModeEnabled) "中" else "EN",
+            id = PINYIN_MODE_KEY_ID,
+            label = "中/英",
             intent = KeyIntent.TogglePinyinMode,
             weight = ImeDimensions.PINYIN_MODE_KEY_WEIGHT,
             role = KeyRole.Function,
-            icon = KeyIcon.Globe,
         )
     }
 
@@ -2632,7 +2663,6 @@ class ZnKeyboardView @JvmOverloads constructor(
         Enter,
         Space,
         Clipboard,
-        Globe,
     }
 
     private enum class ArrowDirection {
@@ -2759,16 +2789,22 @@ class ZnKeyboardView @JvmOverloads constructor(
         val mutedText get() = ImeColors.MUTED_TEXT
     }
 
+    /** [aiVisible]: false where AI rewriting never applies (passwords), so its keys are left out. */
     data class ShortcutRowState(
         val secondRowVisible: Boolean,
         val loading: Boolean = false,
         val rewriteEnabled: Boolean = false,
+        val aiVisible: Boolean = true,
     )
 
     private companion object {
         const val TAP_COST_POOL = 12
         const val LETTER_LIFT_FRACTION = 0.04f
-        const val GLOBE_ICON_FRACTION = 0.66f
+        const val PINYIN_MODE_KEY_ID = "pinyin_mode"
+        const val LANGUAGE_KEY_ACTIVE_SCALE = 1.25f
+        const val LANGUAGE_KEY_INACTIVE_SCALE = 0.72f
+        const val LANGUAGE_KEY_INACTIVE_ALPHA = 0.45f
+        const val MIC_HINT_SCALE = 1.5f
         const val TOP_ROW_DIGITS = "1234567890"
         /** Without the number row, each letter row takes this much more height (the keyboard still ends up shorter). */
         const val NO_NUMBER_ROW_EXTRA_WEIGHT = 0.2f

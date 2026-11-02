@@ -2449,9 +2449,12 @@ class ZnKeyboardInputMethodService : InputMethodService(),
 
         keyboardView?.renderShortcutRows(
             ZnKeyboardView.ShortcutRowState(
-                secondRowVisible = visible,
+                // Numbers and phone numbers have nothing to polish or translate, nor use for @ & % ?.
+                secondRowVisible = visible && !shouldUsePhonePadMode(currentEditorInfo),
                 loading = agentLoading,
                 rewriteEnabled = visible && isRewriteAvailable() && providerConfigured,
+                // A password field keeps the clipboard (pasting is common) but never offers AI.
+                aiVisible = !isSensitiveEditor(currentEditorInfo),
             ),
         )
     }

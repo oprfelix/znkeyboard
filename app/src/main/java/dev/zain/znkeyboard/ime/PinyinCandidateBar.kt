@@ -3,6 +3,7 @@ package dev.zain.znkeyboard.ime
 import android.content.Context
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.graphics.drawable.InsetDrawable
 import android.text.TextUtils
 import android.view.Gravity
 import android.view.View
@@ -213,12 +214,28 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
     }
 
     /**
-     * Candidates are all the same plain color, the first (what space commits) a little heavier.
-     * The current language stays accented while choosing a translation target.
+     * The first candidate (what space commits) sits on a key-colored pill and is heavier, so it is
+     * clear what space will type; while choosing a translation target, the current language does.
+     * A pill rather than the accent color: in some themes the accent is a quiet grey.
      */
     private fun styleCandidate(view: TextView, highlighted: Boolean) {
-        view.setTextColor(if (highlighted && choosingLanguage) ImeColors.ACCENT else ImeColors.TEXT)
+        view.setTextColor(ImeColors.TEXT)
         view.typeface = if (highlighted) FIRST_TYPEFACE else REGULAR_TYPEFACE
+        // Setting a background resets padding to the drawable's; keep the candidate's own.
+        val left = view.paddingLeft
+        val top = view.paddingTop
+        val right = view.paddingRight
+        val bottom = view.paddingBottom
+        view.background = if (highlighted) {
+            val pill = GradientDrawable().apply {
+                cornerRadius = context.dp(HIGHLIGHT_RADIUS_DP).toFloat()
+                setColor(ImeColors.KEY)
+            }
+            InsetDrawable(pill, 0, context.dp(HIGHLIGHT_INSET_DP), 0, context.dp(HIGHLIGHT_INSET_DP))
+        } else {
+            null
+        }
+        view.setPadding(left, top, right, bottom)
     }
 
     private companion object {
@@ -226,7 +243,9 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
         const val CANDIDATE_TEXT_SP = 22f
         const val COMPOSING_TEXT_SP = 12f
         const val CANDIDATE_MIN_WIDTH_DP = 52
-        val FIRST_TYPEFACE: Typeface = Typeface.create(Typeface.DEFAULT, 500, false)
+        const val HIGHLIGHT_RADIUS_DP = 10
+        const val HIGHLIGHT_INSET_DP = 3
+        val FIRST_TYPEFACE: Typeface = Typeface.create(Typeface.DEFAULT, 600, false)
         val REGULAR_TYPEFACE: Typeface = Typeface.create(Typeface.DEFAULT, 400, false)
     }
 }
