@@ -7,6 +7,7 @@ import android.graphics.LinearGradient
 import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.Path
+import android.graphics.Rect
 import android.graphics.RectF
 import android.graphics.Shader
 import android.os.Handler
@@ -167,6 +168,8 @@ class ZnKeyboardView @JvmOverloads constructor(
     var letterTapSample: TypingLearner.Sample? = null
         private set
 
+    private val glyphBounds = Rect()
+
     // Reused for taps in flight; more than the fingers that can be down at once.
     private val tapCostPool = Array(TAP_COST_POOL) { FloatArray(26) }
     private var tapCostNext = 0
@@ -301,6 +304,20 @@ class ZnKeyboardView @JvmOverloads constructor(
     fun setEnterLabel(label: String) {
         if (enterLabel != label) {
             enterLabel = label
+            refreshHitTargets()
+            invalidate()
+        }
+    }
+
+    /** What the focused field takes, for keys that only make sense there (@ in email, a dial pad). */
+    enum class FieldKind { Text, Email, Url, Number, Phone }
+
+    private var fieldKind = FieldKind.Text
+
+    fun setFieldKind(kind: FieldKind) {
+        if (fieldKind != kind) {
+            fieldKind = kind
+            requestLayout()
             refreshHitTargets()
             invalidate()
         }
@@ -1049,11 +1066,20 @@ class ZnKeyboardView @JvmOverloads constructor(
                 textPaint.textSize = textSize
                 textPaint.color = contentColor
                 textPaint.alpha = contentAlpha
-                val metrics = textPaint.fontMetrics
-                // Letters sit a little above center, as on Gboard, where the eye expects them.
-                val lift = if (role == KeyRole.Character && hit.rowStyle == RowStyle.Standard) bounds.height() * LETTER_LIFT_FRACTION else 0f
-                val baseline = bounds.centerY() - (metrics.ascent + metrics.descent) / 2f - lift
-                canvas.drawText(key.label, labelBounds.centerX(), baseline, textPaint)
+                if (key.label in FULL_WIDTH_MARKS) {
+                    // A full-width mark is drawn in a corner of its em box (，sits low and left), so
+                    // center its ink rather than its box.
+                    textPaint.getTextBounds(key.label, 0, key.label.length, glyphBounds)
+                    textPaint.textAlign = Paint.Align.LEFT
+                    canvas.drawText(key.label, labelBounds.centerX() - glyphBounds.exactCenterX(), bounds.centerY() - glyphBounds.exactCenterY(), textPaint)
+                    textPaint.textAlign = Paint.Align.CENTER
+                } else {
+                    val metrics = textPaint.fontMetrics
+                    // Letters sit a little above center, as on Gboard, where the eye expects them.
+                    val lift = if (role == KeyRole.Character && hit.rowStyle == RowStyle.Standard) bounds.height() * LETTER_LIFT_FRACTION else 0f
+                    val baseline = bounds.centerY() - (metrics.ascent + metrics.descent) / 2f - lift
+                    canvas.drawText(key.label, labelBounds.centerX(), baseline, textPaint)
+                }
                 textPaint.typeface = letterTypeface
             }
         }
@@ -2054,7 +2080,9 @@ class ZnKeyboardView @JvmOverloads constructor(
             LayoutMode.Symbols -> listOf(
                 numberRow(),
                 RowSpec(symbols("@#\$%&-+()/", rowPrefix = "symbol_top"), ImeLayout.STANDARD_ROW_WEIGHT),
-                RowSpec(symbols("*\":;!?\\|=~", rowPrefix = "symbol_middle"), ImeLayout.STANDARD_ROW_WEIGHT),
+                // ! and ? are on the row below, nearer the thumbs; these two slots hold marks the page
+                // otherwise lacks: 、 and …… for Chinese, _ and ^ for English.
+                RowSpec(symbolMiddleRow(), ImeLayout.STANDARD_ROW_WEIGHT),
                 symbolBottomRow(),
                 bottomRow(),
             )
@@ -2347,6 +2375,7 @@ class ZnKeyboardView @JvmOverloads constructor(
     }
 
     private fun phonePadRows(): List<RowSpec> {
+        if (fieldKind == FieldKind.Phone) return dialPadRows()
         return listOf(
             RowSpec(
                 listOf(
@@ -2391,6 +2420,44 @@ class ZnKeyboardView @JvmOverloads constructor(
                 ImeLayout.STANDARD_ROW_WEIGHT,
             ),
             numericBottomRow(toggleLabel = "!?#", phonePad = true),
+        )
+    }
+
+    /** A phone number field: the dial pad (* 0 #), with + - ( ) for written numbers. */
+    private fun dialPadRows(): List<RowSpec> {
+        fun row(vararg keys: KeySpec) = RowSpec(keys.toList(), ImeLayout.STANDARD_ROW_WEIGHT)
+        return listOf(
+            row(phonePadOperatorKey("plus", "+"), phonePadTextKey("1", "1"), phonePadTextKey("2", "2"), phonePadTextKey("3", "3"), phonePadOperatorKey("minus", "-")),
+            row(
+                phonePadOperatorKey("open", "("),
+                phonePadTextKey("4", "4"),
+                phonePadTextKey("5", "5"),
+                phonePadTextKey("6", "6"),
+                KeySpec("phone_space", "space", KeyIntent.Dispatch(KeyboardAction.Text(" ")), role = KeyRole.Function, icon = KeyIcon.Space),
+            ),
+            row(
+                phonePadOperatorKey("close", ")"),
+                phonePadTextKey("7", "7"),
+                phonePadTextKey("8", "8"),
+                phonePadTextKey("9", "9"),
+                KeySpec("phone_backspace", "Del", KeyIntent.Dispatch(KeyboardAction.Backspace), role = KeyRole.Function, icon = KeyIcon.Delete),
+            ),
+            RowSpec(
+                listOf(
+                    KeySpec("switch", "ABC", KeyIntent.SwitchMode, role = KeyRole.Function),
+                    phonePadTextKey("star", "*"),
+                    phonePadTextKey("0", "0"),
+                    phonePadTextKey("hash", "#"),
+                    KeySpec(
+                        "enter",
+                        enterLabel,
+                        KeyIntent.Dispatch(KeyboardAction.Enter),
+                        role = roleForEnterLabel(enterLabel),
+                        icon = iconForEnterLabel(enterLabel),
+                    ),
+                ),
+                heightWeight = ImeLayout.BOTTOM_ROW_WEIGHT,
+            ),
         )
     }
 
@@ -2524,10 +2591,16 @@ class ZnKeyboardView @JvmOverloads constructor(
         } else {
             // Comma and period flank space. In 中 mode they show full-width marks; the service turns
             // the ASCII mark it receives into the Chinese one, so both modes dispatch the same text.
+            // Email and web addresses never want a comma there: @ and / instead.
+            val (commaLabel, commaText) = when (fieldKind) {
+                FieldKind.Email -> "@" to "@"
+                FieldKind.Url -> "/" to "/"
+                else -> (if (pinyinModeEnabled) "，" else ",") to ","
+            }
             keys += KeySpec(
                 "bottom_comma",
-                if (pinyinModeEnabled) "，" else ",",
-                KeyIntent.Dispatch(KeyboardAction.Text(",")),
+                commaLabel,
+                KeyIntent.Dispatch(KeyboardAction.Text(commaText)),
                 role = KeyRole.Character,
             )
             keys += KeySpec(
@@ -2585,6 +2658,20 @@ class ZnKeyboardView @JvmOverloads constructor(
                 longPressHint = if (digitHints) TOP_ROW_DIGITS[index].toString() else null,
             )
         }
+    }
+
+    private fun symbolMiddleRow(): List<KeySpec> {
+        val keys = symbols("*\":;!?\\|=~", rowPrefix = "symbol_middle").toMutableList()
+        val extras = if (pinyinModeEnabled) listOf("、" to "、", "…" to "……") else listOf("_" to "_", "^" to "^")
+        extras.forEachIndexed { i, (label, text) ->
+            keys[SYMBOL_MIDDLE_FREE_SLOT + i] = KeySpec(
+                "symbol_middle_extra_$i",
+                label,
+                KeyIntent.Dispatch(KeyboardAction.Text(text)),
+                role = KeyRole.Character,
+            )
+        }
+        return keys
     }
 
     private fun symbols(source: String, rowPrefix: String = "symbol"): List<KeySpec> {
@@ -2801,6 +2888,9 @@ class ZnKeyboardView @JvmOverloads constructor(
         const val TAP_COST_POOL = 12
         const val LETTER_LIFT_FRACTION = 0.04f
         const val PINYIN_MODE_KEY_ID = "pinyin_mode"
+        val FULL_WIDTH_MARKS = setOf("，", "。", "、", "；", "：", "？", "！")
+        /** Where ! and ? sit in the symbols page's middle row; the bottom row has them too. */
+        const val SYMBOL_MIDDLE_FREE_SLOT = 4
         const val LANGUAGE_KEY_ACTIVE_SCALE = 1.25f
         const val LANGUAGE_KEY_INACTIVE_SCALE = 0.72f
         const val LANGUAGE_KEY_INACTIVE_ALPHA = 0.45f

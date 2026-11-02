@@ -60,6 +60,8 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     private var keyboardView: ZnKeyboardView? = null
     private var pinyinBar: PinyinCandidateBar? = null
     private var pinyinModeEnabled = false
+    /** 中/英 tapped in a field that types English by default (email, web address, password); null otherwise. */
+    private var fieldPinyinOverride: Boolean? = null
     // Loaded off the main thread; null until ready, and pinyin input passes through until then.
     @Volatile private var pinyinDictionary: PinyinDictionary? = null
     private var pinyinDictionaryLoading = false
@@ -155,7 +157,8 @@ class ZnKeyboardInputMethodService : InputMethodService(),
             view.callback = this
             view.typingEngine = typingEngine
             view.setPhonePadMode(shouldUsePhonePadMode(currentEditorInfo))
-            view.setPinyinMode(pinyinModeEnabled)
+            view.setFieldKind(fieldKindFor(currentEditorInfo))
+            view.setPinyinMode(pinyinWanted())
         }
         val clipboardSearch = ClipboardSearchView(this).also { view ->
             clipboardSearchView = view
@@ -244,6 +247,8 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         pinyinLearner.learningEnabled = KeyboardSettings.readPinyinLearningEnabled(this) && isPersonalizationAllowed(info)
         reloadPinyinLearningIfReset()
         keyboardView?.setPhonePadMode(shouldUsePhonePadMode(info))
+        keyboardView?.setFieldKind(fieldKindFor(info))
+        fieldPinyinOverride = null
         resetAgentState(returnToKeyboard = true)
         applyKeyboardSettings()
         keyboardView?.setEnterLabel(resolveEnterLabel(info))
@@ -458,11 +463,11 @@ class ZnKeyboardInputMethodService : InputMethodService(),
 
     private fun applyKeyboardSettings() {
         pinyinModeEnabled = KeyboardSettings.readPinyinModeEnabled(this)
-        keyboardView?.setPinyinMode(pinyinModeEnabled)
+        keyboardView?.setPinyinMode(pinyinWanted())
         if (activeSurface != KeyboardSurface.ClipboardSearch) keyboardView?.setEnterLabel(resolveEnterLabel(currentEditorInfo))
         refreshRewriteLabel()
         setChineseKeyboard(KeyboardSettings.readChineseKeyboard(this), save = false)
-        if (pinyinModeEnabled) ensurePinyinDictionary()
+        if (pinyinWanted()) ensurePinyinDictionary()
         pinyinPredictionsEnabled = KeyboardSettings.readPinyinPredictionsEnabled(this)
         val heightScale = KeyboardSettings.readHeightScale(this)
         typingEngine.adaptiveEnabled = KeyboardSettings.readAdaptiveTouchEnabled(this)
@@ -664,8 +669,48 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     }
 
     override fun onPinyinModeToggled() {
+        if (isLatinField(currentEditorInfo)) {
+            // These fields type English unless asked: switch this field only, not the saved mode.
+            switchFieldLanguage(!pinyinWanted())
+            return
+        }
         setPinyinMode(!pinyinModeEnabled)
         syncSystemSubtype()
+    }
+
+    private fun switchFieldLanguage(pinyin: Boolean) {
+        englishRun = false
+        commitPinyinRaw()
+        dismissPinyinPredictions()
+        fieldPinyinOverride = pinyin
+        keyboardView?.setPinyinMode(pinyin)
+        refreshRewriteLabel()
+        if (pinyin) ensurePinyinDictionary()
+        updateAutoShift()
+    }
+
+    /** Whether this field types pinyin: the saved 中/英 mode, but English in email, web and password fields. */
+    private fun pinyinWanted(): Boolean = fieldPinyinOverride ?: (pinyinModeEnabled && !isLatinField(currentEditorInfo))
+
+    private fun isLatinField(info: EditorInfo?): Boolean {
+        val kind = fieldKindFor(info)
+        return kind == ZnKeyboardView.FieldKind.Email || kind == ZnKeyboardView.FieldKind.Url || isSensitiveEditor(info)
+    }
+
+    private fun fieldKindFor(info: EditorInfo?): ZnKeyboardView.FieldKind {
+        val inputType = info?.inputType ?: return ZnKeyboardView.FieldKind.Text
+        val variation = inputType and InputType.TYPE_MASK_VARIATION
+        return when (inputType and InputType.TYPE_MASK_CLASS) {
+            InputType.TYPE_CLASS_PHONE -> ZnKeyboardView.FieldKind.Phone
+            InputType.TYPE_CLASS_NUMBER -> ZnKeyboardView.FieldKind.Number
+            InputType.TYPE_CLASS_TEXT -> when (variation) {
+                InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS,
+                InputType.TYPE_TEXT_VARIATION_WEB_EMAIL_ADDRESS -> ZnKeyboardView.FieldKind.Email
+                InputType.TYPE_TEXT_VARIATION_URI -> ZnKeyboardView.FieldKind.Url
+                else -> ZnKeyboardView.FieldKind.Text
+            }
+            else -> ZnKeyboardView.FieldKind.Text
+        }
     }
 
     override fun onInputMethodPickerRequested() {
@@ -698,17 +743,18 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         dismissPinyinPredictions()
         pinyinModeEnabled = enabled
         KeyboardSettings.savePinyinModeEnabled(this, pinyinModeEnabled)
-        keyboardView?.setPinyinMode(pinyinModeEnabled)
+        keyboardView?.setPinyinMode(pinyinWanted())
         if (activeSurface != KeyboardSurface.ClipboardSearch) keyboardView?.setEnterLabel(resolveEnterLabel(currentEditorInfo))
         refreshRewriteLabel()
-        if (pinyinModeEnabled) ensurePinyinDictionary()
+        if (pinyinWanted()) ensurePinyinDictionary()
         updateAutoShift()
     }
 
     /** Both modes show polish | translate | the round target-language key, labelled in the mode's language. */
+    /** In the field's language, like 润色 / Polish beside it. */
     private fun refreshRewriteLabel() {
         keyboardView?.setRewriteMode(
-            if (pinyinModeEnabled) AgentDefaults.TRANSLATE_REWRITE_LABEL else AgentDefaults.TRANSLATE_REWRITE_LABEL_EN,
+            if (pinyinWanted()) AgentDefaults.TRANSLATE_REWRITE_LABEL else AgentDefaults.TRANSLATE_REWRITE_LABEL_EN,
             KeyboardSettings.readAgentTranslateTarget(this).code,
         )
     }
@@ -761,8 +807,8 @@ class ZnKeyboardInputMethodService : InputMethodService(),
 
     private fun isPinyinActive(): Boolean {
         val info = currentEditorInfo
-        return pinyinModeEnabled && pinyinDictionary != null &&
-            !isRawKeyEventEditor(info) && !isSensitiveEditor(info) && !shouldUsePhonePadMode(info)
+        return pinyinWanted() && pinyinDictionary != null &&
+            !isRawKeyEventEditor(info) && !shouldUsePhonePadMode(info)
     }
 
     /**
