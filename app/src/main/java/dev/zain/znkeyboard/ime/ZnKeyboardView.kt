@@ -155,6 +155,18 @@ class ZnKeyboardView @JvmOverloads constructor(
     /** Personal touch decoder + learner; null means plain geometric hit-testing. */
     var typingEngine: AdaptiveTypingEngine? = null
 
+    /**
+     * While a letter tapped on the letter keys is being dispatched: how well that tap fitted each
+     * key (TouchDecoder.letterCosts), so pinyin can weigh near misses. Null otherwise, and for a
+     * tap that slid; valid only during the callback.
+     */
+    var letterTapCosts: FloatArray? = null
+        private set
+
+    // Reused for taps in flight; more than the fingers that can be down at once.
+    private val tapCostPool = Array(TAP_COST_POOL) { FloatArray(26) }
+    private var tapCostNext = 0
+
     // Letter geometry of the current layout, in dp, for the adaptive decoder. Fresh arrays per layout
     // so learning samples keep the geometry they were captured with.
     private var letterHits = arrayOfNulls<KeyHit>(26)
@@ -748,7 +760,12 @@ class ZnKeyboardView @JvmOverloads constructor(
                     if (touch.swipedUp && digit != null) {
                         handleKey(KeySpec("nine_digit_$digit", "$digit", KeyIntent.Dispatch(KeyboardAction.Text("$digit"))))
                     } else {
-                        handleKey(key, touch.learningSample(key), shiftHeld = shiftHeld && nextPointerId == pointerId)
+                        letterTapCosts = touch.tapCosts?.takeIf { !touch.slid }
+                        try {
+                            handleKey(key, touch.learningSample(key), shiftHeld = shiftHeld && nextPointerId == pointerId)
+                        } finally {
+                            letterTapCosts = null
+                        }
                     }
                 }
             }
@@ -1774,9 +1791,15 @@ class ZnKeyboardView @JvmOverloads constructor(
         val key = hit?.key?.takeIf { it.enabled } ?: return null
         val engine = typingEngine ?: return key
         val geometricLetter = letterIndexOf(key)
-        if (!engine.adaptiveEnabled || geometricLetter < 0 || !letterGeometryValid || layoutMode != LayoutMode.Letters) {
-            return key
+        if (geometricLetter < 0 || !letterGeometryValid || layoutMode != LayoutMode.Letters) return key
+        val density = resources.displayMetrics.density
+        val xDp = x / density
+        val yDp = y / density
+        touch.tapCosts = tapCostPool[tapCostNext].also {
+            engine.decoder.letterCosts(xDp, yDp, letterCentersXDp, letterCentersYDp, letterPitchXDp, letterPitchYDp, it)
         }
+        tapCostNext = (tapCostNext + 1) % TAP_COST_POOL
+        if (!engine.adaptiveEnabled) return key
         var previous2 = engine.learner.previous2()
         var previous1 = engine.learner.previous1()
         // Rollover typing: letters still held by other fingers precede this one.
@@ -1786,9 +1809,6 @@ class ZnKeyboardView @JvmOverloads constructor(
             previous2 = previous1
             previous1 = CharLanguageModel.normalize(pendingChar)
         }
-        val density = resources.displayMetrics.density
-        val xDp = x / density
-        val yDp = y / density
         val letter = engine.decoder.decode(
             xDp = xDp,
             yDp = yDp,
@@ -2667,6 +2687,8 @@ class ZnKeyboardView @JvmOverloads constructor(
         val downY: Float = 0f,
         var slid: Boolean = false,
         var sample: TypingLearner.Sample? = null,
+        /** How well the touch-down fitted each letter key, from [tapCostPool]. */
+        var tapCosts: FloatArray? = null,
         var longPressConsumed: Boolean = false,
         var repeatConsumed: Boolean = false,
         var cursorDragConsumed: Boolean = false,
@@ -2737,6 +2759,7 @@ class ZnKeyboardView @JvmOverloads constructor(
     )
 
     private companion object {
+        const val TAP_COST_POOL = 12
         const val LETTER_LIFT_FRACTION = 0.04f
         const val GLOBE_ICON_FRACTION = 0.66f
         const val TOP_ROW_DIGITS = "1234567890"

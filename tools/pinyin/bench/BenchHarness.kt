@@ -2,6 +2,10 @@ import dev.zain.znkeyboard.pinyin.PinyinDictionary
 import dev.zain.znkeyboard.pinyin.PinyinEngine
 import dev.zain.znkeyboard.pinyin.PinyinFuzzyRule
 import dev.zain.znkeyboard.pinyin.PinyinLanguageModel
+import dev.zain.znkeyboard.pinyin.SentenceDecoder
+import dev.zain.znkeyboard.typing.CharLanguageModel
+import dev.zain.znkeyboard.typing.TouchDecoder
+import dev.zain.znkeyboard.typing.TouchModel
 import java.io.File
 import java.io.RandomAccessFile
 import java.nio.channels.FileChannel
@@ -17,8 +21,48 @@ import java.nio.channels.FileChannel
  *   of the input (none counts as every character wrong), over the expected characters.
  * - none: no candidate reads all of the input.
  * Latency is per keystroke, as typed: every prefix of every Nth case is converted after warm-up.
+ *
+ * With --taps the decoder also gets each letter's tap (bench.tsv's last column), scored against
+ * every key by the keyboard's own [TouchDecoder] with an untrained touch model, as on a fresh
+ * install.
  */
-private class Case(val set: String, val bucket: String, val typed: String, val expected: String)
+private class Case(val set: String, val bucket: String, val typed: String, val expected: String, val taps: String?)
+
+/** The keyboard build_bench.py taps on: 411 dp wide, keys 40.5 × 54 dp, rows offset 0, ½ and 1½ keys. */
+private object BenchKeyboard {
+    private const val WIDTH = 411f
+    private const val PAD = 6f
+    private const val GAP = 6f
+    const val ROW_PITCH = 54f
+    const val PITCH = (WIDTH - 2 * PAD + GAP) / 10f
+    val centersX = FloatArray(26)
+    val centersY = FloatArray(26)
+
+    init {
+        listOf("qwertyuiop", "asdfghjkl", "zxcvbnm").forEachIndexed { row, letters ->
+            val left = PAD + floatArrayOf(0f, 0.5f, 1.5f)[row] * PITCH
+            letters.forEachIndexed { i, letter ->
+                centersX[letter - 'a'] = left + i * PITCH + (PITCH - GAP) / 2
+                centersY[letter - 'a'] = ROW_PITCH * (row + 0.5f)
+            }
+        }
+    }
+}
+
+private val untrainedModel = TouchModel()
+private val touchDecoder = TouchDecoder({ untrainedModel }, CharLanguageModel())
+
+private fun tapsOf(case: Case): SentenceDecoder.Taps? {
+    val taps = case.taps?.takeIf { it.isNotEmpty() } ?: return null
+    val costs = taps.split(';').map { tap ->
+        val (x, y) = tap.split(',').map(String::toFloat)
+        FloatArray(26).also {
+            touchDecoder.letterCosts(x, y, BenchKeyboard.centersX, BenchKeyboard.centersY, BenchKeyboard.PITCH, BenchKeyboard.ROW_PITCH, it)
+        }
+    }
+    check(costs.size == case.typed.length) { "${case.typed}: ${costs.size} taps" }
+    return SentenceDecoder.Taps { at -> costs.getOrNull(at) }
+}
 
 private class Tally {
     var cases = 0
@@ -77,16 +121,18 @@ fun main(args: Array<String>) {
     val latencyEvery = option("--latency-every")?.toInt() ?: 10
     val cases = File(args[1]).readLines()
         .filter { !it.startsWith("#") && !it.startsWith("set\t") && it.isNotBlank() }
-        .map { line -> line.split("\t").let { Case(it[0], it[1], it[2], it[3]) } }
+        .map { line -> line.split("\t").let { Case(it[0], it[1], it[2], it[3], it.getOrNull(6)) } }
+    val useTaps = "--taps" in options
+    val tapsFor = cases.associateWith { if (useTaps) tapsOf(it) else null }
 
     // Warm-up, so the JIT doesn't count against the first cases.
-    for (case in cases.take(300)) PinyinEngine.candidates(case.typed, dictionary)
+    for (case in cases.take(300)) PinyinEngine.candidates(case.typed, dictionary, tapsFor[case])
 
     val tallies = LinkedHashMap<String, Tally>()
     val keystrokes = ArrayList<Double>()
     val lines = ArrayList<String>()
     for ((index, case) in cases.withIndex()) {
-        val candidates = PinyinEngine.candidates(case.typed, dictionary)
+        val candidates = PinyinEngine.candidates(case.typed, dictionary, tapsFor[case])
         val whole = candidates.filter { it.consumed >= case.typed.length }
         val first = candidates.firstOrNull()
         val top1 = first != null && first.text == case.expected && first.consumed >= case.typed.length
@@ -103,13 +149,13 @@ fun main(args: Array<String>) {
         if (latencyEvery > 0 && index % latencyEvery == 0) {
             for (end in 1..case.typed.length) {
                 val started = System.nanoTime()
-                PinyinEngine.candidates(case.typed.substring(0, end), dictionary)
+                PinyinEngine.candidates(case.typed.substring(0, end), dictionary, tapsFor[case])
                 keystrokes += (System.nanoTime() - started) / 1e6
             }
         }
     }
 
-    println("fuzzy sounds: " + (if ("--strict" in options) "off" else "default (all on)") + "; language model: " + (option("--lm") ?: "none"))
+    println("fuzzy sounds: " + (if ("--strict" in options) "off" else "default (all on)") + "; language model: " + (option("--lm") ?: "none") + "; taps: " + if (useTaps) "yes" else "no")
     println("%-18s %5s %6s %6s %6s %6s %6s".format("set", "cases", "top1%", "top1~%", "top3%", "CER%", "none%"))
     val sets = cases.map { it.set }.distinct()
     for (set in sets) {

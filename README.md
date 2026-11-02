@@ -48,6 +48,7 @@ ZnKeyboard learns how *your* thumbs actually hit each key and decodes every tap 
 - Learning stays on the device (and inside the password-encrypted backup), is skipped in password and incognito fields, and can be turned off or cleared in Settings → Typing → Chinese pinyin, as can suggestions.
 - Dictionary: 8,757 characters and the 150,000 most frequent words from [rime-ice](https://github.com/iDvel/rime-ice) (GPL‑3.0), with a few joke weights corrected.
 - **Reads whole sentences in context:** a word-pair language model (16 MB, trained on forum and blog text) ranks readings by what usually follows what, so `xiawuliangdiankaihui` gives 下午两点开会 rather than 下午亮点开会. On the pinyin benchmark it lifts full-pinyin sentences read right by one press of space from 53% to 67% ([tools/pinyin/lm/README.md](tools/pinyin/lm/README.md)).
+- **Fixes near misses by where you tapped:** each tap's fit to every key (from the personal touch model) goes to the sentence decoder, so a letter that landed on a key's edge is corrected cheaply (`wl` → `wo`) and a squarely hit key is left alone. Sentences with a typing slip read right went from 30% to 39% on the benchmark.
 - 9-key (九宫格) pinyin and stroke (笔画) input; stroke data for the dictionary's characters from [rime-stroke](https://github.com/rime/rime-stroke) (LGPL‑3.0).
 
 ### 🌐 润色 / AI 翻译: polish and translate

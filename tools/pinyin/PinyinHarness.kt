@@ -2,6 +2,7 @@ import dev.zain.znkeyboard.pinyin.PinyinDictionary
 import dev.zain.znkeyboard.pinyin.PinyinEngine
 import dev.zain.znkeyboard.pinyin.PinyinFuzzyRule
 import dev.zain.znkeyboard.pinyin.PinyinLearner
+import dev.zain.znkeyboard.pinyin.PinyinTapBuffer
 import dev.zain.znkeyboard.pinyin.PinyinUserData
 import java.io.File
 
@@ -149,6 +150,34 @@ fun main(args: Array<String>) {
     val typo = System.nanoTime()
     PinyinEngine.candidates("zhvzhvzhvzhvzhvzhvzhvzhvzhvzhv", fuzzy)
     println("typo input us: ${(System.nanoTime() - typo) / 1000}")
+
+    // Taps stay lined up with the letters through typing, backspace and picks.
+    run {
+        fun tap(marker: Float) = FloatArray(26) { marker }
+        val taps = PinyinTapBuffer()
+        var composing = ""
+        fun type(next: String, tap: FloatArray?) {
+            taps.follow(composing, next, tap)
+            composing = next
+        }
+        fun markers() = composing.indices.joinToString(",") { taps.costs(it)?.get(0)?.toInt()?.toString() ?: "-" }
+        type("n", tap(1f))
+        type("ni", tap(2f))
+        type("ni'", null)
+        type("ni'h", tap(3f))
+        check("taps follow typing", markers() == "1,2,-,3", markers())
+        type("ni'", null)
+        type("ni'h", tap(4f))
+        type("ni'ha", tap(5f))
+        check("backspace drops the last tap", markers() == "1,2,-,4,5", markers())
+        type("ha", null) // 你 picked: its letters and the separator go
+        check("a pick shifts the rest", markers() == "4,5", markers())
+        type("xyz", null)
+        check("any other change forgets them", markers() == "-,-,-", markers())
+        type("", null)
+        type("w", tap(6f))
+        check("taps start over after a commit", markers() == "6", markers())
+    }
 
     if (failures > 0) {
         println("$failures check(s) failed")

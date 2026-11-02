@@ -12,7 +12,12 @@ package dev.zain.znkeyboard.pinyin
  * the user picked), so fewer, commoner words win. With one ([PinyinDictionary.languageModel]),
  * a word costs less the likelier it is after the word before it, and the search keeps the best
  * few readings ending in different words at each position (a beam), so context can pick
- * 两点 over 亮点 or 四川菜 over 四川才. Pure Kotlin and main-thread only, like [PinyinDictionary].
+ * 两点 over 亮点 or 四川菜 over 四川才.
+ *
+ * When the keyboard passes how well each tap fitted each key ([Taps]), a typed letter replaced by
+ * another costs little if the tap landed near that key's edge and a lot if it hit the typed key
+ * squarely, instead of a flat cost for any QWERTY neighbour. Pure Kotlin and main-thread only,
+ * like [PinyinDictionary].
  */
 object SentenceDecoder {
     /**
@@ -30,14 +35,22 @@ object SentenceDecoder {
     /** A reading up to some position, ending in [word] (null at the start and after a separator). */
     private class Step(val cost: Float, val previous: Step?, val word: PinyinDictionary.Word?, val pieces: List<Piece>, val context: Int)
 
-    fun decode(input: String, dictionary: PinyinDictionary): Sentence? {
+    /**
+     * Per input position, -ln P(tap | key) for each letter a–z less the best key's (0 for the best,
+     * +∞ for keys too far away), or null for a position without a tap (separators, pasted text).
+     */
+    fun interface Taps {
+        fun costs(at: Int): FloatArray?
+    }
+
+    fun decode(input: String, dictionary: PinyinDictionary, taps: Taps? = null): Sentence? {
         val n = input.length
         if (n == 0 || n > MAX_INPUT) return null
         val model = dictionary.languageModel
         val beam = if (model == null) 1 else BEAM
         val choices = if (model == null) 1 else LM_CHOICES
         val piecesAt = arrayOfNulls<List<Piece>>(n)
-        fun pieces(at: Int): List<Piece> = piecesAt[at] ?: readPieces(input, at, dictionary).also { piecesAt[at] = it }
+        fun pieces(at: Int): List<Piece> = piecesAt[at] ?: readPieces(input, at, dictionary, taps).also { piecesAt[at] = it }
 
         fun wordCost(edge: Edge, context: Int): Float {
             val match = edge.match
@@ -193,7 +206,7 @@ object SentenceDecoder {
      * The pieces starting at [start]: whole syllables, the same with one slip, 简拼 initials,
      * and, at the very end of the input, the start of a syllable still being typed.
      */
-    private fun readPieces(input: String, start: Int, dictionary: PinyinDictionary): List<Piece> {
+    private fun readPieces(input: String, start: Int, dictionary: PinyinDictionary, taps: Taps?): List<Piece> {
         val result = ArrayList<Piece>()
         val seen = HashSet<String>()
         fun add(end: Int, text: String, isPrefix: Boolean, cost: Float) {
@@ -207,9 +220,15 @@ object SentenceDecoder {
             if (end == input.length && typed.length >= 2 && typed !in dictionary.rawSyllables && dictionary.isSyllablePrefix(typed)) {
                 add(end, typed, isPrefix = true, cost = STILL_TYPING_COST)
             }
-            // Two letters are too few to tell a slip from 简拼 (hs is h + s, not he).
+            // Two letters are too few to tell a slip from 简拼 (hs is h + s, not he), unless the taps
+            // say a key was nearly missed (wl → wo, with l just below o).
+            val tapAt = { at: Int -> taps?.costs(start + at) }
             if (typed.length >= 3 || typed.length == 2 && typed.endsWith("n")) {
-                for ((fixed, cost) in corrections(typed, dictionary)) add(end, fixed, isPrefix = false, cost = cost)
+                for ((fixed, cost) in corrections(typed, dictionary, tapAt)) add(end, fixed, isPrefix = false, cost = cost)
+            } else if (typed.length == 2 && taps != null) {
+                for ((fixed, cost) in corrections(typed, dictionary, tapAt, tapsOnly = true)) {
+                    add(end, fixed, isPrefix = false, cost = cost + SHORT_TOUCH_SLIP_COST)
+                }
             }
         }
         // 简拼: a lone initial (zh, ch, sh count as one) stands for any syllable it starts.
@@ -224,12 +243,21 @@ object SentenceDecoder {
         return result
     }
 
-    /** Syllables one slip away from [typed], with what that slip costs. */
-    private fun corrections(typed: String, dictionary: PinyinDictionary): List<Pair<String, Float>> {
+    /** Syllables one slip away from [typed], with what that slip costs; [tapAt] gives each letter's tap. */
+    private fun corrections(
+        typed: String,
+        dictionary: PinyinDictionary,
+        tapAt: (Int) -> FloatArray?,
+        tapsOnly: Boolean = false,
+    ): List<Pair<String, Float>> {
         val syllables = dictionary.rawSyllables
         val result = ArrayList<Pair<String, Float>>()
         fun consider(candidate: String, cost: Float) {
             if (candidate != typed && candidate in syllables) result += candidate to cost
+        }
+        if (tapsOnly) {
+            addTapSlips(typed, tapAt, ::consider)
+            return result.sortedBy { it.second }.distinctBy { it.first }
         }
         // Front and back nasals, the commonest slip: in/ing, an/ang, en/eng.
         if (typed.endsWith("n")) consider(typed + "g", NASAL_COST)
@@ -240,8 +268,11 @@ object SentenceDecoder {
         }
         // An extra letter.
         for (at in typed.indices) consider(typed.removeRange(at, at + 1), SLIP_COST)
-        // A neighbouring key (xiamg → xiang).
+        // Another key than the one typed (xiamg → xiang): as likely as the tap says, or any
+        // QWERTY neighbour at a flat cost where there was no tap.
+        addTapSlips(typed, tapAt, ::consider)
         for (at in typed.indices) {
+            if (tapAt(at) != null && typed[at] in 'a'..'z') continue
             for (neighbour in NEIGHBOURS[typed[at]].orEmpty()) {
                 consider(typed.substring(0, at) + neighbour + typed.substring(at + 1), SLIP_COST)
             }
@@ -255,7 +286,7 @@ object SentenceDecoder {
             }.toString()
             consider(swapped, SLIP_COST)
         }
-        return result.distinctBy { it.first }
+        return result.sortedBy { it.second }.distinctBy { it.first }
     }
 
     private const val MAX_INPUT = 60
@@ -283,6 +314,30 @@ object SentenceDecoder {
     private const val NASAL_COST = 3f
     private const val MISSING_LETTER_COST = 5f
     private const val SLIP_COST = 7f
+    /** A key swapped for another, given the tap: this plus how much worse the tap fits that key. */
+    private const val TOUCH_SLIP_COST = 2f
+    private const val TOUCH_WEIGHT = 1f
+    private const val MAX_TOUCH_EXTRA = 4f
+    /** On top, for a two-letter piece, which could as well be two 简拼 initials. */
+    private const val SHORT_TOUCH_SLIP_COST = 1f
+    private const val LETTERS = 26
+
+    /** Each letter of [typed] with a tap, swapped for another key at what the tap says that costs. */
+    private inline fun addTapSlips(typed: String, tapAt: (Int) -> FloatArray?, consider: (String, Float) -> Unit) {
+        for (at in typed.indices) {
+            val costs = tapAt(at) ?: continue
+            val own = typed[at] - 'a'
+            if (own !in 0 until LETTERS) continue
+            for (letter in 0 until LETTERS) {
+                val cost = costs[letter]
+                if (letter == own || cost.isInfinite()) continue
+                val extra = (cost - costs[own]).coerceAtLeast(0f)
+                // Keys the tap was nowhere near would cost more than they could ever win back.
+                if (extra > MAX_TOUCH_EXTRA) continue
+                consider(typed.substring(0, at) + ('a' + letter) + typed.substring(at + 1), TOUCH_SLIP_COST + TOUCH_WEIGHT * extra)
+            }
+        }
+    }
 
     private const val INITIALS = "bpmfdtnlgkhjqxzcsryw"
     private val COMPOUND_INITIALS = setOf("zh", "ch", "sh")

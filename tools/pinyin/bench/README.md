@@ -6,8 +6,8 @@ correction or language modelling can be compared by numbers instead of by feel.
 ```bash
 # Score the engine (about 2 minutes; JDK 17+ in JAVA_HOME, Gradle build run once first)
 tools/pinyin/bench/run_bench.sh
-# With the language model the keyboard ships (see tools/pinyin/lm/README.md)
-tools/pinyin/bench/run_bench.sh --lm app/src/main/assets/pinyin/lm.bin
+# As the keyboard ships: the language model (tools/pinyin/lm/README.md) and each letter's tap
+tools/pinyin/bench/run_bench.sh --lm app/src/main/assets/pinyin/lm.bin --taps
 # Fuzzy sounds off, and every case written out for diffing against another run
 tools/pinyin/bench/run_bench.sh --strict --cases /tmp/cases.tsv
 ```
@@ -34,6 +34,10 @@ Buckets by length: `short` 2–4 characters (500), `medium` 5–9 (1,000), `long
   key centre (σ 7.5 × 8.5 dp, landing 4 dp low), 1% of letters are dropped and 0.5% of neighbours
   swapped. That is about 3.4% of letters wrong. Every `typo` case has at least one slip, so the
   set measures correction rather than average typing.
+- The last column holds a tap (x, y in dp) for every typed letter. `typo` taps are the ones that
+  made the slips; the other sets get taps that scatter the same way but land on the intended key,
+  so `--taps` also shows whether clean input gets "corrected". `--taps` scores them with the
+  keyboard's own `TouchDecoder` and an untrained touch model, as on a fresh install.
 - Tatoeba favours short everyday sentences and translates Tom and Mary as 汤姆 and 玛丽 a lot.
   Read the numbers as everyday chat, not as news or technical text.
 - Keep these sentences out of any language-model training data, or the score measures memory.
@@ -85,3 +89,24 @@ one slip takes a clause from about 53% to 23%.
 By length, `full` is 74.2% short, 67.3% medium, 59.8% long. Per keystroke on the same Mac: mean
 3.0 ms, median 0.4 ms, p95 14 ms, max 129 ms, no slower than without the model. The model was
 tuned on a separate dev set, not on this file.
+
+On a Pixel 9 Pro XL, run through `app_process` (no ahead-of-time compilation, so far slower than
+the installed keyboard and only useful for comparing): mean 34.7 ms, p95 171 ms with the model,
+against 38.0 ms, p95 185 ms for 1.9.2 without it.
+
+## With taps (`--lm … --taps`, as the keyboard ships)
+
+| set | top1 | top1~ | top3 | CER |
+|---|---:|---:|---:|---:|
+| full | 67.2% (±0) | 72.8% | 67.5% | 7.8% |
+| initials | 6.2% (+0.2) | 6.6% | 7.4% | 67.6% |
+| mixed | 25.0% (±0) | 26.8% | 25.8% | 32.0% |
+| typo | 39.4% (+9.1) | 42.8% | 39.6% | 18.1% |
+| **all** | **34.4% (+2.3)** | **37.2%** | **35.1%** | **31.4%** |
+
+A typed letter replaced by another key costs 2 plus how much worse its tap fits that key
+(−ln of the touch likelihood), instead of a flat 7 for any QWERTY neighbour; keys the tap fits
+more than 4 worse are not tried, and with a tap two-letter pieces may be corrected too (wl → wo).
+Clean input is unchanged, and keystrokes got faster: mean 1.8 ms, p95 7.6 ms, max 78 ms, since
+the capped alternatives are fewer than the neighbour table. What `typo` still misses is mostly
+dropped letters, which leave no tap to go on, and slips that type another valid syllable.

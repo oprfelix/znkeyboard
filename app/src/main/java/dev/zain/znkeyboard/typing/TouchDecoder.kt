@@ -58,6 +58,39 @@ class TouchDecoder(private val touchModel: () -> TouchModel, private val languag
         return best
     }
 
+    /**
+     * How well a touch fits each letter, for decoders that weigh alternatives later (pinyin):
+     * -ln N(touch; centre + μ, Σ) under this user's model, less the best letter's, so the best
+     * fit is 0. Letters beyond the candidate distance get +∞. Writes all 26 into [out].
+     */
+    fun letterCosts(
+        xDp: Float,
+        yDp: Float,
+        centersXDp: FloatArray,
+        centersYDp: FloatArray,
+        pitchXDp: Float,
+        pitchYDp: Float,
+        out: FloatArray,
+    ) {
+        val model = touchModel()
+        var best = Float.POSITIVE_INFINITY
+        for (letter in 0 until TouchModel.LETTER_COUNT) {
+            val cx = centersXDp[letter]
+            val cy = centersYDp[letter]
+            if (abs(xDp - cx) > CANDIDATE_PITCHES * pitchXDp || abs(yDp - cy) > CANDIDATE_PITCHES * pitchYDp) {
+                out[letter] = Float.POSITIVE_INFINITY
+                continue
+            }
+            model.params(letter, pitchXDp, pitchYDp, params)
+            val dx = xDp - cx - params[0]
+            val dy = yDp - cy - params[1]
+            val cost = 0.5f * (dx * dx / params[2] + dy * dy / params[3]) + 0.5f * ln(params[2] * params[3])
+            out[letter] = cost
+            if (cost < best) best = cost
+        }
+        for (letter in 0 until TouchModel.LETTER_COUNT) out[letter] -= best
+    }
+
     companion object {
         const val ANCHOR_X_FRACTION = 0.30f
         const val ANCHOR_Y_FRACTION = 0.28f

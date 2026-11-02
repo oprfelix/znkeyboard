@@ -40,6 +40,7 @@ import dev.zain.znkeyboard.pinyin.PinyinDictionary
 import dev.zain.znkeyboard.pinyin.PinyinEngine
 import dev.zain.znkeyboard.pinyin.PinyinLanguageModel
 import dev.zain.znkeyboard.pinyin.PinyinLearner
+import dev.zain.znkeyboard.pinyin.PinyinTapBuffer
 import dev.zain.znkeyboard.pinyin.PinyinUserData
 import dev.zain.znkeyboard.pinyin.StrokeIndex
 import java.io.FileInputStream
@@ -66,6 +67,8 @@ class ZnKeyboardInputMethodService : InputMethodService(),
      * 9-key pinyin grid ("ni'4426"), stroke letters on the stroke grid ("szh").
      */
     private var pinyinComposing = ""
+    /** How each composing letter's tap fitted the keys, so the decoder can weigh near misses. */
+    private val pinyinTaps = PinyinTapBuffer()
     private var chineseKeyboard = KeyboardSettings.ChineseKeyboard.Qwerty
     /** The spellings shown beside the 9-key grid, in the order NineKeySpelling indexes them. */
     private var nineKeySpellingOptions: List<String> = emptyList()
@@ -906,7 +909,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
                     }
                     char != null && char in 'a'..'z' && englishRun && !composing -> return false
                     char != null && char.lowercaseChar() in 'a'..'z' -> {
-                        updatePinyinComposition(pinyinComposing + char.lowercaseChar())
+                        updatePinyinComposition(pinyinComposing + char.lowercaseChar(), keyboardView?.letterTapCosts)
                         return true
                     }
                     !composing -> {
@@ -967,15 +970,17 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         return CHINESE_PUNCTUATION[char]
     }
 
-    private fun updatePinyinComposition(composing: String) {
+    /** [tap]: how the tap that typed the one letter added fitted each key, if it came from a tap. */
+    private fun updatePinyinComposition(composing: String, tap: FloatArray? = null) {
         val inputConnection = currentInputConnection ?: return
         val dictionary = pinyinDictionary ?: return
+        pinyinTaps.follow(pinyinComposing, composing, tap)
         pinyinComposing = composing
         pinyinCandidates = when {
             composing.isEmpty() -> emptyList()
             chineseKeyboard == KeyboardSettings.ChineseKeyboard.NineKeyPinyin -> NineKeyEngine.candidates(composing, dictionary)
             chineseKeyboard == KeyboardSettings.ChineseKeyboard.NineKeyStroke -> strokeIndex?.candidates(composing, dictionary).orEmpty()
-            else -> PinyinEngine.candidates(composing, dictionary)
+            else -> PinyinEngine.candidates(composing, dictionary, pinyinTaps)
         }
         pinyinPredictions = emptyList()
         noteOwnEdit()

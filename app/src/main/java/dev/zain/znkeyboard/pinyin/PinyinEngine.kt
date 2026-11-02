@@ -104,9 +104,9 @@ object PinyinEngine {
      * slip, or the language model prefers another word than the dictionary's first), then the
      * words for its leading part.
      */
-    fun candidates(input: String, dictionary: PinyinDictionary): List<Candidate> {
+    fun candidates(input: String, dictionary: PinyinDictionary, taps: SentenceDecoder.Taps? = null): List<Candidate> {
         val words = wordCandidates(input, dictionary)
-        val sentence = SentenceDecoder.decode(input, dictionary) ?: return words
+        val sentence = SentenceDecoder.decode(input, dictionary, taps) ?: return words
         val typed = input.replace(SEPARATOR.toString(), "")
         val corrected = sentence.spelling.replace(" ", "") != typed
         if (sentence.parts.size < 2 && !corrected && dictionary.languageModel == null) return words

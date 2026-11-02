@@ -19,6 +19,12 @@ Every clause is typed four ways, the sets in bench.tsv:
   typo     whole pinyin with touch slips from a two-thumb typist model (at least one slip)
 Clauses are bucketed by length: short (2-4 characters), medium (5-9), long (10-20).
 
+The last column holds a tap for every typed letter ("x,y;x,y;…" in dp, on the keyboard geometry
+below), so a decoder can weigh how close each tap came to the neighbouring keys. Typo taps are
+the ones that made the slips; taps for the other sets scatter the same way but land on the
+intended key, which tests that clean input is not "corrected". They come from their own random
+stream, so the typed columns are what they were before taps were added.
+
 Tatoeba sentences are CC BY 2.0 FR; the last column of bench.tsv is the sentence id
 (https://tatoeba.org/sentences/show/<id>). Keep these sentences out of any language model
 training data, or the benchmark measures memory instead of decoding.
@@ -74,19 +80,42 @@ def key_at(x, y):
 
 
 def with_slips(text, rng):
-    out = []
+    """[text] as typed with slips, and the tap behind each typed letter."""
+    out, taps = [], []
     for ch in text:
         if rng.random() < DROP_RATE:
             continue
         cx, cy = KEYS[ch]
-        hit = key_at(cx + rng.gauss(0, TAP_SD_X), cy + TAP_BIAS_Y + rng.gauss(0, TAP_SD_Y))
+        x, y = cx + rng.gauss(0, TAP_SD_X), cy + TAP_BIAS_Y + rng.gauss(0, TAP_SD_Y)
+        hit = key_at(x, y)
         if hit is None:
             continue  # landed on shift/delete or off the keys: the letter is lost
         out.append(hit)
+        taps.append((x, y))
     for i in range(len(out) - 1):
         if rng.random() < SWAP_RATE:
             out[i], out[i + 1] = out[i + 1], out[i]
-    return "".join(out)
+            taps[i], taps[i + 1] = taps[i + 1], taps[i]
+    return "".join(out), taps
+
+
+def clean_taps(text, rng):
+    """Taps that scatter like a typist's but each land on its own key."""
+    taps = []
+    for ch in text:
+        cx, cy = KEYS[ch]
+        for _ in range(100):
+            x, y = cx + rng.gauss(0, TAP_SD_X), cy + TAP_BIAS_Y + rng.gauss(0, TAP_SD_Y)
+            if key_at(x, y) == ch:
+                break
+        else:
+            x, y = cx, cy
+        taps.append((x, y))
+    return taps
+
+
+def format_taps(taps):
+    return ";".join(f"{x:.1f},{y:.1f}" for x, y in taps)
 
 
 # ---- readings ----------------------------------------------------------------------------------
@@ -157,6 +186,7 @@ def main(sentences_path, dict_path, out_path):
                 pools[name].append((source, clause, syllables))
 
     rng = random.Random(SEED)
+    tap_rng = random.Random(SEED + 1)
     rows = []
     for name, _, _, want in BUCKETS:
         pool = sorted(pools[name], key=lambda c: int(c[0]))
@@ -168,17 +198,19 @@ def main(sentences_path, dict_path, out_path):
             keep, cut = rng.sample(range(len(whole)), 2)
             whole[keep], whole[cut] = True, False
             mixed = "".join(s if w else s[0] for s, w in zip(syllables, whole))
-            typo = full
+            typo, typo_taps = full, []
             while typo == full or not typo:
-                typo = with_slips(full, rng)
+                typo, typo_taps = with_slips(full, rng)
             spelling = " ".join(syllables)
             for kind, typed in (("full", full), ("initials", initials), ("mixed", mixed), ("typo", typo)):
-                rows.append((kind, name, typed, clause, spelling, source))
+                taps = typo_taps if kind == "typo" else clean_taps(typed, tap_rng)
+                rows.append((kind, name, typed, clause, spelling, source, format_taps(taps)))
 
     with open(out_path, "w", encoding="utf-8") as out:
         out.write("# Pinyin benchmark built by tools/pinyin/bench/build_bench.py; do not edit by hand.\n")
         out.write("# Sentences from Tatoeba (https://tatoeba.org), CC BY 2.0 FR; source = sentence id.\n")
-        out.write("set\tbucket\ttyped\texpected\tpinyin\tsource\n")
+        out.write(f"# Taps in dp: keyboard {WIDTH_DP:g} wide, key pitch {PITCH_X:g} x {ROW_PITCH:g}, rows {' '.join(ROWS)}.\n")
+        out.write("set\tbucket\ttyped\texpected\tpinyin\tsource\ttaps\n")
         for row in rows:
             out.write("\t".join(row) + "\n")
     print(f"{total} clauses read, {disagreed} dropped for ambiguous readings; "

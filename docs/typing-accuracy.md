@@ -66,6 +66,13 @@ with two guarantees:
   typing. The bundled English statistics (aggregate trigram probabilities only, 19 KB) give way to the
   user's patterns, such as Romanized Hindi/Urdu, names, or shell commands, as they type.
 
+### 4b. Pinyin sees the taps too
+The decoder above picks one letter per tap, but pinyin reads whole sentences later, when more
+context is known. So `TouchDecoder.letterCosts` also scores each tap against every nearby key,
+and the pinyin sentence decoder uses those costs for its slip corrections: swapping a letter for
+the key next to it is cheap when the tap was near that key's edge and dear when it hit the typed
+key squarely ([tools/pinyin/bench/README.md](../tools/pinyin/bench/README.md)).
+
 ### 5. Feel and confidence
 - `HapticFeedbackConstants.KEYBOARD_TAP` fires at touch-down, the moment the key is
   decided. Space-bar cursor drag and swipe-delete give a light tick per step.
