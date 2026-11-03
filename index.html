@@ -105,6 +105,8 @@ nav .wrap { display: flex; align-items: center; gap: 24px; height: 60px; }
     linear-gradient(var(--bg-soft), var(--bg));
   overflow: hidden;
 }
+/* The hero (and the nav above it, so their edges line up) is wider than the sections below. */
+nav .wrap, .hero .wrap { max-width: 1360px; }
 .hero .wrap { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 48px; align-items: center; }
 .eyebrow {
   display: inline-flex; align-items: center; gap: 8px;
@@ -182,19 +184,23 @@ nav .wrap { display: flex; align-items: center; gap: 24px; height: 60px; }
 .k { flex: 1; max-width: 25px; height: 36px; border-radius: 6px; background: var(--key); font-size: 14px; display: grid; place-items: center; box-shadow: 0 1px 0 rgba(0,0,0,.12); color: var(--ink); }
 .k.fn { background: color-mix(in srgb, var(--key) 70%, var(--kb)); max-width: 36px; font-size: 12px; }
 .k.space { max-width: none; flex: 5; font-size: 11px; color: var(--muted); }
-/* The computer behind the phone (wide screens only): the reading side of the story. Its contact list
-   sits under the phone; the chat shows to the right. */
+/* The computer behind the phone (wide screens only): the reading side of the story. The phone sits at
+   the left of its column; the window behind it shows in full to its right, the phone covering only part
+   of its contact list. */
 .hero-visual { position: relative; }
 .hero-desk { display: none; }
-/* Only where about 300px of the chat can show beside the phone. */
 @media (min-width: 1280px) {
-  .hero-front { position: relative; z-index: 1; transform: translateX(-130px); }
+  .hero .wrap { grid-template-columns: minmax(0, 600px) 1fr; }
+  .hero-front { position: relative; z-index: 1; width: 300px; }
   .hero-desk {
-    display: grid; grid-template-columns: 128px 1fr; position: absolute; right: -80px; top: 72px; width: 440px;
-    background: var(--card); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); overflow: hidden;
-    font-size: 13px;
+    display: grid; grid-template-columns: 128px 1fr; position: absolute; left: 236px; right: 0; max-width: 480px; top: 96px;
+    background: var(--card); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; font-size: 13px;
+    /* A step back from the phone: a little smaller and a softer shadow. */
+    transform: scale(.96); transform-origin: left center; box-shadow: 0 14px 40px rgba(30, 70, 160, .10);
   }
 }
+/* On narrower laptops the contact list shrinks (the phone still covers it) so the chat keeps its width. */
+@media (min-width: 1280px) and (max-width: 1399px) { .hero-desk { grid-template-columns: 84px 1fr; } }
 .hero-desk .bar { grid-column: 1 / -1; display: flex; gap: 6px; padding: 10px 12px; border-bottom: 1px solid var(--line); }
 .hero-desk .bar i { width: 9px; height: 9px; border-radius: 50%; background: #ff5f57; }
 .hero-desk .bar i:nth-child(2) { background: #febc2e; }
@@ -202,22 +208,26 @@ nav .wrap { display: flex; align-items: center; gap: 24px; height: 60px; }
 .hero-desk .side { background: var(--bg-soft); border-right: 1px solid var(--line); padding: 10px 8px; display: grid; gap: 8px; align-content: start; }
 .hero-desk .side span { display: block; height: 30px; border-radius: 8px; background: var(--line); opacity: .6; }
 .hero-desk .side span:first-child { background: var(--blue-soft); opacity: 1; }
-.hero-desk .main { padding: 12px 14px 16px; min-height: 250px; position: relative; }
+.hero-desk .main { padding: 12px 14px 14px; }
 .hero-desk .who { font-weight: 650; }
 .hero-desk .who small { display: block; color: var(--muted); font-weight: 400; font-size: 11px; }
 .hero-desk .in { margin-top: 12px; padding: 8px 11px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg-soft); line-height: 1.55; }
 .hero-desk mark { background: transparent; color: inherit; transition: background .3s; border-radius: 3px; }
 .hero-desk.sel mark { background: var(--select); }
 .hero-desk .dpill, .hero-desk .dcard { opacity: 0; transform: translateY(4px); transition: opacity .3s, transform .3s; }
+/* The pill and then the card take the same place under the message; the card's space is always kept,
+   so the window doesn't change height between steps. */
+.hero-desk .slot { position: relative; margin-top: 10px; }
 .hero-desk .dpill {
-  display: inline-flex; align-items: center; gap: 6px; margin-top: 8px; padding: 5px 11px; font-weight: 600; font-size: 12px;
+  position: absolute; left: 0; top: 0;
+  display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px; font-weight: 600; font-size: 12px;
   background: var(--card); border: 1px solid var(--line); border-radius: 999px; box-shadow: 0 6px 16px rgba(30,70,160,.16);
 }
 .hero-desk .dpill b { color: var(--blue); background: var(--blue-soft); border-radius: 999px; padding: 0 6px; font-size: 10px; }
 .hero-desk.pill .dpill, .hero-desk.card .dcard { opacity: 1; transform: none; }
 .hero-desk.card .dpill { opacity: 0; }
 .hero-desk .dcard {
-  position: absolute; left: 14px; right: 14px; bottom: 14px; padding: 10px 12px;
+  padding: 10px 12px;
   background: var(--card); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 10px 26px rgba(30,70,160,.18);
 }
 .hero-desk .dcard .head { display: flex; align-items: center; gap: 5px; font-weight: 650; font-size: 12px; margin-bottom: 4px; }
@@ -459,10 +469,12 @@ footer .links a { margin-right: 18px; }
         <div class="main">
           <div class="who"><span data-en="Wang Fang">Emma Chen</span><small data-en="Shanghai office">海外客户</small></div>
           <div class="in" data-en="<mark>明天上午 10 点的会能改到 11 点吗？</mark>"><mark>Could we move tomorrow's 10am meeting to 11?</mark></div>
+          <div class="slot">
           <div class="dpill"><span data-en="Translate to">翻译为</span><b data-en="EN">ZH</b></div>
           <div class="dcard">
             <div class="head"><svg class="spark"><use href="#spark"/></svg><span data-en="Translate to English">翻译为 简体中文</span></div>
             <div data-en="Could we move tomorrow's 10am meeting to 11?">明天上午 10 点的会能改到 11 点吗？</div>
+          </div>
           </div>
         </div>
       </div>
@@ -1094,8 +1106,9 @@ footer .links a { margin-right: 18px; }
     var s = script();
     translateBtn.querySelector('.chip').textContent = s.chip + ' ▾';
     polishBtn.classList.remove('press'); translateBtn.classList.remove('press'); inputEl.classList.remove('busy');
-    deskState('');
-    if (reduce) { textEl.textContent = s.polished; caption.innerHTML = s.c2; deskState('sel card'); return; }
+    // At rest the computer shows a finished reading translation, never an empty window.
+    deskState('sel card');
+    if (reduce) { textEl.textContent = s.polished; caption.innerHTML = s.c2; return; }
 
     textEl.textContent = '';
     setCaption(s.c1);
@@ -1111,6 +1124,7 @@ footer .links a { margin-right: 18px; }
             setCaption(s.c3);
             later(900, function () {
               press(translateBtn, 260); inputEl.classList.add('busy');
+              deskState('');
               later(1400, function () { inputEl.classList.remove('busy'); textEl.textContent = s.translated; });
               later(2000, function () { deskState('sel'); });
               later(2700, function () { deskState('sel pill'); });
