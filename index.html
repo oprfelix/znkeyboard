@@ -4,11 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ZnKeyboard · 选中文字，一键润色或翻译</title>
-<meta name="description" content="ZnKeyboard：带 AI 润色和翻译的拼音输入法，另有 macOS 和 Windows 版。选中文字，一键改通顺或翻译成 14 种语言。">
+<meta name="description" content="ZnKeyboard：带 AI 润色和翻译的拼音输入法，另有 macOS 和 Windows 版。选中文字，一键改通顺或翻译成 14 种语言；看外文时划词翻译、截图翻译。">
 <meta property="og:title" content="ZnKeyboard · 选中文字，一键润色或翻译">
 <meta property="og:description" content="Android 输入法 · macOS · Windows。用 AI 把文字改通顺，或翻译成 14 种语言。">
-<meta property="og:image" content="https://oprfelix.github.io/znkeyboard/assets/og.png">
-<meta property="og:url" content="https://oprfelix.github.io/znkeyboard/">
+<meta property="og:image" content="https://znkeyboard.2amz.com/assets/og.png">
+<meta property="og:url" content="https://znkeyboard.2amz.com/">
+<!-- znkeyboard.2amz.com is the main site; oprfelix.github.io/znkeyboard serves the same page as a mirror. -->
+<link rel="canonical" href="https://znkeyboard.2amz.com/">
 <meta property="og:type" content="website">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="icon" type="image/png" href="assets/favicon.png">
@@ -202,18 +204,30 @@ nav .wrap { display: flex; align-items: center; gap: 24px; height: 60px; }
 .platform ul li { margin: 4px 0; }
 .platform .btn { margin-top: auto; width: 100%; font-size: 16px; padding: 12px 18px; }
 .platform .meta { text-align: center; }
-.stats { padding: 8px 0 40px; }
-.stat-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; }
-@media (max-width: 860px) { .stat-grid { grid-template-columns: repeat(3, 1fr); } }
-@media (max-width: 540px) { .stat-grid { grid-template-columns: repeat(2, 1fr); } }
-.stat { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 16px 12px; text-align: center; }
-.stat b { display: block; font-size: clamp(22px, 3.2vw, 32px); font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -0.5px; }
-.stat span { color: var(--muted); font-size: 13px; }
-.split { max-width: 560px; margin: 18px auto 0; }
+/* Usage numbers: one centred band, numbers in the headline's gradient */
+.stats { padding: 0 0 72px; }
+.stat-band {
+  display: flex; flex-wrap: wrap; justify-content: center;
+  max-width: 980px; margin: 0 auto; padding: 10px;
+  background: var(--card); border: 1px solid var(--line); border-radius: 22px;
+  box-shadow: 0 10px 30px rgba(30, 70, 160, 0.08);
+}
+.stat { flex: 1 1 160px; max-width: 220px; padding: 16px 10px 14px; text-align: center; position: relative; }
+@media (min-width: 761px) { .stat + .stat::before { content: ""; position: absolute; left: 0; top: 24%; bottom: 24%; width: 1px; background: var(--line); } }
+@media (max-width: 760px) { .stat { flex-basis: 45%; } }
+.stat b {
+  display: block; font-size: clamp(26px, 3.6vw, 36px); font-weight: 800; line-height: 1.15;
+  font-variant-numeric: tabular-nums; letter-spacing: -0.02em;
+  background: linear-gradient(100deg, var(--blue), var(--blue-2));
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.stat span { display: block; margin-top: 4px; color: var(--muted); font-size: 14px; }
+.split { max-width: 520px; margin: 20px auto 0; }
 .split-bar { display: flex; height: 8px; border-radius: 999px; overflow: hidden; background: var(--line); }
 .split-bar i { display: block; height: 100%; }
-.split-legend { display: flex; justify-content: center; flex-wrap: wrap; gap: 6px 16px; margin-top: 8px; color: var(--muted); font-size: 13px; }
+.split-legend { display: flex; justify-content: center; flex-wrap: wrap; gap: 6px 18px; margin-top: 10px; color: var(--muted); font-size: 13px; }
 .split-legend span::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; background: var(--dot); }
+.stat-note { text-align: center; color: var(--muted); font-size: 13px; margin: 14px 0 0; }
 .tag { display: inline-block; font-size: 12px; font-weight: 600; color: var(--blue); background: var(--blue-soft); border-radius: 999px; padding: 1px 9px; margin-left: 6px; vertical-align: 2px; }
 kbd { font: inherit; font-size: 13px; background: var(--bg-soft); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 6px; padding: 0 6px; color: var(--ink); white-space: nowrap; }
 
@@ -252,6 +266,22 @@ kbd { font: inherit; font-size: 13px; background: var(--bg-soft); border: 1px so
 .small-btn { border-radius: 9px; padding: 6px 16px; font-size: 14px; font-weight: 600; border: 1px solid var(--line); }
 .small-btn.primary { background: var(--blue); color: #fff; border-color: var(--blue); }
 .keys-note { margin-top: 22px; text-align: center; color: var(--muted); font-size: 15px; }
+.desk-title { display: flex; justify-content: center; align-items: center; gap: 10px; margin: 56px 0 -20px; font-size: 18px; font-weight: 650; }
+.desk-title .tag { margin-left: 0; }
+.window .url { flex: 1; margin-left: 10px; background: var(--bg-soft); border-radius: 7px; font-size: 12px; color: var(--muted); padding: 1px 10px; }
+.article h4 { margin: 0 0 8px; font-size: 17px; }
+.article p { margin: 0; color: var(--muted); line-height: 1.75; }
+.article mark { background: var(--select); color: var(--ink); border-radius: 3px; padding: 1px 0; }
+.window .body.article { padding-bottom: 76px; }
+.pill.reading { left: auto; right: 24px; top: auto; bottom: 20px; }
+.result .orig { background: none; padding: 0 0 12px; margin: 0 0 12px; border-bottom: 1px solid var(--line); border-radius: 0; color: var(--muted); font-size: 14px; }
+.result .cap { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+.pin { width: 22px; height: 22px; border-radius: 50%; display: inline-grid; place-items: center; background: var(--blue-soft); color: var(--blue); font-size: 12px; margin-left: 6px; }
+.keys { max-width: 640px; margin: 48px auto 0; background: var(--card); border: 1px solid var(--line); border-radius: 18px; overflow: hidden; }
+.keys table { width: 100%; border-collapse: collapse; font-size: 15px; }
+.keys th, .keys td { padding: 11px 18px; text-align: left; border-top: 1px solid var(--line); }
+.keys thead th { border-top: 0; background: var(--bg-soft); color: var(--muted); font-size: 13px; font-weight: 600; }
+.keys td:first-child { font-weight: 600; }
 
 /* Languages */
 .langs { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 36px; }
@@ -332,7 +362,7 @@ footer .links a { margin-right: 18px; }
     <div>
       <span class="eyebrow"><svg class="spark"><use href="#spark"/></svg><span data-en="AI polish &amp; translate">AI 润色与翻译</span></span>
       <h1 data-en="Select text.<br><em>Polish or translate</em> in one tap.">选中文字，<br><em>一键润色或翻译</em></h1>
-      <p class="sub" data-en="A pinyin keyboard for Android with AI built in, plus companion apps for Mac and Windows. Turn rough drafts into clear sentences, send them in 14 languages, or translate anything on screen with a screenshot.">带 AI 的拼音输入法，另有 Mac 和 Windows 版。随手打的口语，一点就变成通顺的句子，或者直接翻译成 14 种语言发出去；看不懂的外文，截个图就能翻译。</p>
+      <p class="sub" data-en="A pinyin keyboard for Android with AI built in, plus companion apps for Mac and Windows. Turn rough drafts into clear sentences, send them in 14 languages, and translate whatever you read: select it, or take a screenshot.">带 AI 的拼音输入法，另有 Mac 和 Windows 版。随手打的口语，一点就变成通顺的句子，或者直接翻译成 14 种语言发出去；看不懂的外文，选中或截个图就能翻译。</p>
       <div class="cta">
         <a class="btn" id="hero-btn" href="#download">
           <svg><use href="#i-download"/></svg><span id="hero-label" data-en="Download">免费下载</span>
@@ -376,20 +406,21 @@ footer .links a { margin-right: 18px; }
   </div>
 </header>
 
-<!-- Filled from /api/stats; stays hidden when it can't be reached. -->
+<!-- Filled from /api/stats; numbers still at zero, or the whole band when it can't load, stay hidden. -->
 <section class="stats" id="stats" hidden>
   <div class="wrap">
-    <div class="stat-grid">
-      <div class="stat" data-stat="users"><b></b><span data-en="Users">累计用户</span></div>
-      <div class="stat" data-stat="active30d"><b></b><span data-en="Active in 30 days">近 30 天活跃</span></div>
-      <div class="stat" data-stat="active1d"><b></b><span data-en="Active today">今日活跃</span></div>
-      <div class="stat" data-stat="downloads"><b></b><span data-en="Downloads">累计下载</span></div>
-      <div class="stat" data-stat="uses"><b></b><span data-en="Polished &amp; translated">累计润色 / 翻译</span></div>
+    <div class="stat-band">
+      <div class="stat" data-stat="downloads"><b>0</b><span data-en="Downloads">累计下载</span></div>
+      <div class="stat" data-stat="users"><b>0</b><span data-en="Users">累计用户</span></div>
+      <div class="stat" data-stat="active30d"><b>0</b><span data-en="Active in 30 days">近 30 天活跃</span></div>
+      <div class="stat" data-stat="active1d"><b>0</b><span data-en="Active today">今日活跃</span></div>
+      <div class="stat" data-stat="uses"><b>0</b><span data-en="Polished &amp; translated">累计润色 / 翻译</span></div>
     </div>
     <div class="split" id="stat-split" hidden>
       <div class="split-bar" id="split-bar"></div>
       <div class="split-legend" id="split-legend"></div>
     </div>
+    <p class="stat-note" data-en="Updated every 5 minutes from anonymous counts; never any text.">每 5 分钟更新 · 来自匿名统计，不含任何文字</p>
   </div>
 </section>
 
@@ -397,7 +428,7 @@ footer .links a { margin-right: 18px; }
   <div class="wrap">
     <h2 data-en="Write better, without switching apps">不用切换 App，就能写得更好</h2>
     <p class="lead" data-en="Everything happens right where you type: chat apps, email, forms, comment boxes.">在你正在打字的地方直接完成：聊天、邮件、表单、评论框都可以。</p>
-    <div class="grid six">
+    <div class="grid four">
       <div class="card feature">
         <div class="ico"><svg><use href="#spark"/></svg></div>
         <h3 data-en="AI polish">AI 润色</h3>
@@ -409,19 +440,29 @@ footer .links a { margin-right: 18px; }
         <p data-en="Pick a target once; switch it any time from the EN ▾ chip. Written the way a native speaker would say it.">设一次目标语言，随时在 EN ▾ 上切换。按母语者的习惯来写，不是生硬直译。</p>
       </div>
       <div class="card feature">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h10M4 10h7M4 14h5"/><path d="M13 13h7v7h-7z" fill="currentColor" fill-opacity=".15"/><path d="M15 18.5l1.5-4 1.5 4m-2.5-1.2h2"/></svg></div>
+        <h3 data-en="Reading translation">划词翻译</h3>
+        <p data-en="Reading a foreign web page or document? Select a passage and tap <b>Translate</b>; the original and the translation show together. (Mac, Windows)">看外文网页、文档时选中一段，点「翻译为」，原文和译文一起显示，方便对照和复制。（Mac、Windows）</p>
+      </div>
+      <div class="card feature">
         <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8V5.5A1.5 1.5 0 0 1 5.5 4H8M16 4h2.5A1.5 1.5 0 0 1 20 5.5V8M20 16v2.5a1.5 1.5 0 0 1-1.5 1.5H16M8 20H5.5A1.5 1.5 0 0 1 4 18.5V16"/><path d="M8 9.5h8M8 12.5h8M8 15.5h5"/></svg></div>
         <h3 data-en="Screenshot translate">截图翻译</h3>
-        <p data-en="Press <kbd>⇧⌘E</kbd> / <kbd>Ctrl+Alt+E</kbd> and drag over anything on screen: images, PDFs, apps that won't let you copy. The text is read on your computer and translated faithfully. (Mac, Windows)">按 <kbd>⇧⌘E</kbd> / <kbd>Ctrl+Alt+E</kbd>，拖选屏幕上任何内容：图片、PDF、不能复制的软件界面都行。文字在本机识别，忠实翻译。（Mac、Windows）</p>
+        <p data-en="Press <kbd>⇧⌘2</kbd> / <kbd>Ctrl+Shift+2</kbd> and drag over images, PDFs or apps that won't let you copy. Read on your computer, translated faithfully. (Mac, Windows)">按 <kbd>⇧⌘2</kbd> / <kbd>Ctrl+Shift+2</kbd>，框选图片、PDF、不能复制的软件界面都行。文字在本机识别，忠实翻译。（Mac、Windows）</p>
+      </div>
+      <div class="card feature">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M7 10h6M7 14h3"/><path d="M14.5 13.5 18 16l-1.6.4-.4 1.6z" fill="currentColor"/></svg></div>
+        <h3 data-en="Right where you select">选中就能用</h3>
+        <p data-en="Select text and a small pill pops up, or press a shortcut. Pin a translation card 📌 to keep it beside what you read.">选中文字就弹出小胶囊，或者按快捷键，不用来回复制粘贴。翻译卡片可以用 📌 固定在旁边，边看边翻。</p>
+      </div>
+      <div class="card feature">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="12" rx="2.5"/><path d="M7 10h.01M10 10h.01M13 10h.01M16 10h.01M8 14h8"/></svg></div>
+        <h3 data-en="Pinyin that gets you">懂你的拼音输入</h3>
+        <p data-en="Reads whole sentences in context, fixes slips by where you tapped, and learns your words. Fuzzy pinyin, 9-key and stroke input. (Android)">整句理解上下文，按你点按的位置纠正手误，越用越懂你的用词；支持模糊音、九宫格和笔画。（Android）</p>
       </div>
       <div class="card feature">
         <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></svg></div>
         <h3 data-en="AI voice input">AI 语音输入</h3>
         <p data-en="Hold the space bar and talk. Chinese mode tidies your speech into text; EN mode translates it as you go. (Android)">按住空格说话。中文模式整理成通顺的文字，EN 模式直接翻译。（Android）</p>
-      </div>
-      <div class="card feature">
-        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M7 10h6M7 14h3"/><path d="M14.5 13.5 18 16l-1.6.4-.4 1.6z" fill="currentColor"/></svg></div>
-        <h3 data-en="Works in any app">选中就能用</h3>
-        <p data-en="Chat, email, web forms, comment boxes: select text and a small pill appears, or press a shortcut. No copying back and forth.">聊天、邮件、网页表单、评论框都行：选中文字就弹出小胶囊，或者按快捷键，不用来回复制粘贴。</p>
       </div>
       <div class="card feature">
         <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M12 3 5 6v5.5c0 4.4 3 8 7 9.5 4-1.5 7-5.1 7-9.5V6z"/><path d="m9 12 2 2 4-4" stroke-linecap="round"/></svg></div>
@@ -436,6 +477,7 @@ footer .links a { margin-right: 18px; }
   <div class="wrap">
     <h2 data-en="On your computer, too">电脑上也一样</h2>
     <p class="lead" data-en="Mac and Windows apps live in the menu bar or tray and work in any app.">Mac 和 Windows 版常驻菜单栏或托盘，在任何软件里都能用。</p>
+    <div class="desk-title"><span class="tag" data-en="Writing">写作</span><span data-en="Polish or translate what you type">润色、翻译你写的字</span></div>
     <div class="desk">
       <div class="window" aria-hidden="true">
         <div class="bar"><i></i><i></i><i></i></div>
@@ -448,10 +490,40 @@ footer .links a { margin-right: 18px; }
       <div class="window result" aria-hidden="true">
         <div class="head"><b><svg class="spark" style="color:var(--blue)"><use href="#spark"/></svg><span data-en="Translated">已翻译</span></b><span class="select">English ▾</span></div>
         <p>Hi! Your order shipped yesterday and should arrive in about 3 days. Let me know if there's anything I can help with.</p>
-        <div class="actions"><span class="small-btn" data-en="Copy">复制</span><span class="small-btn primary" data-en="Replace">替换</span></div>
+        <div class="actions"><span class="small-btn" data-en="Copy">复制</span><span class="small-btn primary" data-en="Replace ↵">替换 ↵</span></div>
       </div>
     </div>
-    <p class="keys-note" data-en="Select text and a small pill pops up. Or use shortcuts: polish <kbd>⇧⌘R</kbd> / <kbd>Ctrl+Alt+R</kbd>, translate <kbd>⇧⌘T</kbd> / <kbd>Ctrl+Alt+T</kbd>, screenshot translate <kbd>⇧⌘E</kbd> / <kbd>Ctrl+Alt+E</kbd>. Shortcuts can be changed in settings.">选中文字，旁边会弹出小胶囊；也可以用快捷键：润色 <kbd>⇧⌘R</kbd> / <kbd>Ctrl+Alt+R</kbd>，翻译 <kbd>⇧⌘T</kbd> / <kbd>Ctrl+Alt+T</kbd>，截图翻译 <kbd>⇧⌘E</kbd> / <kbd>Ctrl+Alt+E</kbd>，快捷键可在设置里修改。</p>
+
+    <div class="desk-title"><span class="tag" data-en="Reading">阅读</span><span data-en="Translate what you read">划词翻译你看到的字</span></div>
+    <div class="desk">
+      <div class="window" aria-hidden="true">
+        <div class="bar"><i></i><i></i><i></i><span class="url">news.example.com</span></div>
+        <div class="body article">
+          <h4 data-en="远程办公三年后">Three years of remote work</h4>
+          <p data-en="越来越多的团队发现，<mark>清晰的书面表达已经成为远程协作中最重要的能力。</mark>会议变少了，文字却变多了。">Teams that went remote found one thing mattered more than tools: <mark>clear writing has become the most important skill for working together at a distance.</mark> Meetings got shorter; messages got longer.</p>
+          <div class="pill reading"><span><span data-en="Translate to">翻译为</span><span class="chip" data-en="EN">ZH</span></span></div>
+        </div>
+      </div>
+      <div class="window result" aria-hidden="true">
+        <div class="head"><b><svg class="spark" style="color:var(--blue)"><use href="#spark"/></svg><span data-en="Translate to">翻译为</span></b><span><span class="select" data-en="English ▾">简体中文 ▾</span><span class="pin" title="📌">📌</span></span></div>
+        <p class="orig"><span class="cap" data-en="Original">原文</span><span data-en="清晰的书面表达已经成为远程协作中最重要的能力。">Clear writing has become the most important skill for working together at a distance.</span></p>
+        <p data-en="Clear writing has become the most important skill in remote collaboration.">清晰的书面表达，已经成为远程协作中最重要的能力。</p>
+        <div class="actions"><span class="small-btn" data-en="Copy original">复制原文</span><span class="small-btn primary" data-en="Copy translation ↵">复制译文 ↵</span></div>
+      </div>
+    </div>
+
+    <div class="keys">
+      <table>
+        <thead><tr><th data-en="Shortcut">快捷键</th><th>Mac</th><th>Windows</th></tr></thead>
+        <tbody>
+          <tr><td data-en="Reading translation">划词翻译</td><td><kbd>⇧⌘1</kbd></td><td><kbd>Ctrl+Shift+1</kbd></td></tr>
+          <tr><td data-en="Screenshot translate">截图翻译</td><td><kbd>⇧⌘2</kbd></td><td><kbd>Ctrl+Shift+2</kbd></td></tr>
+          <tr><td data-en="Polish">润色</td><td><kbd>⇧⌘E</kbd></td><td><kbd>Ctrl+Shift+E</kbd></td></tr>
+          <tr><td data-en="AI translate">AI 翻译</td><td><kbd>⇧⌘R</kbd></td><td><kbd>Ctrl+Shift+R</kbd></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="keys-note" data-en="Select text and a small pill pops up; shortcuts work everywhere, even where it doesn't. Change them in settings. Reading translation's pill is off by default: Settings → Usage → On web pages and documents.">选中文字会弹出小胶囊，快捷键在任何地方都能用，可在设置里修改。划词翻译的小胶囊默认关闭，在 设置 →「使用」→「网页和文档」里打开。</p>
   </div>
 </section>
 
@@ -464,7 +536,7 @@ footer .links a { margin-right: 18px; }
         <header><img src="assets/icon-android.png" alt=""><div><h3>Android <span class="tag" data-en="Keyboard">输入法</span></h3><div class="kind" data-en="Pinyin + English keyboard">拼音 + 英文输入法</div></div></header>
         <ul>
           <li data-en="Polish, translate and AI voice input in the toolbar">工具栏里直接润色、翻译和 AI 语音输入</li>
-          <li data-en="Fuzzy pinyin, predictions, adaptive touch">模糊音、联想、自适应触控</li>
+          <li data-en="Whole-sentence pinyin, fuzzy pinyin, 9-key and stroke input, adaptive touch">整句拼音、模糊音、九宫格和笔画、自适应触控</li>
           <li data-en="Requires Android 16 or later">需要 Android 16 及以上</li>
         </ul>
         <a class="btn" data-repo="znkeyboard" data-ext=".apk" href="https://github.com/oprfelix/znkeyboard/releases/latest"><svg><use href="#i-download"/></svg><span data-en="Download APK">下载 APK</span></a>
@@ -473,8 +545,8 @@ footer .links a { margin-right: 18px; }
       <article class="card platform" data-platform="mac">
         <header><img src="assets/icon-desktop.png" alt=""><div><h3>macOS <span class="tag" data-en="Menu bar">菜单栏</span></h3><div class="kind" data-en="Works in any app">在任何 App 里使用</div></div></header>
         <ul>
-          <li data-en="Press <kbd>⇧⌘R</kbd> / <kbd>⇧⌘T</kbd>, or turn on the pill for selected text">按 <kbd>⇧⌘R</kbd> / <kbd>⇧⌘T</kbd>，或开启后选中文字弹出小胶囊</li>
-          <li data-en="Screenshot translate with <kbd>⇧⌘E</kbd>: text is read on your Mac">截图翻译 <kbd>⇧⌘E</kbd>：在本机识别文字后翻译</li>
+          <li data-en="Select text in a text box for Polish | Translate, or press <kbd>⇧⌘E</kbd> / <kbd>⇧⌘R</kbd>">输入框里选中文字弹出「润色 | AI 翻译」，或按 <kbd>⇧⌘E</kbd> / <kbd>⇧⌘R</kbd></li>
+          <li data-en="Reading translation <kbd>⇧⌘1</kbd>, screenshot translate <kbd>⇧⌘2</kbd>">划词翻译 <kbd>⇧⌘1</kbd>，截图翻译 <kbd>⇧⌘2</kbd></li>
           <li data-en="For Apple silicon Macs (M1 and later)">适用于 Apple 芯片的 Mac（M1 及以后）</li>
           <li data-en="Requires macOS 14 or later">需要 macOS 14 及以上</li>
         </ul>
@@ -484,8 +556,8 @@ footer .links a { margin-right: 18px; }
       <article class="card platform" data-platform="windows">
         <header><img src="assets/icon-desktop.png" alt=""><div><h3>Windows <span class="tag" data-en="Tray">托盘</span></h3><div class="kind" data-en="Works in any app">在任何软件里使用</div></div></header>
         <ul>
-          <li data-en="Pill on selected text, or <kbd>Ctrl+Alt+R</kbd> / <kbd>Ctrl+Alt+T</kbd>">选中文字弹出小胶囊，或按 <kbd>Ctrl+Alt+R</kbd> / <kbd>Ctrl+Alt+T</kbd></li>
-          <li data-en="Screenshot translate with <kbd>Ctrl+Alt+E</kbd>: text is read on your PC">截图翻译 <kbd>Ctrl+Alt+E</kbd>：在本机识别文字后翻译</li>
+          <li data-en="Select text in a text box for Polish | Translate, or press <kbd>Ctrl+Shift+E</kbd> / <kbd>Ctrl+Shift+R</kbd>">输入框里选中文字弹出「润色 | AI 翻译」，或按 <kbd>Ctrl+Shift+E</kbd> / <kbd>Ctrl+Shift+R</kbd></li>
+          <li data-en="Reading translation <kbd>Ctrl+Shift+1</kbd>, screenshot translate <kbd>Ctrl+Shift+2</kbd>">划词翻译 <kbd>Ctrl+Shift+1</kbd>，截图翻译 <kbd>Ctrl+Shift+2</kbd></li>
           <li data-en="Double-click to install, then open it from the Start menu">双击自动安装，可从开始菜单打开</li>
           <li data-en="Windows 10 / 11, 64-bit (Intel / AMD)">Windows 10 / 11，64 位（Intel / AMD）</li>
           <li data-en="Needs the free <a href=&quot;https://dotnet.microsoft.com/download/dotnet/10.0&quot;>.NET 10 Desktop Runtime</a>">需先安装免费的 <a href="https://dotnet.microsoft.com/download/dotnet/10.0">.NET 10 桌面运行时</a></li>
@@ -494,6 +566,7 @@ footer .links a { margin-right: 18px; }
         <div class="meta" data-meta="Znkeyboard-for-Windows"></div>
       </article>
     </div>
+    <p class="keys-note" id="dl-source"></p>
     <p class="keys-note" data-en="No iPhone version: iOS doesn't let keyboards read or rewrite text in other apps the way this needs.">暂无 iPhone 版：iOS 对第三方输入法的限制较多，无法实现完整的润色和翻译功能。</p>
   </div>
 </section>
@@ -571,21 +644,21 @@ footer .links a { margin-right: 18px; }
       </details>
       <details>
         <summary data-en="Mac: first launch and permissions">Mac：第一次打开和授权</summary>
-        <div class="answer" data-en="&lt;ol&gt;&lt;li&gt;Drag ZnKeyboard into Applications and open it.&lt;/li&gt;&lt;li&gt;When asked, turn on ZnKeyboard under &lt;b&gt;System Settings → Privacy &amp; Security → Accessibility&lt;/b&gt; so it can read the text you select.&lt;/li&gt;&lt;li&gt;The first time you use screenshot translate, turn on ZnKeyboard under &lt;b&gt;Screen Recording&lt;/b&gt; as well, then quit and reopen ZnKeyboard.&lt;/li&gt;&lt;/ol&gt;To update, drag the new version into Applications to replace the old one. Your settings, API key and permissions stay.">
+        <div class="answer" data-en="&lt;ol&gt;&lt;li&gt;Drag ZnKeyboard into Applications and open it.&lt;/li&gt;&lt;li&gt;When asked, turn on ZnKeyboard under &lt;b&gt;System Settings → Privacy &amp; Security → Accessibility&lt;/b&gt; so it can read the text you select.&lt;/li&gt;&lt;li&gt;The first time you use screenshot translate, turn on ZnKeyboard under &lt;b&gt;Screen Recording&lt;/b&gt; as well, then quit and reopen ZnKeyboard.&lt;/li&gt;&lt;/ol&gt;Updates install from the menu bar with one click (0.3 and later); your settings, API key and permissions stay.">
           <ol>
             <li>把 ZnKeyboard 拖进「应用程序」后打开。</li>
             <li>按提示在 <b>系统设置 → 隐私与安全性 → 辅助功能</b> 里打开 ZnKeyboard，它才能读取你选中的文字。</li>
             <li>第一次使用截图翻译时，再在 <b>屏幕录制</b> 里打开 ZnKeyboard，然后退出并重新打开 ZnKeyboard。</li>
           </ol>
-          以后升级：把新版本拖进「应用程序」替换旧版即可，设置、API Key 和权限都会保留，不用重新授权。
+          以后升级：有新版本时菜单栏会提醒，点「立即更新」即可（0.3 起），设置、API Key 和权限都会保留，不用重新授权。
         </div>
       </details>
       <details>
         <summary data-en="Windows: “Windows protected your PC” or it won't start">Windows：提示「Windows 已保护你的电脑」或打不开</summary>
-        <div class="answer" data-en="<ol><li>Install the <a href=&quot;https://dotnet.microsoft.com/download/dotnet/10.0&quot;>.NET 10 Desktop Runtime</a> (x64) first.</li><li>Run the downloaded <b>ZnKeyboard-Windows-….exe</b>. It installs itself for you (no admin rights) and adds ZnKeyboard to the Start menu; you can then delete the download. To update, run a newer download the same way.</li><li>If SmartScreen appears, click <b>More info → Run anyway</b>.</li><li>ZnKeyboard sits in the tray (bottom right) and starts with Windows. Right-click it for settings. To uninstall, go to Settings → Apps → Installed apps.</li></ol>Something not working? Right-click the tray icon → <b>Open diagnostic log</b> and send it with your <a href=&quot;https://github.com/oprfelix/Znkeyboard-for-Windows/issues&quot;>report</a>. It never contains your text.">
+        <div class="answer" data-en="<ol><li>Install the <a href=&quot;https://dotnet.microsoft.com/download/dotnet/10.0&quot;>.NET 10 Desktop Runtime</a> (x64) first.</li><li>Run the downloaded <b>ZnKeyboard-Windows-….exe</b>. It installs itself for you (no admin rights) and adds ZnKeyboard to the Start menu; you can then delete the download. Later updates install from the tray with one click (0.6 and later).</li><li>If SmartScreen appears, click <b>More info → Run anyway</b>.</li><li>ZnKeyboard sits in the tray (bottom right) and starts with Windows. Right-click it for settings. To uninstall, go to Settings → Apps → Installed apps.</li></ol>Something not working? Right-click the tray icon → <b>Open diagnostic log</b> and send it with your <a href=&quot;https://github.com/oprfelix/Znkeyboard-for-Windows/issues&quot;>report</a>. It never contains your text.">
           <ol>
             <li>先安装 <a href="https://dotnet.microsoft.com/download/dotnet/10.0">.NET 10 桌面运行时</a>（x64）。</li>
-            <li>双击下载的 <b>ZnKeyboard-Windows-….exe</b>，会自动安装到本机（不需要管理员权限）并添加到开始菜单，之后下载的文件可以删除。升级时同样双击新版本即可。</li>
+            <li>双击下载的 <b>ZnKeyboard-Windows-….exe</b>，会自动安装到本机（不需要管理员权限）并添加到开始菜单，之后下载的文件可以删除。以后有新版本时托盘会提醒，点一下即可更新（0.6 起）。</li>
             <li>如果出现蓝色的 SmartScreen 提示，点 <b>更多信息 → 仍要运行</b>。</li>
             <li>ZnKeyboard 会出现在右下角托盘里，并且开机自动启动，右键可打开设置。卸载：Windows「设置」→「应用」→「已安装的应用」。</li>
           </ol>
@@ -606,7 +679,19 @@ footer .links a { margin-right: 18px; }
       </details>
       <details>
         <summary data-en="Where does my text go?">我的文字会发到哪里？</summary>
-        <div class="answer" data-en="Only when you tap Polish or Translate (or use AI voice input), that text is sent directly to the AI provider you chose. There is no ZnKeyboard server, no account and no analytics. For screenshot translate, the image is read on your computer and never uploaded; only the recognised text is sent. Your API key is stored on your device (Android Keystore, macOS Keychain, Windows Credential Manager). Ordinary typing never leaves the keyboard.">只有在你点「润色」「翻译」或使用 AI 语音输入时，那一段文字才会直接发给你选择的 AI 服务商。ZnKeyboard 没有自己的服务器，不需要注册，也不收集统计数据。截图翻译时，截图只在你的电脑上识别，不会上传，只有识别出的文字会发给服务商。API Key 只保存在你的设备上（Android 密钥库、macOS 钥匙串、Windows 凭据管理器）。平时普通打字的内容不会离开键盘。</div>
+        <div class="answer" data-en="Only when you tap Polish or Translate (or use AI voice input), that text is sent directly to the AI provider you chose. There is no middleman server and no account. Once a day the Mac and Windows apps send an anonymous count for the numbers on this site: a random ID, platform, version and how many times you polished or translated, never any text; turn it off in Settings → General. For screenshot translate, the image is read on your computer and never uploaded; only the recognised text is sent. Your API key is stored on your device (Android Keystore, macOS Keychain, Windows Credential Manager). Ordinary typing never leaves the keyboard.">只有在你点「润色」「翻译」或使用 AI 语音输入时，那一段文字才会直接发给你选择的 AI 服务商。ZnKeyboard 没有中转服务器，也不需要注册。Mac 和 Windows 版每天发送一次匿名统计，用于本站的用户数：只有随机编号、平台、版本和使用次数，不含任何文字，可在 设置 →「通用」里关闭。截图翻译时，截图只在你的电脑上识别，不会上传，只有识别出的文字会发给服务商。API Key 只保存在你的设备上（Android 密钥库、macOS 钥匙串、Windows 凭据管理器）。平时普通打字的内容不会离开键盘。</div>
+      </details>
+      <details>
+        <summary data-en="How do I turn on reading translation?">划词翻译怎么打开？</summary>
+        <div class="answer" data-en="On Mac and Windows, open Settings → Usage and turn on &lt;b&gt;On web pages and documents&lt;/b&gt;. Then select text while reading and tap &lt;b&gt;Translate&lt;/b&gt;. Without the pill, select text and press &lt;kbd&gt;⇧⌘1&lt;/kbd&gt; / &lt;kbd&gt;Ctrl+Shift+1&lt;/kbd&gt;. It translates into the language set under &lt;b&gt;Reading and screenshots to&lt;/b&gt;, the same one screenshot translate uses.">在 Mac 或 Windows 版的 设置 →「使用」里打开 <b>网页和文档</b>，之后看网页、文档时选中文字，点「翻译为」就行。不想要小胶囊的话，选中后按 <kbd>⇧⌘1</kbd> / <kbd>Ctrl+Shift+1</kbd> 也可以。翻译成的语言在「划词和截图翻译成」里设置，和截图翻译共用。</div>
+      </details>
+      <details>
+        <summary data-en="Can I change the shortcuts?">快捷键可以改吗？</summary>
+        <div class="answer" data-en="Yes, in Settings → Shortcuts: click one and press the new keys. The defaults are &lt;kbd&gt;⇧⌘1&lt;/kbd&gt; reading translation, &lt;kbd&gt;⇧⌘2&lt;/kbd&gt; screenshot, &lt;kbd&gt;⇧⌘E&lt;/kbd&gt; polish and &lt;kbd&gt;⇧⌘R&lt;/kbd&gt; translate on Mac, and the same with &lt;kbd&gt;Ctrl+Shift&lt;/kbd&gt; on Windows.">可以，在 设置 →「快捷键」里点一下快捷键，再按新的组合键即可。默认是 Mac 上 <kbd>⇧⌘1</kbd> 划词翻译、<kbd>⇧⌘2</kbd> 截图翻译、<kbd>⇧⌘E</kbd> 润色、<kbd>⇧⌘R</kbd> AI 翻译，Windows 上把 ⇧⌘ 换成 <kbd>Ctrl+Shift</kbd>。</div>
+      </details>
+      <details>
+        <summary data-en="znkeyboard.2amz.com or GitHub: where should I download?">在官网下载和在 GitHub 下载有什么区别？</summary>
+        <div class="answer" data-en="They are the same files. &lt;a href=&quot;https://znkeyboard.2amz.com/&quot;&gt;znkeyboard.2amz.com&lt;/a&gt; serves them from Cloudflare, which is faster in mainland China; &lt;a href=&quot;https://oprfelix.github.io/znkeyboard/&quot;&gt;oprfelix.github.io/znkeyboard&lt;/a&gt; serves them from GitHub. The apps update from the faster one and fall back to the other.">安装包完全一样。<a href="https://znkeyboard.2amz.com/">znkeyboard.2amz.com</a> 从 Cloudflare 下载，国内更快；<a href="https://oprfelix.github.io/znkeyboard/">oprfelix.github.io/znkeyboard</a> 从 GitHub 下载。App 内更新也会先用 Cloudflare，连不上再改用 GitHub。</div>
       </details>
       <details>
         <summary data-en="Which AI services can I use?">可以用哪些 AI 服务？</summary>
@@ -626,7 +711,7 @@ footer .links a { margin-right: 18px; }
 
 <footer>
   <div class="wrap">
-    <div>© 2026 ZnKeyboard · GPL-3.0</div>
+    <div>© 2026 ZnKeyboard · GPL-3.0 · <a href="https://znkeyboard.2amz.com/">znkeyboard.2amz.com</a> · <a href="https://oprfelix.github.io/znkeyboard/" data-en="GitHub mirror">GitHub 镜像</a></div>
     <div class="links">
       <a href="https://github.com/oprfelix/znkeyboard/issues" data-en="Report a problem">反馈问题</a>
       <a href="https://github.com/oprfelix/znkeyboard">Android</a>
@@ -638,6 +723,8 @@ footer .links a { margin-right: 18px; }
 
 <script>
 (function () {
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
   // ---- Language: Chinese is in the markup, English in data-en. ----
   var nodes = Array.prototype.slice.call(document.querySelectorAll('[data-en]'));
   nodes.forEach(function (n) { n.dataset.zh = n.innerHTML; });
@@ -734,6 +821,13 @@ footer .links a { margin-right: 18px; }
       return '<a href="#download">' + repos[k].name + '</a>';
     });
     others.innerHTML = target ? t('其他平台：', 'Other platforms: ') + links.join('') : '';
+
+    // Where the installers come from here, and the other site.
+    document.getElementById('dl-source').innerHTML = fromCloudflare
+      ? t('安装包从 Cloudflare 国内加速节点下载 · 也可以去 <a href="https://oprfelix.github.io/znkeyboard/#download">GitHub 镜像</a>下载',
+          'Downloads come from Cloudflare, fast in mainland China · also on the <a href="https://oprfelix.github.io/znkeyboard/#download">GitHub mirror</a>')
+      : t('安装包从 GitHub 下载 · 国内用户可以去 <a href="https://znkeyboard.2amz.com/#download">znkeyboard.2amz.com</a> 加速下载',
+          'Downloads come from GitHub · in mainland China, <a href="https://znkeyboard.2amz.com/#download">znkeyboard.2amz.com</a> is faster');
   }
 
   // Latest release of each app, from Cloudflare's latest.json or GitHub; links fall back to the releases page.
@@ -754,7 +848,7 @@ footer .links a { margin-right: 18px; }
   }
 
   if (fromCloudflare) {
-    fetch('/download/latest.json')
+    fetch('/download/latest.json', { cache: 'no-cache' })
       .then(function (res) { return res.ok ? res.json() : null; })
       .then(function (all) {
         if (!all) { loadFromGitHub(); return; }
@@ -772,17 +866,33 @@ footer .links a { margin-right: 18px; }
 
   // ---- Usage numbers: users, active installs, downloads, polish and translate runs. ----
   var stats = null;
+  var counted = false;
   function renderStats() {
     if (!stats) return;
     var locale = lang === 'en' ? 'en-US' : 'zh-CN';
     var shown = 0;
+    var tiles = [];
     document.querySelectorAll('[data-stat]').forEach(function (tile) {
       var value = stats[tile.dataset.stat] || 0;
       // A number still at zero (nothing reported yet) says nothing; leave it out.
       tile.hidden = value === 0;
       if (value) shown++;
-      tile.querySelector('b').textContent = value.toLocaleString(locale);
+      tiles.push({ el: tile.querySelector('b'), value: value });
     });
+    // Counts up once, the first time the numbers arrive; afterwards (language changes) just shows them.
+    var start = performance.now(), duration = counted || reduce ? 0 : 900;
+    counted = true;
+    function show(t) {
+      var eased = 1 - Math.pow(1 - t, 3);
+      tiles.forEach(function (x) { x.el.textContent = Math.round(x.value * eased).toLocaleString(locale); });
+    }
+    (function frame(now) {
+      var t = duration ? Math.min((now - start) / duration, 1) : 1;
+      show(t);
+      if (t < 1) requestAnimationFrame(frame);
+    })(start);
+    // A background tab gets no animation frames: land on the real numbers anyway.
+    if (duration) setTimeout(function () { show(1); }, duration + 100);
     document.getElementById('stats').hidden = shown === 0;
     var names = { android: 'Android', macos: 'macOS', windows: 'Windows' };
     var colors = { android: 'var(--green)', macos: 'var(--blue)', windows: 'var(--warn)' };
@@ -807,7 +917,8 @@ footer .links a { margin-right: 18px; }
       legend.appendChild(item);
     });
   }
-  fetch(statsUrl)
+  // Always re-asked: an answer the browser kept from before could hide the numbers for hours.
+  fetch(statsUrl, { cache: 'no-cache' })
     .then(function (res) { return res.ok ? res.json() : null; })
     .then(function (data) { if (data && data.platforms) { stats = data; renderStats(); } })
     .catch(function () {});
@@ -819,7 +930,6 @@ footer .links a { margin-right: 18px; }
   var polishBtn = document.getElementById('tool-polish');
   var translateBtn = document.getElementById('tool-translate');
   var timers = [];
-  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   function script() {
     return {
