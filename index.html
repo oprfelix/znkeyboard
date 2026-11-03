@@ -7,10 +7,10 @@
 <meta name="description" content="ZnKeyboard：带 AI 润色和翻译的拼音输入法，另有 macOS 和 Windows 版。选中文字，一键改通顺或翻译成 14 种语言；看外文时划词翻译、截图翻译。">
 <meta property="og:title" content="ZnKeyboard · 选中文字，一键润色或翻译">
 <meta property="og:description" content="Android 输入法 · macOS · Windows。用 AI 把文字改通顺，或翻译成 14 种语言。">
-<meta property="og:image" content="https://znkeyboard.2amz.com/assets/og.png">
-<meta property="og:url" content="https://znkeyboard.2amz.com/">
-<!-- znkeyboard.2amz.com is the main site; oprfelix.github.io/znkeyboard serves the same page as a mirror. -->
-<link rel="canonical" href="https://znkeyboard.2amz.com/">
+<meta property="og:image" content="https://zn.2amz.com/assets/og.png">
+<meta property="og:url" content="https://zn.2amz.com/">
+<!-- zn.2amz.com is the main site; znkeyboard.2amz.com serves it too, and oprfelix.github.io/znkeyboard mirrors it. -->
+<link rel="canonical" href="https://zn.2amz.com/">
 <meta property="og:type" content="website">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="icon" type="image/png" href="assets/favicon.png">
@@ -805,8 +805,8 @@ footer .links a { margin-right: 18px; }
         <div class="answer" data-en="Yes, in Settings → Shortcuts: click one and press the new keys. The defaults are &lt;kbd&gt;⇧⌘1&lt;/kbd&gt; reading translation, &lt;kbd&gt;⇧⌘2&lt;/kbd&gt; screenshot, &lt;kbd&gt;⇧⌘E&lt;/kbd&gt; polish and &lt;kbd&gt;⇧⌘R&lt;/kbd&gt; translate on Mac, and the same with &lt;kbd&gt;Ctrl+Shift&lt;/kbd&gt; on Windows.">可以，在 设置 →「快捷键」里点一下快捷键，再按新的组合键即可。默认是 Mac 上 <kbd>⇧⌘1</kbd> 划词翻译、<kbd>⇧⌘2</kbd> 截图翻译、<kbd>⇧⌘E</kbd> 润色、<kbd>⇧⌘R</kbd> AI 翻译，Windows 上把 ⇧⌘ 换成 <kbd>Ctrl+Shift</kbd>。</div>
       </details>
       <details>
-        <summary data-en="znkeyboard.2amz.com or GitHub: where should I download?">在官网下载和在 GitHub 下载有什么区别？</summary>
-        <div class="answer" data-en="They are the same files. &lt;a href=&quot;https://znkeyboard.2amz.com/&quot;&gt;znkeyboard.2amz.com&lt;/a&gt; serves them from Cloudflare, which is faster in mainland China; &lt;a href=&quot;https://oprfelix.github.io/znkeyboard/&quot;&gt;oprfelix.github.io/znkeyboard&lt;/a&gt; serves them from GitHub. The apps update from the faster one and fall back to the other.">安装包完全一样。<a href="https://znkeyboard.2amz.com/">znkeyboard.2amz.com</a> 从 Cloudflare 下载，国内更快；<a href="https://oprfelix.github.io/znkeyboard/">oprfelix.github.io/znkeyboard</a> 从 GitHub 下载。App 内更新也会先用 Cloudflare，连不上再改用 GitHub。</div>
+        <summary data-en="zn.2amz.com or GitHub: where should I download?">在官网下载和在 GitHub 下载有什么区别？</summary>
+        <div class="answer" data-en="They are the same files. &lt;a href=&quot;https://zn.2amz.com/&quot;&gt;zn.2amz.com&lt;/a&gt; serves them from Cloudflare, which is faster in mainland China; &lt;a href=&quot;https://oprfelix.github.io/znkeyboard/&quot;&gt;oprfelix.github.io/znkeyboard&lt;/a&gt; serves them from GitHub. The apps update from the faster one and fall back to the other.">安装包完全一样。<a href="https://zn.2amz.com/">zn.2amz.com</a> 从 Cloudflare 下载，国内更快；<a href="https://oprfelix.github.io/znkeyboard/">oprfelix.github.io/znkeyboard</a> 从 GitHub 下载。App 内更新也会先用 Cloudflare，连不上再改用 GitHub。</div>
       </details>
       <details>
         <summary data-en="Which AI services can I use?">可以用哪些 AI 服务？</summary>
@@ -826,7 +826,7 @@ footer .links a { margin-right: 18px; }
 
 <footer>
   <div class="wrap">
-    <div>© 2026 ZnKeyboard · GPL-3.0 · <a href="https://znkeyboard.2amz.com/">znkeyboard.2amz.com</a> · <a href="https://oprfelix.github.io/znkeyboard/" data-en="GitHub mirror">GitHub 镜像</a></div>
+    <div>© 2026 ZnKeyboard · GPL-3.0 · <a href="https://zn.2amz.com/">zn.2amz.com</a> · <a href="https://oprfelix.github.io/znkeyboard/" data-en="GitHub mirror">GitHub 镜像</a></div>
     <div class="links">
       <a href="https://github.com/oprfelix/znkeyboard/issues" data-en="Report a problem">反馈问题</a>
       <a href="https://github.com/oprfelix/znkeyboard">Android</a>
@@ -877,10 +877,10 @@ footer .links a { margin-right: 18px; }
     windows: { repo: 'Znkeyboard-for-Windows', ext: '.exe', name: 'Windows' }
   };
   var latest = {}; // repo -> { url, version, size }
-  // On znkeyboard.2amz.com installers come from Cloudflare; on GitHub Pages, from GitHub Releases.
+  // On zn.2amz.com installers come from Cloudflare; on GitHub Pages, from GitHub Releases.
   var fromCloudflare = !/github\.io$/.test(location.hostname);
   var cloudflareKeys = { android: 'android', mac: 'macos', windows: 'windows' };
-  var statsUrl = fromCloudflare ? '/api/stats' : 'https://znkeyboard.2amz.com/api/stats';
+  var statsUrl = fromCloudflare ? '/api/stats' : 'https://zn.2amz.com/api/stats';
 
   function releasesPage(repo) { return 'https://github.com/oprfelix/' + repo + '/releases/latest'; }
 
@@ -941,8 +941,8 @@ footer .links a { margin-right: 18px; }
     document.getElementById('dl-source').innerHTML = fromCloudflare
       ? t('安装包从 Cloudflare 国内加速节点下载 · 也可以去 <a href="https://oprfelix.github.io/znkeyboard/#download">GitHub 镜像</a>下载',
           'Downloads come from Cloudflare, fast in mainland China · also on the <a href="https://oprfelix.github.io/znkeyboard/#download">GitHub mirror</a>')
-      : t('安装包从 GitHub 下载 · 国内用户可以去 <a href="https://znkeyboard.2amz.com/#download">znkeyboard.2amz.com</a> 加速下载',
-          'Downloads come from GitHub · in mainland China, <a href="https://znkeyboard.2amz.com/#download">znkeyboard.2amz.com</a> is faster');
+      : t('安装包从 GitHub 下载 · 国内用户可以去 <a href="https://zn.2amz.com/#download">zn.2amz.com</a> 加速下载',
+          'Downloads come from GitHub · in mainland China, <a href="https://zn.2amz.com/#download">zn.2amz.com</a> is faster');
   }
 
   // Latest release of each app, from Cloudflare's latest.json or GitHub; links fall back to the releases page.
