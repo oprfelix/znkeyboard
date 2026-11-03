@@ -2143,14 +2143,16 @@ class ZnKeyboardInputMethodService : InputMethodService(),
 
         for (outputMode in outputModes) {
             try {
-                return executeChatCompletionRequest(
-                    endpoint = endpoint,
-                    providerSettings = providerSettings,
-                    systemPrompt = systemPrompt,
-                    userContent = userContent,
-                    maxTokens = maxTokens,
-                    outputMode = outputMode,
-                )
+                return withBusyRetries {
+                    executeChatCompletionRequest(
+                        endpoint = endpoint,
+                        providerSettings = providerSettings,
+                        systemPrompt = systemPrompt,
+                        userContent = userContent,
+                        maxTokens = maxTokens,
+                        outputMode = outputMode,
+                    )
+                }
             } catch (error: LlmHttpException) {
                 if (
                     outputMode != StructuredOutputMode.JsonObject &&
@@ -2165,6 +2167,24 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         }
 
         throw structuredOutputError ?: IOException("LLM request failed before returning structured output.")
+    }
+
+    /**
+     * Runs [request] (on the request's background thread), trying again after a short wait when the
+     * provider answers busy (429, 5xx; DeepSeek's 503 "Service is too busy" at peak times): those pass
+     * within seconds, so the user rarely sees them. Anything else fails at once.
+     */
+    private inline fun <T> withBusyRetries(request: () -> T): T {
+        for (delayMs in AgentDefaults.BUSY_RETRY_DELAYS_MS) {
+            try {
+                return request()
+            } catch (error: LlmHttpException) {
+                if (!error.isBusy()) throw error
+                Log.w(TAG, "Provider busy (HTTP ${error.responseCode}); trying again in $delayMs ms.")
+                Thread.sleep(delayMs)
+            }
+        }
+        return request()
     }
 
     private fun executeChatCompletionRequest(
@@ -2464,8 +2484,12 @@ class ZnKeyboardInputMethodService : InputMethodService(),
             400 -> t("请求被拒绝（HTTP 400），请检查模型名称。", "The request was rejected (HTTP 400). Check the model name.")
             401, 403 -> t("API Key 无效或没有权限（HTTP ${error.responseCode}），请在设置里检查。", "The API key is invalid or not allowed (HTTP ${error.responseCode}). Check it in Settings.")
             404 -> t("找不到这个模型或接口地址（HTTP 404），请在设置里检查。", "Model or API address not found (HTTP 404). Check Settings.")
-            402, 429 -> t("请求太频繁或额度已用完（HTTP ${error.responseCode}），稍后再试或检查账户余额。", "Too many requests or out of credit (HTTP ${error.responseCode}). Try later or check your account.")
-            in 500..599 -> t("AI 服务暂时不可用（HTTP ${error.responseCode}），请稍后再试。", "The AI service is unavailable right now (HTTP ${error.responseCode}). Try again later.")
+            402 -> t("额度已用完（HTTP 402），请检查账户余额。", "Out of credit (HTTP 402). Check your account.")
+            // Already tried three times (withBusyRetries).
+            429, in 500..599 -> t(
+                "AI 服务商暂时繁忙（HTTP ${error.responseCode}），自动重试后仍未成功。请稍后再试，或在设置里换用其他服务商。",
+                "The AI provider is busy (HTTP ${error.responseCode}) and still didn't answer after a few tries. Try again shortly, or switch providers in Settings.",
+            )
             else -> t("AI 请求失败（HTTP ${error.responseCode}）。", "The AI request failed (HTTP ${error.responseCode}).")
         }
         is java.net.SocketTimeoutException -> t("AI 服务响应超时，请稍后再试。", "The AI service took too long. Try again.")
@@ -2693,6 +2717,9 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         val responseText: String,
         detailMessage: String,
     ) : IOException(detailMessage)
+
+    /** Too many requests, or the server failing or overloaded: worth trying again. */
+    private fun LlmHttpException.isBusy(): Boolean = responseCode == 429 || responseCode in 500..599
 
     private fun LlmHttpException.isStructuredOutputUnsupported(): Boolean {
         if (responseCode !in setOf(400, 404, 422)) return false

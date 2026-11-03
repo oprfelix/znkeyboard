@@ -4,6 +4,9 @@ package dev.zain.znkeyboard.constants
 data class TranslateLanguage(val code: String, val name: String)
 
 object AgentDefaults {
+    /** Waits before each further try when the provider answers busy (429, 5xx); two more tries in all. */
+    val BUSY_RETRY_DELAYS_MS = longArrayOf(1_000, 3_000)
+
     // The OpenAI-compatible provider starts on the DeepSeek preset; a custom address starts here.
     const val DEFAULT_API_BASE_URL = "https://api.openai.com/v1"
     const val DEEPSEEK_API_BASE_URL = "https://api.deepseek.com"
