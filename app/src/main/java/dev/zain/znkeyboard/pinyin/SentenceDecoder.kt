@@ -68,31 +68,8 @@ object SentenceDecoder {
         val piecesAt = arrayOfNulls<List<Piece>>(n)
         fun pieces(at: Int): List<Piece> = piecesAt[at] ?: readPieces(input, at, dictionary, taps).also { piecesAt[at] = it }
 
-        val learnedUses = dictionary.learnedUses
-        fun wordCost(edge: Edge, step: Step): Float {
-            val match = edge.match
-            if (model == null) return WORD_COST - match.score + edge.cost
-            val id = match.word.id
-            var logP = if (id >= 0) model.logP(step.context, id) else match.score - match.learned - dictionary.logTotalWeight
-            // What the user picks is a second, personal model mixed in: how often they chose this
-            // word, and this word after the last one. Probabilities, so however often a word was
-            // picked it costs something, and its characters can't outbid it one by one.
-            val pairTotal = step.text?.let(dictionary::pairTotal) ?: 0
-            if (learnedUses > 0 || pairTotal > 0) {
-                var keep = 1f
-                var personal = 0f
-                if (learnedUses > 0) {
-                    keep -= PICKS_WEIGHT
-                    personal += PICKS_WEIGHT * match.uses / learnedUses
-                }
-                if (pairTotal > 0) {
-                    keep -= PAIRS_WEIGHT
-                    personal += PAIRS_WEIGHT * dictionary.pairUses(step.text!!, match.word.text) / pairTotal
-                }
-                logP = ln(keep * exp(logP) + personal)
-            }
-            return LM_WORD_COST - LM_WEIGHT * logP + edge.cost
-        }
+        fun wordCost(edge: Edge, step: Step): Float = edge.cost +
+            if (model == null) WORD_COST - edge.match.score else modelCost(edge.match, step, dictionary, model)
 
         val best = Array(n + 1) { ArrayList<Step>(beam) }
         val startContext = before?.id?.takeIf { it >= 0 && model != null } ?: model?.start ?: -1
@@ -142,9 +119,7 @@ object SentenceDecoder {
             }
         }
 
-        val last = best[n].minByOrNull { step ->
-            step.cost + if (model != null && step.context >= 0) -LM_WEIGHT * model.logP(step.context, model.end) else 0f
-        } ?: return null
+        val last = finish(best[n], model) ?: return null
         val words = ArrayList<PinyinDictionary.Word>()
         val spelling = ArrayList<String>()
         var step: Step? = last
@@ -164,36 +139,77 @@ object SentenceDecoder {
 
     /**
      * 9-key digits (no separators or locked syllables) read as a sentence: each word is a run of
-     * digits that is its whole code or its 简拼.
+     * digits that is its whole code or its 简拼. Ranked like [decode]: with a language model, by
+     * context, so 5422468 reads 家丑 and not 家抽, the commoner characters.
      */
     fun decodeNineKey(digits: String, dictionary: PinyinDictionary): Sentence? {
         val n = digits.length
         if (n < 2 || n > MAX_INPUT) return null
-        class Edge(val cost: Float, val from: Int, val word: PinyinDictionary.Word?)
-        val best = arrayOfNulls<Edge>(n + 1)
-        best[0] = Edge(0f, -1, null)
+        val model = dictionary.languageModel
+        val beam = if (model == null) 1 else BEAM
+        val choices = if (model == null) 1 else NINE_KEY_LM_CHOICES
+        val best = Array(n + 1) { ArrayList<Step>(beam) }
+        best[0] += Step(0f, null, null, emptyList(), model?.start ?: -1, null)
         for (start in 0 until n) {
-            val here = best[start] ?: continue
+            val here = best[start]
+            if (here.isEmpty()) continue
             for (end in start + 1..minOf(n, start + MAX_NINE_KEY_WORD_DIGITS)) {
-                for (match in dictionary.nineKeyWords(digits.substring(start, end))) {
-                    val extra = if (match.byInitials) INITIAL_COST * match.word.syllables.size else 0f
-                    val cost = here.cost + WORD_COST - match.score + extra
-                    val current = best[end]
-                    if (current == null || cost < current.cost) best[end] = Edge(cost, start, match.word)
+                val found = dictionary.nineKeyWords(digits.substring(start, end), choices)
+                if (found.isEmpty()) continue
+                val target = best[end]
+                for (step in here) {
+                    for (candidate in found) {
+                        val match = candidate.match
+                        val extra = if (candidate.byInitials) INITIAL_COST * match.word.syllables.size else 0f
+                        // As in decode: skip the lookup when even a certain word can't make the beam.
+                        if (model != null && target.size >= beam && target.last().cost <= step.cost + LM_WORD_COST + extra) continue
+                        val cost = step.cost + extra + if (model == null) WORD_COST - match.score else modelCost(match, step, dictionary, model)
+                        relax(target, Step(cost, step, match.word, emptyList(), match.word.id, match.word.text), beam)
+                    }
                 }
             }
         }
-        val last = best[n] ?: return null
+        val last = finish(best[n], model) ?: return null
         val words = ArrayList<PinyinDictionary.Word>()
-        var edge: Edge = last
-        while (edge.from >= 0) {
-            edge.word?.let(words::add)
-            edge = best[edge.from] ?: break
+        var step: Step? = last
+        while (step != null) {
+            step.word?.let(words::add)
+            step = step.previous
         }
         words.reverse()
         if (words.size < 2) return null
         val parts = words.map { PinyinEngine.Candidate(it.text, n, it.syllables) }
         return Sentence(words.joinToString("") { it.text }, parts, words.flatMap { it.syllables }.joinToString(" "), last.cost)
+    }
+
+    /** The best of the readings that reach the end, counting how likely the sentence is to end there. */
+    private fun finish(steps: List<Step>, model: PinyinLanguageModel?): Step? = steps.minByOrNull { step ->
+        step.cost + if (model != null && step.context >= 0) -LM_WEIGHT * model.logP(step.context, model.end) else 0f
+    }
+
+    /** What [match] costs after [step] with a language model: less the likelier it is there. */
+    private fun modelCost(match: PinyinDictionary.Match, step: Step, dictionary: PinyinDictionary, model: PinyinLanguageModel): Float {
+        val id = match.word.id
+        var logP = if (id >= 0) model.logP(step.context, id) else match.score - match.learned - dictionary.logTotalWeight
+        // What the user picks is a second, personal model mixed in: how often they chose this
+        // word, and this word after the last one. Probabilities, so however often a word was
+        // picked it costs something, and its characters can't outbid it one by one.
+        val learnedUses = dictionary.learnedUses
+        val pairTotal = step.text?.let(dictionary::pairTotal) ?: 0
+        if (learnedUses > 0 || pairTotal > 0) {
+            var keep = 1f
+            var personal = 0f
+            if (learnedUses > 0) {
+                keep -= PICKS_WEIGHT
+                personal += PICKS_WEIGHT * match.uses / learnedUses
+            }
+            if (pairTotal > 0) {
+                keep -= PAIRS_WEIGHT
+                personal += PAIRS_WEIGHT * dictionary.pairUses(step.text!!, match.word.text) / pairTotal
+            }
+            logP = ln(keep * exp(logP) + personal)
+        }
+        return LM_WORD_COST - LM_WEIGHT * logP
     }
 
     /** Lookups repeat from keystroke to keystroke; kept until the dictionary changes. */
@@ -339,6 +355,8 @@ object SentenceDecoder {
     /** With a language model: readings kept per position, and words tried per run of pieces. */
     private const val BEAM = 6
     private const val LM_CHOICES = 8
+    /** A 9-key code spells many words (each digit is three or four letters), so more per run. */
+    private const val NINE_KEY_LM_CHOICES = 16
     /** With a language model, per word on top of its -ln P; favours fewer, longer words. */
     private const val LM_WORD_COST = 1f
     private const val LM_WEIGHT = 0.6f

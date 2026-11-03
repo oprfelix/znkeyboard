@@ -26,7 +26,7 @@ OUT="$(mktemp -d)"
 P=app/src/main/java/dev/zain/znkeyboard/pinyin
 "$JAVA_HOME/bin/java" -cp "$CP" org.jetbrains.kotlin.cli.jvm.K2JVMCompiler -jdk-home "$JAVA_HOME" \
   -no-stdlib -no-reflect -classpath "$STD" -nowarn -d "$OUT" \
-  "$P/PinyinFuzzy.kt" "$P/PinyinDictionary.kt" "$P/PinyinLanguageModel.kt" "$P/PinyinEngine.kt" "$P/PinyinUserData.kt" "$P/PinyinLearner.kt" "$P/SentenceDecoder.kt" \
+  "$P/PinyinFuzzy.kt" "$P/PinyinDictionary.kt" "$P/PinyinLanguageModel.kt" "$P/PinyinEngine.kt" "$P/PinyinUserData.kt" "$P/PinyinLearner.kt" "$P/SentenceDecoder.kt" "$P/NineKeyEngine.kt" \
   app/src/main/java/dev/zain/znkeyboard/typing/TouchModel.kt app/src/main/java/dev/zain/znkeyboard/typing/CharLanguageModel.kt \
   app/src/main/java/dev/zain/znkeyboard/typing/TouchDecoder.kt tools/pinyin/bench/BenchHarness.kt
 "$JAVA_HOME/bin/java" -cp "$OUT:$STD" BenchHarnessKt app/src/main/assets/pinyin/dict.tsv tools/pinyin/bench/bench.tsv "$@"

@@ -1,3 +1,4 @@
+import dev.zain.znkeyboard.pinyin.NineKeyEngine
 import dev.zain.znkeyboard.pinyin.PinyinDictionary
 import dev.zain.znkeyboard.pinyin.PinyinEngine
 import dev.zain.znkeyboard.pinyin.PinyinFuzzyRule
@@ -32,6 +33,10 @@ import java.nio.channels.FileChannel
  * user's typing, in order: after each, the learner is taught the right words, as if the user
  * picked them (by hand when the first candidate was wrong). Rows "first half" and "second half"
  * show what that learning changed.
+ *
+ * With --nine each case is typed on the 9-key keyboard instead: its letters become digits
+ * ("nihao" → 64426) and go through [NineKeyEngine]. The typo set is left out, its slips being
+ * QWERTY ones.
  */
 private class Case(val set: String, val bucket: String, val typed: String, val expected: String, val pinyin: String, val taps: String?)
 
@@ -143,36 +148,43 @@ fun main(args: Array<String>) {
         dictionary.languageModel = model
         check(dictionary.languageModel != null) { "$path was built for another dictionary" }
     }
+    val nine = "--nine" in options
     val latencyEvery = option("--latency-every")?.toInt() ?: 10
     val cases = File(args[1]).readLines()
         .filter { !it.startsWith("#") && !it.startsWith("set\t") && it.isNotBlank() }
         .map { line -> line.split("\t").let { Case(it[0], it[1], it[2], it[3], it[4], it.getOrNull(6)) } }
         .filter { case -> option("--set")?.let { it == case.set } ?: true }
+        .filter { case -> !nine || case.set != "typo" }
     val learner = if ("--learn" in options) PinyinLearner(PinyinUserData()).also { it.dictionary = dictionary } else null
     val useTaps = "--taps" in options
+    require(!(nine && useTaps)) { "--taps are QWERTY taps; leave them out with --nine" }
     val tapsFor = cases.associateWith { if (useTaps) tapsOf(it) else null }
+    fun inputOf(case: Case) = if (nine) PinyinDictionary.nineKeyCode(case.typed) else case.typed
+    fun convert(input: String, case: Case) =
+        if (nine) NineKeyEngine.candidates(input, dictionary) else PinyinEngine.candidates(input, dictionary, tapsFor[case])
 
     // Warm-up, so the JIT doesn't count against the first cases.
-    for (case in cases.take(300)) PinyinEngine.candidates(case.typed, dictionary, tapsFor[case])
+    for (case in cases.take(300)) convert(inputOf(case), case)
 
     val tallies = LinkedHashMap<String, Tally>()
     val keystrokes = ArrayList<Double>()
     val lines = ArrayList<String>()
     for ((index, case) in cases.withIndex()) {
-        val candidates = PinyinEngine.candidates(case.typed, dictionary, tapsFor[case])
-        val whole = candidates.filter { it.consumed >= case.typed.length }
+        val input = inputOf(case)
+        val candidates = convert(input, case)
+        val whole = candidates.filter { it.consumed >= input.length }
         val first = candidates.firstOrNull()
-        val top1 = first != null && first.text == case.expected && first.consumed >= case.typed.length
-        val top1Pronoun = first != null && sameReading(first.text, case.expected) && first.consumed >= case.typed.length
-        val top3 = candidates.take(3).any { it.text == case.expected && it.consumed >= case.typed.length }
+        val top1 = first != null && first.text == case.expected && first.consumed >= input.length
+        val top1Pronoun = first != null && sameReading(first.text, case.expected) && first.consumed >= input.length
+        val top3 = candidates.take(3).any { it.text == case.expected && it.consumed >= input.length }
         val reading = whole.firstOrNull()?.text ?: ""
         val edits = editDistance(case.expected, reading).coerceAtMost(case.expected.length)
         val half = if (learner == null) null else if (index < cases.size / 2) "first half" else "second half"
         for (key in listOfNotNull("${case.set} ${case.bucket}", "${case.set} all", "all", half)) {
             tallies.getOrPut(key) { Tally() }.add(top1, top1Pronoun, top3, whole.isEmpty(), edits, case.expected.length)
         }
-        val rank = candidates.indexOfFirst { it.text == case.expected && it.consumed >= case.typed.length }
-        lines += listOf(case.set, case.bucket, case.typed, case.expected, reading, if (rank < 0) "-" else "${rank + 1}").joinToString("\t")
+        val rank = candidates.indexOfFirst { it.text == case.expected && it.consumed >= input.length }
+        lines += listOf(case.set, case.bucket, input, case.expected, reading, if (rank < 0) "-" else "${rank + 1}").joinToString("\t")
         if (learner != null) {
             expectedWords(case, dictionary)?.forEach { learner.onPick(it.text, it.syllables, byHand = !top1, id = it.id) }
             learner.onCompositionDone()
@@ -180,15 +192,15 @@ fun main(args: Array<String>) {
         }
 
         if (latencyEvery > 0 && index % latencyEvery == 0) {
-            for (end in 1..case.typed.length) {
+            for (end in 1..input.length) {
                 val started = System.nanoTime()
-                PinyinEngine.candidates(case.typed.substring(0, end), dictionary, tapsFor[case])
+                convert(input.substring(0, end), case)
                 keystrokes += (System.nanoTime() - started) / 1e6
             }
         }
     }
 
-    println("fuzzy sounds: " + (if ("--strict" in options) "off" else "default (all on)") + "; language model: " + (option("--lm") ?: "none") + "; taps: " + (if (useTaps) "yes" else "no") + if (learner != null) "; learning as it goes" else "")
+    println("fuzzy sounds: " + (if ("--strict" in options) "off" else "default (all on)") + "; language model: " + (option("--lm") ?: "none") + "; taps: " + (if (useTaps) "yes" else "no") + (if (nine) "; 9-key" else "") + if (learner != null) "; learning as it goes" else "")
     println("%-18s %5s %6s %6s %6s %6s %6s".format("set", "cases", "top1%", "top1~%", "top3%", "CER%", "none%"))
     val sets = cases.map { it.set }.distinct()
     for (set in sets) {

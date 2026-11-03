@@ -65,6 +65,16 @@ private val MODEL_MISSES = setOf(
     "wozaijai",                         // jai is one slip from mai as from jia: 我再买.
 )
 
+/**
+ * 9-key input, typed as digits, that needs the language model: the commoner characters spell
+ * 家抽, context says 家丑.
+ */
+private val NINE_KEY_WITH_MODEL = listOf(
+    "jiachou" to "家丑",
+    "xiawuliangdiankaihui" to "下午两点开会",
+    "woxiangchifan" to "我想吃饭",
+)
+
 /** Correct spellings that must not be "fixed": the reading keeps them as typed. */
 private val KEEP = listOf("min", "xian", "nin", "fan", "an", "ren", "jin", "shen")
 
@@ -107,6 +117,15 @@ fun main(args: Array<String>) {
     for ((input, expected) in STRETCH) {
         val sentence = SentenceDecoder.decode(input, dictionary)
         println((if (sentence?.text == expected) "ok   " else "--   ") + "stretch $input -> ${sentence?.text}  (want $expected)")
+    }
+    if (withModel) {
+        for ((spelling, expected) in NINE_KEY_WITH_MODEL) {
+            val digits = PinyinDictionary.nineKeyCode(spelling)
+            val sentence = SentenceDecoder.decodeNineKey(digits, dictionary)
+            val ok = sentence?.text == expected
+            if (!ok) failures++
+            println((if (ok) "ok   " else "FAIL ") + "9-key $digits -> ${sentence?.text}" + if (ok) "" else "  (want $expected)")
+        }
     }
     println("slowest per keystroke after warm-up: ${worst}ms")
     }

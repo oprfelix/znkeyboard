@@ -8,6 +8,8 @@ correction or language modelling can be compared by numbers instead of by feel.
 tools/pinyin/bench/run_bench.sh
 # As the keyboard ships: the language model (tools/pinyin/lm/README.md) and each letter's tap
 tools/pinyin/bench/run_bench.sh --lm app/src/main/assets/pinyin/lm.bin --taps
+# The same clauses typed on the 9-key keyboard (full, initials and mixed; typo is QWERTY slips)
+tools/pinyin/bench/run_bench.sh --nine --lm app/src/main/assets/pinyin/lm.bin
 # One set typed in order by a user who fixes every mistake, learning as they go
 tools/pinyin/bench/run_bench.sh --lm app/src/main/assets/pinyin/lm.bin --taps --learn --set full
 # Fuzzy sounds off, and every case written out for diffing against another run
@@ -112,6 +114,22 @@ more than 4 worse are not tried, and with a tap two-letter pieces may be correct
 Clean input is unchanged, and keystrokes got faster: mean 1.8 ms, p95 7.6 ms, max 78 ms, since
 the capped alternatives are fewer than the neighbour table. What `typo` still misses is mostly
 dropped letters, which leave no tap to go on, and slips that type another valid syllable.
+
+## 9-key (`--nine`)
+
+Each clause's letters become 9-key digits (`nihao` → 64426) and go through `NineKeyEngine`.
+Until 1.9.7 the 9-key sentence ignored the language model, so the model changed nothing here and
+5422468 read 家抽 (the commoner characters) where 26-key reads 家丑. It now ranks like 26-key:
+
+| set | top1, 1.9.6 (model or not) | top1, with the model | CER |
+|---|---:|---:|---:|
+| full | 34.3% | 53.0% (+18.7) | 24.2% → 14.7% |
+| initials | 0.1% | 0.2% | 95.8% → 94.6% |
+| mixed | 0.3% | 0.3% | 82.7% → 81.0% |
+
+Up to 16 words per run of digits are tried (8 scored 52.3%, 4 scored 51.3%), since one code
+spells many words. Per keystroke stays near 0.1 ms. 9-key 简拼 and mixes stay near zero: a digit
+does not say whether it starts a syllable or is one, and those cases need more than ranking.
 
 ## Learning (`--learn --set S`)
 

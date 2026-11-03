@@ -203,15 +203,16 @@ class PinyinDictionary private constructor(
         return initials in set
     }
 
-    /** A word for 9-key sentence search: its score, and whether the digits were its 简拼. */
-    class NineKeyWord(val word: Word, val score: Float, val byInitials: Boolean)
+    /** A word for 9-key sentence search, and whether the digits were its 简拼. */
+    class NineKeyWord(val match: Match, val byInitials: Boolean)
 
-    /** The best word whose 9-key code is exactly [digits], and the best whose 简拼 is. */
-    fun nineKeyWords(digits: String): List<NineKeyWord> {
+    /** The best [limit] words whose 9-key code is exactly [digits], then the best [limit] whose 简拼 is. */
+    fun nineKeyWords(digits: String, limit: Int = 1): List<NineKeyWord> {
         val index = nineKeyIndex()
-        val full = index.full[digits]?.firstOrNull()?.let { NineKeyWord(word(it), it.score, false) }
-        val initials = index.initials[digits]?.firstOrNull { it.raw.size == digits.length }?.let { NineKeyWord(word(it), it.score, true) }
-        return listOfNotNull(full, initials)
+        fun found(entry: Entry, byInitials: Boolean) = NineKeyWord(Match(word(entry), entry.score, entry.score - entry.base, entry.uses), byInitials)
+        val full = index.full[digits].orEmpty().asSequence().take(limit).map { found(it, false) }
+        val initials = index.initials[digits].orEmpty().asSequence().filter { it.raw.size == digits.length }.take(limit).map { found(it, true) }
+        return (full + initials).toList()
     }
 
     /** Longer words that start with [text], best first, as the characters still to type. */
