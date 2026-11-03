@@ -105,8 +105,6 @@ nav .wrap { display: flex; align-items: center; gap: 24px; height: 60px; }
     linear-gradient(var(--bg-soft), var(--bg));
   overflow: hidden;
 }
-/* The hero is wider than the nav and the sections below. */
-.hero .wrap { max-width: 1360px; }
 .hero .wrap { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 48px; align-items: center; }
 .eyebrow {
   display: inline-flex; align-items: center; gap: 8px;
@@ -184,23 +182,20 @@ nav .wrap { display: flex; align-items: center; gap: 24px; height: 60px; }
 .k { flex: 1; max-width: 25px; height: 36px; border-radius: 6px; background: var(--key); font-size: 14px; display: grid; place-items: center; box-shadow: 0 1px 0 rgba(0,0,0,.12); color: var(--ink); }
 .k.fn { background: color-mix(in srgb, var(--key) 70%, var(--kb)); max-width: 36px; font-size: 12px; }
 .k.space { max-width: none; flex: 5; font-size: 11px; color: var(--muted); }
-/* The computer behind the phone (wide screens only): the reading side of the story. The phone sits at
-   the left of its column; the window behind it shows in full to its right, the phone covering only part
-   of its contact list. */
+/* The computer behind the phone (wide screens only): the reading side of the story. The phone moves
+   left; the window behind it overlaps it by 150px, which its contact list fills, so the chat to the right
+   is never cut by the phone's edge. The column is 464px wide at every width the window shows. */
 .hero-visual { position: relative; }
 .hero-desk { display: none; }
 @media (min-width: 1280px) {
-  .hero .wrap { grid-template-columns: minmax(0, 600px) 1fr; }
-  .hero-front { position: relative; z-index: 1; width: 300px; }
+  .hero-front { position: relative; z-index: 1; transform: translateX(-130px); }
   .hero-desk {
-    display: grid; grid-template-columns: 128px 1fr; position: absolute; left: 236px; right: 0; max-width: 480px; top: 96px;
+    display: grid; grid-template-columns: 160px 1fr; position: absolute; left: 102px; width: 440px; top: 96px;
     background: var(--card); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; font-size: 13px;
     /* A step back from the phone: a little smaller and a softer shadow. */
     transform: scale(.96); transform-origin: left center; box-shadow: 0 14px 40px rgba(30, 70, 160, .10);
   }
 }
-/* On narrower laptops the contact list shrinks (the phone still covers it) so the chat keeps its width. */
-@media (min-width: 1280px) and (max-width: 1399px) { .hero-desk { grid-template-columns: 84px 1fr; } }
 .hero-desk .bar { grid-column: 1 / -1; display: flex; gap: 6px; padding: 10px 12px; border-bottom: 1px solid var(--line); }
 .hero-desk .bar i { width: 9px; height: 9px; border-radius: 50%; background: #ff5f57; }
 .hero-desk .bar i:nth-child(2) { background: #febc2e; }
