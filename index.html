@@ -105,8 +105,8 @@ nav .wrap { display: flex; align-items: center; gap: 24px; height: 60px; }
     linear-gradient(var(--bg-soft), var(--bg));
   overflow: hidden;
 }
-/* The hero (and the nav above it, so their edges line up) is wider than the sections below. */
-nav .wrap, .hero .wrap { max-width: 1360px; }
+/* The hero is wider than the nav and the sections below. */
+.hero .wrap { max-width: 1360px; }
 .hero .wrap { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 48px; align-items: center; }
 .eyebrow {
   display: inline-flex; align-items: center; gap: 8px;
