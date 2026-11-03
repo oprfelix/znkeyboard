@@ -208,7 +208,8 @@ nav .wrap { display: flex; align-items: center; gap: 24px; height: 60px; }
 .hero-desk .who small { display: block; color: var(--muted); font-weight: 400; font-size: 11px; }
 .hero-desk .in { margin-top: 12px; padding: 8px 11px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg-soft); line-height: 1.55; }
 .hero-desk mark { background: transparent; color: inherit; transition: background .3s; border-radius: 3px; }
-.hero-desk.sel mark { background: var(--select); }
+/* Step classes are prefixed: plain .pill and .card are page-wide components and would restyle the window. */
+.hero-desk.is-sel mark { background: var(--select); }
 .hero-desk .dpill, .hero-desk .dcard { opacity: 0; transform: translateY(4px); transition: opacity .3s, transform .3s; }
 /* The pill and then the card take the same place under the message; the card's space is always kept,
    so the window doesn't change height between steps. */
@@ -219,8 +220,8 @@ nav .wrap { display: flex; align-items: center; gap: 24px; height: 60px; }
   background: var(--card); border: 1px solid var(--line); border-radius: 999px; box-shadow: 0 6px 16px rgba(30,70,160,.16);
 }
 .hero-desk .dpill b { color: var(--blue); background: var(--blue-soft); border-radius: 999px; padding: 0 6px; font-size: 10px; }
-.hero-desk.pill .dpill, .hero-desk.card .dcard { opacity: 1; transform: none; }
-.hero-desk.card .dpill { opacity: 0; }
+.hero-desk.is-pill .dpill, .hero-desk.is-card .dcard { opacity: 1; transform: none; }
+.hero-desk.is-card .dpill { opacity: 0; }
 .hero-desk .dcard {
   padding: 10px 12px;
   background: var(--card); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 10px 26px rgba(30,70,160,.18);
@@ -1102,7 +1103,7 @@ footer .links a { margin-right: 18px; }
     translateBtn.querySelector('.chip').textContent = s.chip + ' ▾';
     polishBtn.classList.remove('press'); translateBtn.classList.remove('press'); inputEl.classList.remove('busy');
     // At rest the computer shows a finished reading translation, never an empty window.
-    deskState('sel card');
+    deskState('is-sel is-card');
     if (reduce) { textEl.textContent = s.polished; caption.innerHTML = s.c2; return; }
 
     textEl.textContent = '';
@@ -1121,9 +1122,9 @@ footer .links a { margin-right: 18px; }
               press(translateBtn, 260); inputEl.classList.add('busy');
               deskState('');
               later(1400, function () { inputEl.classList.remove('busy'); textEl.textContent = s.translated; });
-              later(2000, function () { deskState('sel'); });
-              later(2700, function () { deskState('sel pill'); });
-              later(3500, function () { deskState('sel card'); });
+              later(2000, function () { deskState('is-sel'); });
+              later(2700, function () { deskState('is-sel is-pill'); });
+              later(3500, function () { deskState('is-sel is-card'); });
               later(6600, restartDemo);
             });
           });
