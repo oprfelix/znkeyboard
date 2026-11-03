@@ -7,19 +7,67 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 /**
- * Asks GitHub for the latest release. Only the public release metadata is fetched; nothing about
- * the user or device is sent beyond an ordinary HTTPS request. Runs only from the settings app,
- * never from the keyboard.
+ * Asks znkeyboard.2amz.com, then GitHub, for the latest release. Only the public release metadata is
+ * fetched; nothing about the user or device is sent beyond an ordinary HTTPS request. Runs only from
+ * the settings app, never from the keyboard.
  */
 object UpdateChecker {
-    /** A published release: [version] without the leading "v", [downloadUrl] the APK (or the page). */
-    data class Release(val version: String, val notes: String, val downloadUrl: String, val pageUrl: String)
+    /**
+     * A published release: [version] without the leading "v", [downloadUrl] the APK (or the page).
+     * [fallbackUrl] is the same APK on GitHub, tried when [downloadUrl] (on Cloudflare) fails;
+     * [sha256], when the release list gives it, is checked after downloading.
+     */
+    data class Release(
+        val version: String,
+        val notes: String,
+        val downloadUrl: String,
+        val pageUrl: String,
+        val fallbackUrl: String? = null,
+        val sha256: String? = null,
+    )
 
     fun currentVersion(context: Context): String =
         runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }.getOrNull().orEmpty()
 
-    /** Blocking; call off the main thread. Throws when GitHub can't be reached or answers oddly. */
-    fun fetchLatest(): Release {
+    /** Blocking; call off the main thread. Throws when neither Cloudflare nor GitHub answers usefully. */
+    fun fetchLatest(): Release = runCatching(::fetchFromCloudflare).getOrNull() ?: fetchFromGitHub()
+
+    /**
+     * The Android entry of znkeyboard.2amz.com's latest.json. Its notes are a link, so the text comes
+     * from GitHub when that answers for the same version, and is left out otherwise.
+     */
+    private fun fetchFromCloudflare(): Release {
+        val json = JSONObject(get(UpdateDefaults.CLOUDFLARE_LATEST, accept = "application/json")).getJSONObject("android")
+        val version = json.getString("version").trim()
+        val file = json.getString("file")
+        require(file.endsWith(".apk", ignoreCase = true) && '/' !in file) { "unexpected file $file" }
+        val pageUrl = json.optString("notes").takeIf { it.startsWith("https://") } ?: UpdateDefaults.RELEASES_URL
+        val notes = runCatching { fetchFromGitHub() }.getOrNull()?.takeIf { it.version == version }?.notes.orEmpty()
+        return Release(
+            version = version,
+            notes = notes,
+            downloadUrl = UpdateDefaults.CLOUDFLARE_DOWNLOAD + file,
+            pageUrl = pageUrl,
+            fallbackUrl = "${UpdateDefaults.GITHUB_DOWNLOAD}v$version/$file",
+            sha256 = json.optString("sha256").takeIf { it.length == 64 },
+        )
+    }
+
+    private fun get(url: String, accept: String): String {
+        val connection = URL(url).openConnection() as HttpURLConnection
+        try {
+            connection.connectTimeout = UpdateDefaults.TIMEOUT_MS
+            connection.readTimeout = UpdateDefaults.TIMEOUT_MS
+            connection.setRequestProperty("Accept", accept)
+            val code = connection.responseCode
+            if (code != HttpURLConnection.HTTP_OK) error("$url answered $code")
+            return connection.inputStream.bufferedReader().use { it.readText() }
+        } finally {
+            connection.disconnect()
+        }
+    }
+
+    private fun fetchFromGitHub(): Release {
         val connection = URL(UpdateDefaults.LATEST_RELEASE_API).openConnection() as HttpURLConnection
         try {
             connection.connectTimeout = UpdateDefaults.TIMEOUT_MS

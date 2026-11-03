@@ -214,11 +214,14 @@
     <string name="voice_open_app_settings">Open system settings</string>
     <string name="about_title">About &amp; updates</string>
     <string name="about_version">Version %1$s</string>
-    <string name="about_source">Source code on GitHub</string>
+    <string name="about_website">Website</string>
+    <string name="about_mirror">GitHub mirror</string>
+    <string name="usage_stats">Send anonymous usage statistics</string>
+    <string name="usage_stats_desc">Once a day: a random ID, platform, version and how often you used it, for the user numbers on the website. Never any text. The keyboard itself stays offline; a daily background job sends it.</string>
     <string name="update_check">Check for updates</string>
     <string name="update_checking">Checking…</string>
     <string name="update_auto">Check automatically</string>
-    <string name="update_auto_desc">Once a day in the background, with a notification when a new version is out. It only asks GitHub for the latest version number; nothing about you is sent.</string>
+    <string name="update_auto_desc">Once a day in the background, with a notification when a new version is out. It only asks the website or GitHub for the latest version number; nothing about you is sent.</string>
     <string name="update_last_checked">Up to date · checked %1$s</string>
     <string name="update_never_checked">Not checked yet.</string>
     <string name="update_latest">You have the latest version.</string>

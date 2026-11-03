@@ -15,17 +15,20 @@ import android.content.pm.PackageManager
 import android.app.Notification
 
 /**
- * Once a day, with a network, asks GitHub whether a newer release is out (only the public release
- * metadata, as the settings app's own check does) and posts one notification per new version.
- * Tapping it opens the update dialog. Off when "Check for updates automatically" is off.
+ * Once a day, with a network, asks whether a newer release is out (only the public release metadata,
+ * as the settings app's own check does) and posts one notification per new version; tapping it opens
+ * the update dialog. It also sends the anonymous usage ping ([UsageStats]) for days the keyboard was
+ * used. Each part is off with its own setting; the job runs while either is on.
  */
 class UpdateCheckJob : JobService() {
     private var worker: Thread? = null
 
     override fun onStartJob(params: JobParameters): Boolean {
-        if (!KeyboardSettings.readUpdateAutoCheck(this)) return false
+        val checkUpdates = KeyboardSettings.readUpdateAutoCheck(this)
+        if (!checkUpdates && !KeyboardSettings.readAnonymousStats(this)) return false
         worker = Thread {
-            runCatching {
+            runCatching { UsageStats.pingIfDue(this) }
+            if (checkUpdates) runCatching {
                 val release = UpdateChecker.fetchLatest()
                 KeyboardSettings.saveLatestRelease(this, release, System.currentTimeMillis())
                 val current = UpdateChecker.currentVersion(this)
@@ -64,7 +67,7 @@ class UpdateCheckJob : JobService() {
 
         private fun syncOrThrow(context: Context) {
             val scheduler = context.getSystemService(JobScheduler::class.java) ?: return
-            if (!KeyboardSettings.readUpdateAutoCheck(context)) {
+            if (!KeyboardSettings.readUpdateAutoCheck(context) && !KeyboardSettings.readAnonymousStats(context)) {
                 scheduler.cancel(JOB_ID)
                 return
             }

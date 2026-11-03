@@ -25,6 +25,7 @@ Most "AI keyboards" send your keystrokes to a vendor's cloud. ZnKeyboard takes t
 - **Bring your own key.** AI features call your own OpenAI / OpenAI‑compatible endpoint. There is no ZnKeyboard backend in the middle.
 - **Keys never leave the device in plaintext.** API keys are encrypted at rest with the Android Keystore (AES/GCM). A user-created backup can include them only inside a password-encrypted file.
 - **AI is opt‑in.** The keyboard is fully usable with the agent disabled; nothing is sent anywhere unless you turn it on and trigger it.
+- **Anonymous usage count, one switch to turn off.** Once a day, for a day the keyboard was used, a background job (not the keyboard) sends a random ID, the platform, the version and how many AI results it produced to [znkeyboard.2amz.com](https://znkeyboard.2amz.com/) for the user numbers there. Never any text. Settings → Backup → About & updates turns it off.
 
 ## Features
 

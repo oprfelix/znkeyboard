@@ -163,6 +163,9 @@ class SettingsActivity : ComponentActivity() {
         KeyboardSettings.migrateAgentProviders(this)
         showUpdateRequest.value = intent?.getBooleanExtra(EXTRA_SHOW_UPDATE, false) == true
         UpdateCheckJob.sync(this)
+        UsageStats.markUsed(this)
+        val appContext = applicationContext
+        Thread({ UsageStats.pingIfDue(appContext) }, "ZnKeyboardUsagePing").start()
         askForNotificationsOnce()
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.auto(AndroidColor.TRANSPARENT, AndroidColor.TRANSPARENT),
@@ -261,6 +264,7 @@ private fun SettingsScreen(
     var updateLastCheckedAt by remember { mutableLongStateOf(KeyboardSettings.readUpdateLastCheckedAt(context)) }
     var dismissedUpdateVersion by remember { mutableStateOf(KeyboardSettings.readDismissedUpdateVersion(context)) }
     var updateAutoCheck by remember { mutableStateOf(KeyboardSettings.readUpdateAutoCheck(context)) }
+    var anonymousStats by remember { mutableStateOf(KeyboardSettings.readAnonymousStats(context)) }
     var checkingForUpdates by remember { mutableStateOf(false) }
     var shownRelease by remember { mutableStateOf<UpdateChecker.Release?>(null) }
     val availableRelease = latestRelease?.takeIf { UpdateChecker.isNewer(it.version, currentVersion) }
@@ -606,6 +610,12 @@ private fun SettingsScreen(
                         },
                         onCheck = { checkForUpdates(manual = true) },
                         onView = { shownRelease = it },
+                        anonymousStats = anonymousStats,
+                        onAnonymousStatsChange = { enabled ->
+                            anonymousStats = enabled
+                            KeyboardSettings.saveAnonymousStats(context, enabled)
+                            UpdateCheckJob.sync(context)
+                        },
                     )
                 }
             }

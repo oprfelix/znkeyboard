@@ -19,7 +19,8 @@ import java.net.URL
 import kotlin.coroutines.coroutineContext
 
 /**
- * Downloads a release's APK into the app's cache and hands it to the system installer, which asks
+ * Downloads a release's APK (from znkeyboard.2amz.com, or GitHub when that fails) into the app's
+ * cache and hands it to the system installer, which asks
  * the user to confirm (Android never installs an app silently outside an app store; after the first
  * update it may skip the question for later ones). The APK must be this app, at the promised
  * version, signed with the same key; the system checks the key again itself.
@@ -50,21 +51,48 @@ object UpdateInstaller {
             openInstallPermission(context)
             return Outcome.NeedsPermission
         }
-        val url = release.downloadUrl.takeIf { it.endsWith(".apk", ignoreCase = true) && it.startsWith("https://github.com/") }
-            ?: return Outcome.Failed(context.getString(R.string.update_install_no_apk))
+        val sources = listOfNotNull(release.downloadUrl, release.fallbackUrl).filter(::isTrustedApkUrl)
+        if (sources.isEmpty()) return Outcome.Failed(context.getString(R.string.update_install_no_apk))
         return withContext(Dispatchers.IO) {
-            val apk = runCatching { download(context, url, progress) }.getOrElse {
-                return@withContext Outcome.Failed(context.getString(R.string.update_install_download_failed))
+            // Each source in turn: a failed or wrong download from Cloudflare falls back to GitHub.
+            var failure = context.getString(R.string.update_install_download_failed)
+            var apk: File? = null
+            for (url in sources) {
+                val file = runCatching { download(context, url, progress) }.getOrNull() ?: continue
+                if (release.sha256 != null && !sha256(file).equals(release.sha256, ignoreCase = true) ||
+                    !isExpected(context, file, release.version)
+                ) {
+                    file.delete()
+                    failure = context.getString(R.string.update_install_not_trusted)
+                    continue
+                }
+                apk = file
+                break
             }
-            if (!isExpected(context, apk, release.version)) {
-                apk.delete()
-                return@withContext Outcome.Failed(context.getString(R.string.update_install_not_trusted))
-            }
-            runCatching { commit(context, apk) }.fold(
+            val verified = apk ?: return@withContext Outcome.Failed(failure)
+            runCatching { commit(context, verified) }.fold(
                 onSuccess = { Outcome.Started },
                 onFailure = { Outcome.Failed(context.getString(R.string.update_install_failed)) },
             )
         }
+    }
+
+    /** An APK from the project's own website or GitHub release, over HTTPS. */
+    private fun isTrustedApkUrl(url: String): Boolean =
+        url.endsWith(".apk", ignoreCase = true) &&
+            (url.startsWith("https://github.com/") || url.startsWith(UpdateDefaults.CLOUDFLARE_DOWNLOAD))
+
+    private fun sha256(file: File): String {
+        val digest = java.security.MessageDigest.getInstance("SHA-256")
+        file.inputStream().use { input ->
+            val buffer = ByteArray(64 * 1024)
+            while (true) {
+                val read = input.read(buffer)
+                if (read < 0) break
+                digest.update(buffer, 0, read)
+            }
+        }
+        return digest.digest().joinToString("") { "%02x".format(it) }
     }
 
     private suspend fun download(context: Context, url: String, progress: (Float) -> Unit): File {

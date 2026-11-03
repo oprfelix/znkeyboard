@@ -212,11 +212,14 @@
     <string name="voice_open_app_settings">打开系统设置</string>
     <string name="about_title">关于与更新</string>
     <string name="about_version">版本 %1$s</string>
-    <string name="about_source">GitHub 项目主页</string>
+    <string name="about_website">官网</string>
+    <string name="about_mirror">GitHub 镜像</string>
+    <string name="usage_stats">发送匿名使用统计</string>
+    <string name="usage_stats_desc">每天一次，只发送随机编号、平台、版本和使用次数，用于官网上的用户数，不包含任何文字。键盘本身不联网，由后台每日任务发送。</string>
     <string name="update_check">检查更新</string>
     <string name="update_checking">正在检查…</string>
     <string name="update_auto">自动检查更新</string>
-    <string name="update_auto_desc">每天在后台检查一次，有新版本时发通知提醒你。只向 GitHub 查询最新版本号，不发送任何个人数据。</string>
+    <string name="update_auto_desc">每天在后台检查一次，有新版本时发通知提醒你。只向官网或 GitHub 查询最新版本号，不发送任何个人数据。</string>
     <string name="update_last_checked">已是最新 · %1$s检查</string>
     <string name="update_never_checked">还没有检查过。</string>
     <string name="update_latest">已是最新版本。</string>

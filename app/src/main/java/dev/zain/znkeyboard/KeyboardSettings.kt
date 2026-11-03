@@ -68,6 +68,9 @@ object KeyboardSettings {
     private const val KEY_UPDATE_LATEST_NOTES = "update_latest_notes"
     private const val KEY_UPDATE_LATEST_DOWNLOAD_URL = "update_latest_download_url"
     private const val KEY_UPDATE_LATEST_PAGE_URL = "update_latest_page_url"
+    private const val KEY_UPDATE_LATEST_FALLBACK_URL = "update_latest_fallback_url"
+    private const val KEY_UPDATE_LATEST_SHA256 = "update_latest_sha256"
+    private const val KEY_ANONYMOUS_STATS = "anonymous_stats"
     private const val KEY_UPDATE_DISMISSED_VERSION = "update_dismissed_version"
     private const val KEY_CHINESE_KEYBOARD = "chinese_keyboard"
     private const val KEY_UPDATE_NOTIFIED_VERSION = "update_notified_version"
@@ -269,6 +272,10 @@ object KeyboardSettings {
     fun readUpdateAutoCheck(context: Context) = readFlag(context, KEY_UPDATE_AUTO_CHECK, true)
     fun saveUpdateAutoCheck(context: Context, enabled: Boolean) = saveFlag(context, KEY_UPDATE_AUTO_CHECK, enabled)
 
+    /** The anonymous daily usage ping ([UsageStats]). On by default, as on Mac and Windows. */
+    fun readAnonymousStats(context: Context) = readFlag(context, KEY_ANONYMOUS_STATS, true)
+    fun saveAnonymousStats(context: Context, enabled: Boolean) = saveFlag(context, KEY_ANONYMOUS_STATS, enabled)
+
     /** When GitHub last answered a check, or 0 if never. */
     fun readUpdateLastCheckedAt(context: Context): Long =
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).getLong(KEY_UPDATE_LAST_CHECKED_AT, 0L)
@@ -282,6 +289,8 @@ object KeyboardSettings {
             notes = prefs.getString(KEY_UPDATE_LATEST_NOTES, null).orEmpty(),
             downloadUrl = prefs.getString(KEY_UPDATE_LATEST_DOWNLOAD_URL, null) ?: return null,
             pageUrl = prefs.getString(KEY_UPDATE_LATEST_PAGE_URL, null) ?: return null,
+            fallbackUrl = prefs.getString(KEY_UPDATE_LATEST_FALLBACK_URL, null),
+            sha256 = prefs.getString(KEY_UPDATE_LATEST_SHA256, null),
         )
     }
 
@@ -292,6 +301,8 @@ object KeyboardSettings {
             .putString(KEY_UPDATE_LATEST_NOTES, release.notes)
             .putString(KEY_UPDATE_LATEST_DOWNLOAD_URL, release.downloadUrl)
             .putString(KEY_UPDATE_LATEST_PAGE_URL, release.pageUrl)
+            .putString(KEY_UPDATE_LATEST_FALLBACK_URL, release.fallbackUrl)
+            .putString(KEY_UPDATE_LATEST_SHA256, release.sha256)
             .apply()
     }
 

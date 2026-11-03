@@ -142,7 +142,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         ClipboardLinkPreviewRepository.loadPersistedPreviews(this)
         registerClipboardListener()
         capturePrimaryClipboardText()
-        // Only schedules the settings app's daily check; the keyboard itself never goes online for it.
+        // Only schedules the settings app's daily check and usage ping; the keyboard itself never goes online for them.
         dev.zain.znkeyboard.UpdateCheckJob.sync(this)
     }
 
@@ -236,6 +236,8 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {
         super.onStartInputView(info, restarting)
         currentEditorInfo = info
+        // Local only, at most one write a day; the daily job sends the anonymous ping.
+        dev.zain.znkeyboard.UsageStats.markUsed(this)
         val themeSignature = ImeColors.apply(this, KeyboardSettings.readKeyboardTheme(this))
         if (appliedThemeSignature != null && themeSignature != appliedThemeSignature) {
             setInputView(onCreateInputView())
@@ -1813,7 +1815,10 @@ class ZnKeyboardInputMethodService : InputMethodService(),
                 voiceProcessing = false
                 keyboardView?.setVoiceIndicator(null)
                 result
-                    .onSuccess(::commitVoiceText)
+                    .onSuccess { text ->
+                        dev.zain.znkeyboard.UsageStats.recordUse(this)
+                        commitVoiceText(text)
+                    }
                     .onFailure { error ->
                         if (error is NoSpeechException) {
                             showVoiceHint(if (pinyinModeEnabled) "没有听到声音。" else "Didn't hear anything.")
@@ -2436,6 +2441,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
             return
         }
 
+        dev.zain.znkeyboard.UsageStats.recordUse(this)
         // The model drops surrounding spaces and line breaks; keep the original's so the text fits back in.
         val leading = target.originalText.takeWhile { it.isWhitespace() }
         val trailing = target.originalText.takeLastWhile { it.isWhitespace() }

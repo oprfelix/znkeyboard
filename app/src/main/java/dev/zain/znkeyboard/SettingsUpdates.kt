@@ -67,7 +67,7 @@ internal fun UpdateBanner(version: String, onView: () -> Unit, onDismiss: () -> 
     }
 }
 
-/** Bottom of the Backup page: version, manual and automatic update checks, project link. */
+/** Bottom of the Backup page: version, update checks, the anonymous usage ping, the website and its mirror. */
 @Composable
 internal fun AboutUpdateSection(
     currentVersion: String,
@@ -78,8 +78,9 @@ internal fun AboutUpdateSection(
     onAutoCheckChange: (Boolean) -> Unit,
     onCheck: () -> Unit,
     onView: (UpdateChecker.Release) -> Unit,
+    anonymousStats: Boolean,
+    onAnonymousStatsChange: (Boolean) -> Unit,
 ) {
-    val context = LocalContext.current
     SettingsSectionCard(verticalSpacing = 12.dp) {
         SettingsSectionHeader(
             title = stringResource(R.string.about_title),
@@ -127,26 +128,42 @@ internal fun AboutUpdateSection(
             onCheckedChange = onAutoCheckChange,
         )
 
-        Row(
-            modifier = Modifier
-                .clip(RoundedCornerShape(8.dp))
-                .clickable { openUrl(context, UpdateDefaults.PROJECT_URL) }
-                .padding(vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            Text(
-                text = stringResource(R.string.about_source),
-                color = MaterialTheme.colorScheme.primary,
-                style = MaterialTheme.typography.labelLarge,
-            )
-            Icon(
-                painterResource(R.drawable.ic_open_in_new_24),
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(16.dp),
-            )
+        SettingsSwitchRow(
+            title = stringResource(R.string.usage_stats),
+            description = stringResource(R.string.usage_stats_desc),
+            checked = anonymousStats,
+            onCheckedChange = onAnonymousStatsChange,
+        )
+
+        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            AboutLink(stringResource(R.string.about_website), UpdateDefaults.WEBSITE_URL)
+            AboutLink(stringResource(R.string.about_mirror), UpdateDefaults.MIRROR_URL)
         }
+    }
+}
+
+@Composable
+private fun AboutLink(label: String, url: String) {
+    val context = LocalContext.current
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(8.dp))
+            .clickable { openUrl(context, url) }
+            .padding(vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Text(
+            text = label,
+            color = MaterialTheme.colorScheme.primary,
+            style = MaterialTheme.typography.labelLarge,
+        )
+        Icon(
+            painterResource(R.drawable.ic_open_in_new_24),
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(16.dp),
+        )
     }
 }
 
