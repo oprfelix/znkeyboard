@@ -236,52 +236,75 @@ kbd { font: inherit; font-size: 13px; background: var(--bg-soft); border: 1px so
 .feature h3 { font-size: 18px; margin-bottom: 6px; }
 .feature p { margin: 0; color: var(--muted); font-size: 15px; }
 
-/* Desktop mockup */
+/* Desktop: one stage, three scenes (writing, reading, screenshot) */
 .soft { background: var(--bg-soft); }
-.desk { display: grid; grid-template-columns: 1.2fr 1fr; gap: 28px; align-items: center; margin-top: 44px; }
-@media (max-width: 860px) { .desk { grid-template-columns: 1fr; } }
+.tabs { display: flex; justify-content: center; margin-top: 36px; }
+.tabs [role=tablist] { display: inline-flex; gap: 4px; padding: 4px; background: var(--card); border: 1px solid var(--line); border-radius: 999px; }
+.tabs button {
+  font: inherit; font-size: 15px; font-weight: 600; color: var(--muted); background: none; border: 0;
+  border-radius: 999px; padding: 8px 18px; cursor: pointer; transition: background .2s, color .2s;
+}
+.tabs button:hover { color: var(--ink); }
+.tabs button[aria-selected=true] { background: var(--blue); color: #fff; }
+.stage { max-width: 900px; margin: 36px auto 0; }
+.scene { animation: scene-in .35s ease; }
+/* Window and card share one grid row, overlapping, so the frame is as tall as whichever is taller. */
+.frame { display: grid; grid-template-columns: repeat(12, 1fr); align-items: start; }
+.frame > * { grid-row: 1; }
+.scene[hidden] { display: none; }
+@keyframes scene-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 .window { background: var(--card); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow); overflow: hidden; }
-.window .bar { display: flex; gap: 7px; padding: 12px 14px; border-bottom: 1px solid var(--line); }
-.window .bar i { width: 11px; height: 11px; border-radius: 50%; background: #ff5f57; }
+.frame > .window:first-child { grid-column: 1 / 10; }
+/* Keep the window's content clear of the card overlapping its right side. */
+.frame > .window:first-child .body > :not(.pill) { max-width: 380px; }
+.window .bar { display: flex; align-items: center; gap: 7px; padding: 12px 14px; border-bottom: 1px solid var(--line); }
+.window .bar i { width: 11px; height: 11px; border-radius: 50%; background: #ff5f57; flex: none; }
 .window .bar i:nth-child(2) { background: #febc2e; }
 .window .bar i:nth-child(3) { background: #28c840; }
-.window .body { padding: 26px 24px 30px; position: relative; font-size: 15px; }
-.field { border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px 44px; margin-top: 54px; color: var(--ink); }
-.field mark { background: var(--select); color: inherit; border-radius: 3px; padding: 1px 0; }
+.window .url { flex: 1; margin-left: 10px; background: var(--bg-soft); border-radius: 7px; font-size: 12px; color: var(--muted); padding: 1px 10px; }
+.window .body { padding: 22px 24px 26px; position: relative; font-size: 15px; }
 .label-sm { color: var(--muted); font-size: 13px; }
+.field { border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; margin-top: 52px; color: var(--ink); max-width: 420px; }
+mark { background: var(--select); color: var(--ink); border-radius: 3px; padding: 1px 0; }
+.article h4 { margin: 0 0 8px; font-size: 17px; }
+.article p { margin: 0; color: var(--muted); line-height: 1.75; max-width: 440px; }
 .pill {
-  position: absolute; left: 34px; top: 60px;
-  display: inline-flex; align-items: center; background: var(--card); border: 1px solid var(--line);
+  position: absolute; display: inline-flex; align-items: center; background: var(--card); border: 1px solid var(--line);
   border-radius: 999px; box-shadow: 0 8px 22px rgba(30,70,160,.18); font-size: 13px; font-weight: 600; overflow: hidden;
 }
 .pill span { padding: 7px 13px; display: inline-flex; align-items: center; gap: 6px; }
-.pill span + span { border-left: 1px solid var(--line); }
+.pill > span + span { border-left: 1px solid var(--line); }
 .pill .chip { color: var(--blue); background: var(--blue-soft); border-radius: 999px; padding: 0 7px; font-size: 11px; }
-.result { padding: 20px; }
-.result .head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
-.result .head b { display: flex; align-items: center; gap: 6px; font-size: 15px; }
-.select { border: 1px solid var(--line); border-radius: 8px; padding: 2px 10px; font-size: 13px; color: var(--ink); }
-.result p { margin: 0 0 18px; background: var(--bg-soft); border-radius: 10px; padding: 12px 14px; font-size: 15px; }
-.result .actions { display: flex; justify-content: flex-end; gap: 10px; }
-.small-btn { border-radius: 9px; padding: 6px 16px; font-size: 14px; font-weight: 600; border: 1px solid var(--line); }
+.pill.write { left: 34px; top: 60px; }
+.pill.read { left: 24px; bottom: 20px; }
+/* A picture with text in it, and the dragged area over it */
+.shot { position: relative; overflow: hidden; border-radius: 12px; padding: 24px 22px 76px;
+  background: linear-gradient(135deg, #ffe7cf, #ffd3dc); color: #3a1c2a; }
+.shot b { display: block; font-size: 22px; letter-spacing: .02em; }
+.shot small { display: block; margin-top: 6px; font-size: 14px; opacity: .8; }
+.shot .badge { position: absolute; right: 18px; bottom: 16px; width: 62px; height: 62px; border-radius: 50%;
+  display: grid; place-items: center; font-style: normal; font-weight: 800; color: #fff; background: #e4576e; transform: rotate(-12deg); }
+/* Only the text is dragged over; the rest of the picture dims, as on screen. */
+.marquee { position: absolute; left: 12px; top: 14px; width: 82%; height: 92px; border: 2px dashed var(--blue); border-radius: 6px; box-shadow: 0 0 0 999px rgba(12, 20, 40, .2); }
+/* The result card floats over the window's lower right, as in the app */
+.result { grid-column: 7 / 13; margin-top: 88px; padding: 18px 20px; position: relative; z-index: 1; }
+.result .head { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+.result .head b { display: flex; align-items: center; gap: 6px; font-size: 15px; margin-right: auto; }
+.select { border: 1px solid var(--line); border-radius: 8px; padding: 1px 9px; font-size: 13px; color: var(--ink); white-space: nowrap; }
+.pin { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: var(--blue-soft); color: var(--blue); }
+.pin svg { width: 14px; height: 14px; }
+.result .orig { margin: 0 0 10px; padding-bottom: 10px; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 14px; }
+.result .cap { display: block; font-size: 12px; margin-bottom: 2px; }
+.result .out { margin: 0 0 14px; background: var(--bg-soft); border-radius: 10px; padding: 11px 13px; font-size: 15px; }
+.result .actions { display: flex; justify-content: flex-end; gap: 8px; }
+.small-btn { border-radius: 9px; padding: 5px 14px; font-size: 14px; font-weight: 600; border: 1px solid var(--line); }
 .small-btn.primary { background: var(--blue); color: #fff; border-color: var(--blue); }
+.scene-note { margin: 18px 0 0; text-align: center; color: var(--muted); font-size: 15px; }
 .keys-note { margin-top: 22px; text-align: center; color: var(--muted); font-size: 15px; }
-.desk-title { display: flex; justify-content: center; align-items: center; gap: 10px; margin: 56px 0 -20px; font-size: 18px; font-weight: 650; }
-.desk-title .tag { margin-left: 0; }
-.window .url { flex: 1; margin-left: 10px; background: var(--bg-soft); border-radius: 7px; font-size: 12px; color: var(--muted); padding: 1px 10px; }
-.article h4 { margin: 0 0 8px; font-size: 17px; }
-.article p { margin: 0; color: var(--muted); line-height: 1.75; }
-.article mark { background: var(--select); color: var(--ink); border-radius: 3px; padding: 1px 0; }
-.window .body.article { padding-bottom: 76px; }
-.pill.reading { left: auto; right: 24px; top: auto; bottom: 20px; }
-.result .orig { background: none; padding: 0 0 12px; margin: 0 0 12px; border-bottom: 1px solid var(--line); border-radius: 0; color: var(--muted); font-size: 14px; }
-.result .cap { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
-.pin { width: 22px; height: 22px; border-radius: 50%; display: inline-grid; place-items: center; background: var(--blue-soft); color: var(--blue); font-size: 12px; margin-left: 6px; }
-.keys { max-width: 640px; margin: 48px auto 0; background: var(--card); border: 1px solid var(--line); border-radius: 18px; overflow: hidden; }
-.keys table { width: 100%; border-collapse: collapse; font-size: 15px; }
-.keys th, .keys td { padding: 11px 18px; text-align: left; border-top: 1px solid var(--line); }
-.keys thead th { border-top: 0; background: var(--bg-soft); color: var(--muted); font-size: 13px; font-weight: 600; }
-.keys td:first-child { font-weight: 600; }
+@media (max-width: 760px) {
+  .frame { display: block; }
+  .result { width: 92%; margin: -14px 0 0 auto; }
+}
 
 /* Languages */
 .langs { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 36px; }
@@ -452,7 +475,7 @@ footer .links a { margin-right: 18px; }
       <div class="card feature">
         <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M7 10h6M7 14h3"/><path d="M14.5 13.5 18 16l-1.6.4-.4 1.6z" fill="currentColor"/></svg></div>
         <h3 data-en="Right where you select">选中就能用</h3>
-        <p data-en="Select text and a small pill pops up, or press a shortcut. Pin a translation card 📌 to keep it beside what you read.">选中文字就弹出小胶囊，或者按快捷键，不用来回复制粘贴。翻译卡片可以用 📌 固定在旁边，边看边翻。</p>
+        <p data-en="Select text and a small pill pops up, or press a shortcut. Pin a translation card to keep it beside what you read.">选中文字就弹出小胶囊，或者按快捷键，不用来回复制粘贴。翻译卡片可以固定在旁边，边看边翻。</p>
       </div>
       <div class="card feature">
         <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="12" rx="2.5"/><path d="M7 10h.01M10 10h.01M13 10h.01M16 10h.01M8 14h8"/></svg></div>
@@ -477,53 +500,74 @@ footer .links a { margin-right: 18px; }
   <div class="wrap">
     <h2 data-en="On your computer, too">电脑上也一样</h2>
     <p class="lead" data-en="Mac and Windows apps live in the menu bar or tray and work in any app.">Mac 和 Windows 版常驻菜单栏或托盘，在任何软件里都能用。</p>
-    <div class="desk-title"><span class="tag" data-en="Writing">写作</span><span data-en="Polish or translate what you type">润色、翻译你写的字</span></div>
-    <div class="desk">
-      <div class="window" aria-hidden="true">
-        <div class="bar"><i></i><i></i><i></i></div>
-        <div class="body">
-          <div class="pill"><span><svg class="spark" style="color:var(--blue)"><use href="#spark"/></svg><span data-en="Polish">润色</span></span><span><span data-en="AI translate to">AI 翻译为</span><span class="chip">EN</span></span></div>
-          <div class="label-sm" data-en="Reply to customer">回复客户</div>
-          <div class="field"><mark data-en="hi, the order shipped yesterday, should arrive in 3 days, any problem tell me">你好 订单昨天发出去了 大概三天能到 有问题再跟我说</mark></div>
+    <div class="tabs"><div role="tablist" aria-label="Scenes">
+      <button role="tab" id="tab-write" aria-controls="scene-write" aria-selected="true" data-en="Polish &amp; translate">润色与翻译</button>
+      <button role="tab" id="tab-read" aria-controls="scene-read" aria-selected="false" data-en="Reading translation">划词翻译</button>
+      <button role="tab" id="tab-shot" aria-controls="scene-shot" aria-selected="false" data-en="Screenshot translate">截图翻译</button>
+    </div></div>
+    <div class="stage">
+      <div class="scene" id="scene-write" role="tabpanel" aria-labelledby="tab-write">
+        <div class="frame" aria-hidden="true">
+          <div class="window">
+            <div class="bar"><i></i><i></i><i></i></div>
+            <div class="body">
+              <div class="pill write"><span><svg class="spark" style="color:var(--blue)"><use href="#spark"/></svg><span data-en="Polish">润色</span></span><span><span data-en="AI translate to">AI 翻译为</span><span class="chip" data-en="ES">EN</span></span></div>
+              <div class="label-sm" data-en="Reply to customer">回复客户</div>
+              <div class="field"><mark data-en="hi, the order shipped yesterday, should arrive in 3 days, any problem tell me">你好 订单昨天发出去了 大概三天能到 有问题再跟我说</mark></div>
+            </div>
+          </div>
+          <div class="window result">
+            <div class="head"><b><svg class="spark" style="color:var(--blue)"><use href="#spark"/></svg><span data-en="AI translate to">AI 翻译为</span></b><span class="select" data-en="Spanish ▾">English ▾</span></div>
+            <p class="out" data-en="¡Hola! Tu pedido se envió ayer y debería llegar en unos 3 días. Avísame si necesitas algo.">Hi! Your order shipped yesterday and should arrive in about 3 days. Let me know if there's anything I can help with.</p>
+            <div class="actions"><span class="small-btn" data-en="Copy">复制</span><span class="small-btn primary" data-en="Replace ↵">替换 ↵</span></div>
+          </div>
         </div>
+        <p class="scene-note" data-en="Select text in any text box and tap the pill, or press <kbd>⇧⌘E</kbd> polish · <kbd>⇧⌘R</kbd> translate (Windows: <kbd>Ctrl+Shift+E</kbd> · <kbd>R</kbd>).">在任何输入框里选中文字，点小胶囊，或按 <kbd>⇧⌘E</kbd> 润色 · <kbd>⇧⌘R</kbd> AI 翻译（Windows：<kbd>Ctrl+Shift+E</kbd> · <kbd>R</kbd>）。</p>
       </div>
-      <div class="window result" aria-hidden="true">
-        <div class="head"><b><svg class="spark" style="color:var(--blue)"><use href="#spark"/></svg><span data-en="Translated">已翻译</span></b><span class="select">English ▾</span></div>
-        <p>Hi! Your order shipped yesterday and should arrive in about 3 days. Let me know if there's anything I can help with.</p>
-        <div class="actions"><span class="small-btn" data-en="Copy">复制</span><span class="small-btn primary" data-en="Replace ↵">替换 ↵</span></div>
-      </div>
-    </div>
 
-    <div class="desk-title"><span class="tag" data-en="Reading">阅读</span><span data-en="Translate what you read">划词翻译你看到的字</span></div>
-    <div class="desk">
-      <div class="window" aria-hidden="true">
-        <div class="bar"><i></i><i></i><i></i><span class="url">news.example.com</span></div>
-        <div class="body article">
-          <h4 data-en="远程办公三年后">Three years of remote work</h4>
-          <p data-en="越来越多的团队发现，<mark>清晰的书面表达已经成为远程协作中最重要的能力。</mark>会议变少了，文字却变多了。">Teams that went remote found one thing mattered more than tools: <mark>clear writing has become the most important skill for working together at a distance.</mark> Meetings got shorter; messages got longer.</p>
-          <div class="pill reading"><span><span data-en="Translate to">翻译为</span><span class="chip" data-en="EN">ZH</span></span></div>
+      <div class="scene" id="scene-read" role="tabpanel" aria-labelledby="tab-read" hidden>
+        <div class="frame" aria-hidden="true">
+          <div class="window">
+            <div class="bar"><i></i><i></i><i></i><span class="url">news.example.com</span></div>
+            <div class="body article" style="padding-bottom: 76px">
+              <h4 data-en="远程办公三年后">Three years of remote work</h4>
+              <p data-en="越来越多的团队发现，<mark>清晰的书面表达已经成为远程协作中最重要的能力。</mark>会议变少了，文字却变多了。">Teams that went remote found one thing mattered more than tools: <mark>clear writing has become the most important skill for working together at a distance.</mark> Meetings got shorter; messages got longer.</p>
+              <div class="pill read"><span><span data-en="Translate to">翻译为</span><span class="chip" data-en="EN">ZH</span></span></div>
+            </div>
+          </div>
+          <div class="window result">
+            <div class="head"><b><svg class="spark" style="color:var(--blue)"><use href="#spark"/></svg><span data-en="Translate to">翻译为</span></b><span class="select" data-en="English ▾">简体中文 ▾</span><span class="pin" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M9 3h6l-.8 6.2L17.5 13h-11l3.3-3.8z"/><path d="M12 13v8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span></div>
+            <p class="orig"><span class="cap" data-en="Original">原文</span><span data-en="清晰的书面表达已经成为远程协作中最重要的能力。">Clear writing has become the most important skill for working together at a distance.</span></p>
+            <p class="out" data-en="Clear writing has become the most important skill in remote collaboration.">清晰的书面表达，已经成为远程协作中最重要的能力。</p>
+            <div class="actions"><span class="small-btn" data-en="Copy original">复制原文</span><span class="small-btn primary" data-en="Copy translation ↵">复制译文 ↵</span></div>
+          </div>
         </div>
+        <p class="scene-note" data-en="Select text on a web page or in a document and tap <b>Translate</b>, or press <kbd>⇧⌘1</kbd> / <kbd>Ctrl+Shift+1</kbd>. Pin the card to keep it beside what you read. Turn the pill on in Settings → Usage.">在网页、文档里选中文字，点「翻译为」，或按 <kbd>⇧⌘1</kbd> / <kbd>Ctrl+Shift+1</kbd>；点图钉可以把卡片固定在旁边。小胶囊在 设置 →「使用」里打开。</p>
       </div>
-      <div class="window result" aria-hidden="true">
-        <div class="head"><b><svg class="spark" style="color:var(--blue)"><use href="#spark"/></svg><span data-en="Translate to">翻译为</span></b><span><span class="select" data-en="English ▾">简体中文 ▾</span><span class="pin" title="📌">📌</span></span></div>
-        <p class="orig"><span class="cap" data-en="Original">原文</span><span data-en="清晰的书面表达已经成为远程协作中最重要的能力。">Clear writing has become the most important skill for working together at a distance.</span></p>
-        <p data-en="Clear writing has become the most important skill in remote collaboration.">清晰的书面表达，已经成为远程协作中最重要的能力。</p>
-        <div class="actions"><span class="small-btn" data-en="Copy original">复制原文</span><span class="small-btn primary" data-en="Copy translation ↵">复制译文 ↵</span></div>
-      </div>
-    </div>
 
-    <div class="keys">
-      <table>
-        <thead><tr><th data-en="Shortcut">快捷键</th><th>Mac</th><th>Windows</th></tr></thead>
-        <tbody>
-          <tr><td data-en="Reading translation">划词翻译</td><td><kbd>⇧⌘1</kbd></td><td><kbd>Ctrl+Shift+1</kbd></td></tr>
-          <tr><td data-en="Screenshot translate">截图翻译</td><td><kbd>⇧⌘2</kbd></td><td><kbd>Ctrl+Shift+2</kbd></td></tr>
-          <tr><td data-en="Polish">润色</td><td><kbd>⇧⌘E</kbd></td><td><kbd>Ctrl+Shift+E</kbd></td></tr>
-          <tr><td data-en="AI translate">AI 翻译</td><td><kbd>⇧⌘R</kbd></td><td><kbd>Ctrl+Shift+R</kbd></td></tr>
-        </tbody>
-      </table>
+      <div class="scene" id="scene-shot" role="tabpanel" aria-labelledby="tab-shot" hidden>
+        <div class="frame" aria-hidden="true">
+          <div class="window">
+            <div class="bar"><i></i><i></i><i></i><span class="url" data-en="Photo.png">Photo.png</span></div>
+            <div class="body">
+              <div class="shot">
+                <b data-en="日曜日までセール">SALE ENDS SUNDAY</b>
+                <small data-en="5,000円以上のご注文で送料無料">Free shipping on all orders over $50</small>
+                <i class="badge">−30%</i>
+                <div class="marquee"></div>
+              </div>
+            </div>
+          </div>
+          <div class="window result">
+            <div class="head"><b><svg class="spark" style="color:var(--blue)"><use href="#spark"/></svg><span data-en="Screenshot to">截图翻译为</span></b><span class="select" data-en="English ▾">简体中文 ▾</span><span class="pin" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M9 3h6l-.8 6.2L17.5 13h-11l3.3-3.8z"/><path d="M12 13v8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span></div>
+            <p class="orig"><span class="cap" data-en="Original">原文</span><span data-en="日曜日までセール 5,000円以上のご注文で送料無料">SALE ENDS SUNDAY Free shipping on all orders over $50</span></p>
+            <p class="out" data-en="Sale ends Sunday. Free shipping on orders over ¥5,000.">促销周日结束，订单满 50 美元免运费。</p>
+            <div class="actions"><span class="small-btn" data-en="Copy original">复制原文</span><span class="small-btn primary" data-en="Copy translation ↵">复制译文 ↵</span></div>
+          </div>
+        </div>
+        <p class="scene-note" data-en="Press <kbd>⇧⌘2</kbd> / <kbd>Ctrl+Shift+2</kbd> and drag over images, PDFs or apps that won't let you copy. The text is read on your computer; the image never leaves it.">按 <kbd>⇧⌘2</kbd> / <kbd>Ctrl+Shift+2</kbd>，框选图片、PDF 或不能复制的界面。文字在本机识别，图片不会上传。</p>
+      </div>
     </div>
-    <p class="keys-note" data-en="Select text and a small pill pops up; shortcuts work everywhere, even where it doesn't. Change them in settings. Reading translation's pill is off by default: Settings → Usage → On web pages and documents.">选中文字会弹出小胶囊，快捷键在任何地方都能用，可在设置里修改。划词翻译的小胶囊默认关闭，在 设置 →「使用」→「网页和文档」里打开。</p>
   </div>
 </section>
 
@@ -922,6 +966,36 @@ footer .links a { margin-right: 18px; }
     .then(function (res) { return res.ok ? res.json() : null; })
     .then(function (data) { if (data && data.platforms) { stats = data; renderStats(); } })
     .catch(function () {});
+
+  // ---- Desktop scenes: tabs, cycling on their own while in view until someone picks one. ----
+  var tabs = Array.prototype.slice.call(document.querySelectorAll('.tabs [role=tab]'));
+  var sceneIndex = 0, sceneTimer = null, picked = false, inView = false;
+  function showScene(i) {
+    sceneIndex = i;
+    tabs.forEach(function (tab, j) {
+      tab.setAttribute('aria-selected', j === i ? 'true' : 'false');
+      tab.tabIndex = j === i ? 0 : -1;
+      document.getElementById(tab.getAttribute('aria-controls')).hidden = j !== i;
+    });
+  }
+  function cycle() {
+    clearInterval(sceneTimer);
+    if (picked || reduce || !inView) return;
+    sceneTimer = setInterval(function () { showScene((sceneIndex + 1) % tabs.length); }, 6000);
+  }
+  tabs.forEach(function (tab, i) {
+    tab.addEventListener('click', function () { picked = true; clearInterval(sceneTimer); showScene(i); });
+    tab.addEventListener('keydown', function (e) {
+      var step = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
+      if (!step) return;
+      var next = (i + step + tabs.length) % tabs.length;
+      picked = true; clearInterval(sceneTimer); showScene(next); tabs[next].focus();
+    });
+  });
+  if ('IntersectionObserver' in window) {
+    new IntersectionObserver(function (entries) { inView = entries[0].isIntersecting; cycle(); }, { threshold: 0.4 })
+      .observe(document.querySelector('.stage'));
+  }
 
   // ---- Demo: type, polish, translate, repeat. ----
   var textEl = document.getElementById('demo-text');
