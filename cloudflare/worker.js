@@ -5,7 +5,7 @@
 //   GET  /download/{android|macos|windows} the latest installer (counted as a download)
 //   GET  /download/{platform}/{file}       that file, while it is the latest
 //   POST /api/ping                         { id, platform, version, uses } once a day per install
-//   GET  /api/stats                        users, active installs, downloads and uses, cached 10 min
+//   GET  /api/stats                        users, active installs, downloads and uses, cached 5 min
 //
 // A ping carries a random id the app made, its platform, version and how many times it polished or
 // translated since the last ping; never any text, and no IP is stored.
@@ -71,7 +71,10 @@ async function ping(request, env) {
   return json({ ok: true });
 }
 
-/** Users, active installs (30 days, today) per platform, downloads (GitHub and here) and uses. */
+/**
+ * Users, active installs (30 days, today) per platform, downloads (GitHub and here) and uses.
+ * Kept 5 minutes at the edge and 1 minute in browsers, so the page is never far behind.
+ */
 async function stats(request, env, ctx) {
   const cache = caches.default;
   const cached = await cache.match(request);
@@ -97,7 +100,7 @@ async function stats(request, env, ctx) {
   const githubRow = github.results[0];
   out.downloads = local.results[0].count + Number(githubRow?.value ?? 0);
   if (!githubRow || Date.now() - Date.parse(githubRow.updated) > GITHUB_REFRESH_MS) ctx.waitUntil(refreshGitHubDownloads(env));
-  const response = json(out, 200, { "Cache-Control": "public, max-age=600" });
+  const response = json(out, 200, { "Cache-Control": "public, max-age=60, s-maxage=300" });
   ctx.waitUntil(cache.put(request, response.clone()));
   return response;
 }
