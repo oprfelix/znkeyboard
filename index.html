@@ -202,6 +202,18 @@ nav .wrap { display: flex; align-items: center; gap: 24px; height: 60px; }
 .platform ul li { margin: 4px 0; }
 .platform .btn { margin-top: auto; width: 100%; font-size: 16px; padding: 12px 18px; }
 .platform .meta { text-align: center; }
+.stats { padding: 8px 0 40px; }
+.stat-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; }
+@media (max-width: 860px) { .stat-grid { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 540px) { .stat-grid { grid-template-columns: repeat(2, 1fr); } }
+.stat { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 16px 12px; text-align: center; }
+.stat b { display: block; font-size: clamp(22px, 3.2vw, 32px); font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -0.5px; }
+.stat span { color: var(--muted); font-size: 13px; }
+.split { max-width: 560px; margin: 18px auto 0; }
+.split-bar { display: flex; height: 8px; border-radius: 999px; overflow: hidden; background: var(--line); }
+.split-bar i { display: block; height: 100%; }
+.split-legend { display: flex; justify-content: center; flex-wrap: wrap; gap: 6px 16px; margin-top: 8px; color: var(--muted); font-size: 13px; }
+.split-legend span::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; background: var(--dot); }
 .tag { display: inline-block; font-size: 12px; font-weight: 600; color: var(--blue); background: var(--blue-soft); border-radius: 999px; padding: 1px 9px; margin-left: 6px; vertical-align: 2px; }
 kbd { font: inherit; font-size: 13px; background: var(--bg-soft); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 6px; padding: 0 6px; color: var(--ink); white-space: nowrap; }
 
@@ -363,6 +375,23 @@ footer .links a { margin-right: 18px; }
     </div>
   </div>
 </header>
+
+<!-- Filled from /api/stats; stays hidden when it can't be reached. -->
+<section class="stats" id="stats" hidden>
+  <div class="wrap">
+    <div class="stat-grid">
+      <div class="stat" data-stat="users"><b></b><span data-en="Users">累计用户</span></div>
+      <div class="stat" data-stat="active30d"><b></b><span data-en="Active in 30 days">近 30 天活跃</span></div>
+      <div class="stat" data-stat="active1d"><b></b><span data-en="Active today">今日活跃</span></div>
+      <div class="stat" data-stat="downloads"><b></b><span data-en="Downloads">累计下载</span></div>
+      <div class="stat" data-stat="uses"><b></b><span data-en="Polished &amp; translated">累计润色 / 翻译</span></div>
+    </div>
+    <div class="split" id="stat-split" hidden>
+      <div class="split-bar" id="split-bar"></div>
+      <div class="split-legend" id="split-legend"></div>
+    </div>
+  </div>
+</section>
 
 <section id="features">
   <div class="wrap">
@@ -624,6 +653,7 @@ footer .links a { margin-right: 18px; }
     langBtn.textContent = lang === 'en' ? '中文' : 'EN';
     document.title = t('ZnKeyboard · 选中文字，一键润色或翻译', 'ZnKeyboard · Polish or translate in one tap');
     renderDownloads();
+    renderStats();
     restartDemo();
   }
   langBtn.addEventListener('click', function () {
@@ -645,6 +675,10 @@ footer .links a { margin-right: 18px; }
     windows: { repo: 'Znkeyboard-for-Windows', ext: '.exe', name: 'Windows' }
   };
   var latest = {}; // repo -> { url, version, size }
+  // On znkeyboard.2amz.com installers come from Cloudflare; on GitHub Pages, from GitHub Releases.
+  var fromCloudflare = !/github\.io$/.test(location.hostname);
+  var cloudflareKeys = { android: 'android', mac: 'macos', windows: 'windows' };
+  var statsUrl = fromCloudflare ? '/api/stats' : 'https://znkeyboard.2amz.com/api/stats';
 
   function releasesPage(repo) { return 'https://github.com/oprfelix/' + repo + '/releases/latest'; }
 
@@ -702,20 +736,81 @@ footer .links a { margin-right: 18px; }
     others.innerHTML = target ? t('其他平台：', 'Other platforms: ') + links.join('') : '';
   }
 
-  // Latest release of each app from GitHub; links fall back to the releases page.
-  Object.keys(repos).forEach(function (k) {
-    var r = repos[k];
-    fetch('https://api.github.com/repos/oprfelix/' + r.repo + '/releases/latest')
+  // Latest release of each app, from Cloudflare's latest.json or GitHub; links fall back to the releases page.
+  function loadFromGitHub() {
+    Object.keys(repos).forEach(function (k) {
+      var r = repos[k];
+      fetch('https://api.github.com/repos/oprfelix/' + r.repo + '/releases/latest')
+        .then(function (res) { return res.ok ? res.json() : null; })
+        .then(function (rel) {
+          if (!rel || !rel.assets) return;
+          var asset = rel.assets.find(function (a) { return a.name.toLowerCase().endsWith(r.ext); });
+          if (!asset) return;
+          latest[r.repo] = { url: asset.browser_download_url, notes: rel.html_url, version: rel.tag_name, size: (asset.size / 1048576).toFixed(1) };
+          renderDownloads();
+        })
+        .catch(function () {});
+    });
+  }
+
+  if (fromCloudflare) {
+    fetch('/download/latest.json')
       .then(function (res) { return res.ok ? res.json() : null; })
-      .then(function (rel) {
-        if (!rel || !rel.assets) return;
-        var asset = rel.assets.find(function (a) { return a.name.toLowerCase().endsWith(r.ext); });
-        if (!asset) return;
-        latest[r.repo] = { url: asset.browser_download_url, notes: rel.html_url, version: rel.tag_name, size: (asset.size / 1048576).toFixed(1) };
+      .then(function (all) {
+        if (!all) { loadFromGitHub(); return; }
+        Object.keys(repos).forEach(function (k) {
+          var entry = all[cloudflareKeys[k]];
+          if (!entry) return;
+          latest[repos[k].repo] = { url: '/download/' + cloudflareKeys[k], notes: entry.notes, version: 'v' + entry.version, size: (entry.size / 1048576).toFixed(1) };
+        });
         renderDownloads();
       })
-      .catch(function () {});
-  });
+      .catch(loadFromGitHub);
+  } else {
+    loadFromGitHub();
+  }
+
+  // ---- Usage numbers: users, active installs, downloads, polish and translate runs. ----
+  var stats = null;
+  function renderStats() {
+    if (!stats) return;
+    var locale = lang === 'en' ? 'en-US' : 'zh-CN';
+    var shown = 0;
+    document.querySelectorAll('[data-stat]').forEach(function (tile) {
+      var value = stats[tile.dataset.stat] || 0;
+      // A number still at zero (nothing reported yet) says nothing; leave it out.
+      tile.hidden = value === 0;
+      if (value) shown++;
+      tile.querySelector('b').textContent = value.toLocaleString(locale);
+    });
+    document.getElementById('stats').hidden = shown === 0;
+    var names = { android: 'Android', macos: 'macOS', windows: 'Windows' };
+    var colors = { android: 'var(--green)', macos: 'var(--blue)', windows: 'var(--warn)' };
+    var total = Object.keys(names).reduce(function (sum, k) { return sum + ((stats.platforms[k] || {}).users || 0); }, 0);
+    document.getElementById('stat-split').hidden = total === 0;
+    if (!total) return;
+    var bar = document.getElementById('split-bar');
+    var legend = document.getElementById('split-legend');
+    bar.innerHTML = '';
+    legend.innerHTML = '';
+    Object.keys(names).forEach(function (k) {
+      var users = (stats.platforms[k] || {}).users || 0;
+      if (!users) return;
+      var share = Math.round(users * 100 / total);
+      var seg = document.createElement('i');
+      seg.style.width = (users * 100 / total) + '%';
+      seg.style.background = colors[k];
+      bar.appendChild(seg);
+      var item = document.createElement('span');
+      item.style.setProperty('--dot', colors[k]);
+      item.textContent = names[k] + ' ' + share + '%';
+      legend.appendChild(item);
+    });
+  }
+  fetch(statsUrl)
+    .then(function (res) { return res.ok ? res.json() : null; })
+    .then(function (data) { if (data && data.platforms) { stats = data; renderStats(); } })
+    .catch(function () {});
 
   // ---- Demo: type, polish, translate, repeat. ----
   var textEl = document.getElementById('demo-text');

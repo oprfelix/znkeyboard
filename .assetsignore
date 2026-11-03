@@ -1,0 +1,8 @@
+# Not part of the website on Cloudflare (GitHub Pages ignores this file).
+.git
+.gitignore
+.assetsignore
+cloudflare
+tools
+deploy.sh
+*.md

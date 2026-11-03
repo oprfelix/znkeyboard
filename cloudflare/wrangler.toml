@@ -1,0 +1,19 @@
+# znkeyboard.2amz.com. Deploy the whole site with ../deploy.sh (GitHub Pages and Cloudflare together).
+name = "znkeyboard"
+main = "worker.js"
+compatibility_date = "2026-10-01"
+routes = [{ pattern = "znkeyboard.2amz.com", custom_domain = true }]
+
+# The site itself: the repository root, minus what ../.assetsignore lists.
+[assets]
+directory = ".."
+binding = "ASSETS"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "znkeyboard-stats"
+database_id = "6a2ef7f9-fab3-4283-8475-a047900598ed"
+
+[[r2_buckets]]
+binding = "DOWNLOADS"
+bucket_name = "znkeyboard-downloads"

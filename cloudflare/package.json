@@ -1,0 +1,8 @@
+{
+  "name": "znkeyboard-cloudflare",
+  "private": true,
+  "description": "znkeyboard.2amz.com: the site, installers from R2 and the anonymous usage counter",
+  "devDependencies": {
+    "wrangler": "^4.156.2"
+  }
+}
