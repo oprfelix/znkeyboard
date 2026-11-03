@@ -1,8 +1,12 @@
-# znkeyboard.2amz.com. Deploy the whole site with ../deploy.sh (GitHub Pages and Cloudflare together).
+# znkeyboard.2amz.com, also served at srf.2amz.com. Deploy the whole site with ../deploy.sh
+# (GitHub Pages and Cloudflare together).
 name = "znkeyboard"
 main = "worker.js"
 compatibility_date = "2026-10-01"
-routes = [{ pattern = "znkeyboard.2amz.com", custom_domain = true }]
+routes = [
+  { pattern = "znkeyboard.2amz.com", custom_domain = true },
+  { pattern = "srf.2amz.com", custom_domain = true },
+]
 
 # The site itself: the repository root, minus what ../.assetsignore lists.
 [assets]
