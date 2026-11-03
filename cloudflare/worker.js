@@ -73,12 +73,12 @@ async function ping(request, env) {
 
 /**
  * Users, active installs (30 days, today) per platform, downloads (GitHub and here) and uses.
- * Kept 5 minutes at the edge and 1 minute in browsers, so the page is never far behind.
+ * Kept 5 minutes at the edge; browsers ask again each time (see FRESH).
  */
 async function stats(request, env, ctx) {
   const cache = caches.default;
   const cached = await cache.match(request);
-  if (cached) return cached;
+  if (cached) return fresh(cached);
   const daysAgo = (n) => new Date(Date.now() - n * 86_400_000).toISOString().slice(0, 10);
   const [installs, local, github] = await env.DB.batch([
     env.DB.prepare(
@@ -100,9 +100,9 @@ async function stats(request, env, ctx) {
   const githubRow = github.results[0];
   out.downloads = local.results[0].count + Number(githubRow?.value ?? 0);
   if (!githubRow || Date.now() - Date.parse(githubRow.updated) > GITHUB_REFRESH_MS) ctx.waitUntil(refreshGitHubDownloads(env));
-  const response = json(out, 200, { "Cache-Control": "public, max-age=60, s-maxage=300" });
+  const response = json(out, 200, { "Cache-Control": "public, max-age=300" });
   ctx.waitUntil(cache.put(request, response.clone()));
-  return response;
+  return fresh(response);
 }
 
 /** Sums every release asset's download count across the three repositories; keeps the old total on failure. */
@@ -135,7 +135,7 @@ async function download(request, env, ctx, path) {
     const object = await env.DOWNLOADS.get("latest.json");
     if (!object) return json({ error: "not found" }, 404);
     return new Response(object.body, {
-      headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "public, max-age=300", ...CORS },
+      headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": FRESH, ...CORS },
     });
   }
   const [platform, file] = path.split("/");
@@ -161,10 +161,23 @@ async function download(request, env, ctx, path) {
       "Content-Type": CONTENT_TYPES[extension] ?? "application/octet-stream",
       "Content-Length": String(object.size),
       "Content-Disposition": `attachment; filename="${entry.file}"`,
-      "Cache-Control": "public, max-age=300",
+      // The bare platform link moves to each new release; a named file never changes.
+      "Cache-Control": file ? "public, max-age=86400" : FRESH,
       ETag: object.httpEtag,
     },
   });
+}
+
+/**
+ * What browsers may keep of answers that change (stats, latest.json, the latest-installer links): the
+ * zone's Browser Cache TTL would otherwise stretch them to hours, and a new release would go unseen.
+ */
+const FRESH = "no-cache";
+
+function fresh(response) {
+  const copy = new Response(response.body, response);
+  copy.headers.set("Cache-Control", FRESH);
+  return copy;
 }
 
 function json(value, status = 200, headers = {}) {
