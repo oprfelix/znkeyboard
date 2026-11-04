@@ -153,6 +153,10 @@ nav .wrap { display: flex; align-items: center; gap: 24px; height: 60px; }
 .chat-head small { display: block; color: var(--muted); font-size: 11px; line-height: 1.2; }
 .chat { flex: 1; padding: 14px; display: flex; flex-direction: column; gap: 8px; font-size: 13px; overflow: hidden; }
 .bubble { max-width: 82%; padding: 8px 11px; border-radius: 14px; background: var(--card); border: 1px solid var(--line); }
+.bubble[hidden] { display: none; }
+.bubble.me { align-self: flex-end; color: #fff; background: var(--blue); border-color: transparent; }
+.bubble.fresh { animation: bubble-in .3s ease; }
+@keyframes bubble-in { from { opacity: 0; transform: translateY(8px); } }
 .input-row { display: flex; gap: 8px; align-items: flex-end; padding: 8px 10px; background: var(--card); border-top: 1px solid var(--line); }
 .input {
   flex: 1; min-height: 38px; border-radius: 19px; border: 1px solid var(--line); background: var(--bg-soft);
@@ -163,6 +167,8 @@ nav .wrap { display: flex; align-items: center; gap: 24px; height: 60px; }
 .input .caret { display: inline-block; width: 1.5px; height: 1.1em; background: var(--blue); vertical-align: -0.18em; animation: blink 1s steps(1) infinite; }
 @keyframes blink { 50% { opacity: 0; } }
 .send { width: 34px; height: 34px; border-radius: 50%; background: var(--blue); display: grid; place-items: center; flex: none; }
+.send { transition: transform .15s; }
+.send.press { transform: scale(.82); }
 .send svg { width: 16px; height: 16px; fill: #fff; }
 .kb { background: var(--kb); padding: 6px 5px 14px; }
 .toolbar { display: flex; gap: 6px; padding: 2px 2px 8px; }
@@ -190,8 +196,9 @@ nav .wrap { display: flex; align-items: center; gap: 24px; height: 60px; }
   .hero h1 { font-size: 52px; }
   .hero-front { position: relative; z-index: 1; width: 300px; margin: 0 40px 0 auto; }
   .hero-visual .hero-tag { display: inline-flex; }
+  .hero-visual .hero-fly { display: block; }
   .hero-desk {
-    display: block; position: absolute; left: -10px; top: 96px; width: 380px;
+    display: block; position: absolute; left: -10px; top: 74px; width: 380px;
     background: var(--card); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; font-size: 13px;
     box-shadow: 0 14px 40px rgba(30, 70, 160, .10);
   }
@@ -205,7 +212,11 @@ nav .wrap { display: flex; align-items: center; gap: 24px; height: 60px; }
 .hero-desk .main { position: relative; padding: 12px 14px 14px; }
 .hero-desk .who { font-weight: 650; }
 .hero-desk .who small { display: block; color: var(--muted); font-weight: 400; font-size: 11px; }
-.hero-desk .in { margin-top: 12px; padding: 8px 11px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg-soft); line-height: 1.55; }
+.hero-desk .dsent { width: fit-content; max-width: 88%; margin: 10px 0 0 auto; padding: 6px 10px; color: #fff; background: var(--blue); border-radius: 12px 4px 12px 12px; }
+.hero-desk .in { opacity: 0; transform: translateY(6px); transition: opacity .3s, transform .3s; margin-top: 8px; padding: 8px 11px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg-soft); line-height: 1.55; }
+.hero-desk.is-in .in { opacity: 1; transform: none; }
+.hero-desk .dout { position: absolute; top: 0; right: 0; margin: 0; opacity: 0; transition: opacity .3s; }
+.hero-desk.is-sent .dout { opacity: 1; }
 .hero-desk mark { background: transparent; color: inherit; transition: background .3s; border-radius: 3px; }
 /* Step classes are prefixed: plain .pill and .card are page-wide components and would restyle the window. */
 .hero-desk.is-sel mark { background: var(--select); }
@@ -244,6 +255,12 @@ nav .wrap { display: flex; align-items: center; gap: 24px; height: 60px; }
 .hero-desk .dwpill > span.on { background: var(--blue-soft); }
 .hero-desk .dwpill .spark { color: var(--blue); }
 .hero-desk .dwpill b { color: var(--blue); background: var(--blue-soft); border-radius: 999px; padding: 0 6px; font-size: 10px; }
+/* A message on its way from one device to the other. */
+.hero-fly { display: none; position: absolute; z-index: 2; left: 262px; top: 330px; width: 34px; height: 24px; border-radius: 12px 12px 12px 4px; background: var(--blue); box-shadow: 0 8px 20px rgba(42,112,255,.4); opacity: 0; }
+.hero-fly.to-desk { animation: fly-desk .6s ease-in-out; }
+.hero-fly.to-phone { animation: fly-phone .6s ease-in-out; }
+@keyframes fly-desk { 0% { opacity: 0; transform: translateX(50px) scale(.7); } 25%, 75% { opacity: 1; } 100% { opacity: 0; transform: translate(-120px, -70px) scale(.8); } }
+@keyframes fly-phone { 0% { opacity: 0; transform: translate(-120px, 90px) scale(.7); } 25%, 75% { opacity: 1; } 100% { opacity: 0; transform: translate(60px, -60px) scale(.8); } }
 .hero-tag {
   display: none; position: absolute; align-items: center; gap: 7px; padding: 7px 13px; font-size: 13px;
   background: var(--card); border: 1px solid var(--line); border-radius: 999px; box-shadow: 0 8px 22px rgba(30,70,160,.12);
@@ -251,8 +268,8 @@ nav .wrap { display: flex; align-items: center; gap: 24px; height: 60px; }
 }
 .hero-tag b { color: var(--blue); font-size: 11px; }
 .hero-tag.a { left: 20px; top: 40px; }
-.hero-tag.b { left: 84px; top: 500px; animation-delay: -2s; }
-.hero-tag.c { left: 8px; top: 560px; animation-delay: -4s; }
+.hero-tag.b { left: 84px; top: 530px; animation-delay: -2s; }
+.hero-tag.c { left: 8px; top: 586px; animation-delay: -4s; }
 @keyframes tag-float { 50% { transform: translateY(-7px); } }
 @media (prefers-reduced-motion: reduce) { .hero-tag { animation: none; } }
 .demo-caption { text-align: center; margin-top: 18px; color: var(--muted); font-size: 14px; min-height: 1.6em; transition: opacity .3s; }
@@ -546,12 +563,14 @@ footer .links a { margin-right: 18px; }
         <div class="bar"><i></i><i></i><i></i></div>
         <div class="main">
           <div class="who"><span data-en="Wang Fang">Emma Chen</span><small data-en="Shanghai office">海外客户</small></div>
-          <div class="in" data-en="<mark>明天上午 10 点的会能改到 11 点吗？</mark>"><mark>Could we move tomorrow's 10am meeting to 11?</mark></div>
+          <div class="dsent" data-en="明天上午 10 点能开会吗？">Can we meet at 10am tomorrow?</div>
+          <div class="in"><mark id="desk-msg"></mark></div>
           <div class="slot">
+          <div class="dsent dout" id="desk-out"></div>
           <div class="dpill"><span data-en="Translate to">翻译为</span><b data-en="EN">ZH</b></div>
           <div class="dcard">
             <div class="head"><svg class="spark"><use href="#spark"/></svg><span data-en="Translate to English">翻译为 简体中文</span></div>
-            <div data-en="Could we move tomorrow's 10am meeting to 11?">明天上午 10 点的会能改到 11 点吗？</div>
+            <div id="desk-tr"></div>
           </div>
           </div>
           <div class="dwpill" id="desk-pill"><span><svg class="spark"><use href="#spark"/></svg><span data-en="Polish">润色</span></span><span id="desk-translate"><span data-en="AI translate to">AI 翻译为</span><b data-en="ZH">EN</b></span></div>
@@ -561,19 +580,22 @@ footer .links a { margin-right: 18px; }
       <span class="hero-tag a" aria-hidden="true"><b>ES</b>Hola</span>
       <span class="hero-tag b" aria-hidden="true"><b>DE</b>Guten Tag</span>
       <span class="hero-tag c" aria-hidden="true"><b>JA</b>こんにちは</span>
+      <span class="hero-fly" id="hero-fly" aria-hidden="true"></span>
       <div class="hero-front">
       <div class="phone" aria-label="演示：在聊天里润色和翻译" role="img">
         <div class="screen">
           <div class="chat-head">
-            <div class="avatar">李</div>
-            <div><b data-en="Manager Li">李经理</b><small data-en="online">在线</small></div>
+            <div class="avatar" data-en="E">李</div>
+            <div><b data-en="Emma Chen">李经理</b><small data-en="online">在线</small></div>
           </div>
           <div class="chat">
-            <div class="bubble" data-en="Can you make tomorrow's 10am meeting?">明天上午 10 点的会你能来吗？</div>
+            <div class="bubble" data-en="明天上午 10 点能开会吗？">Can we meet at 10am tomorrow?</div>
+            <div class="bubble me" id="phone-out" hidden></div>
+            <div class="bubble" id="phone-in" hidden></div>
           </div>
           <div class="input-row">
             <div class="input" id="demo-input"><span id="demo-text"></span><span class="caret"></span></div>
-            <div class="send"><svg viewBox="0 0 24 24"><path d="M3 20.5 21 12 3 3.5 3 10l12 2-12 2z"/></svg></div>
+            <div class="send" id="demo-send"><svg viewBox="0 0 24 24"><path d="M3 20.5 21 12 3 3.5 3 10l12 2-12 2z"/></svg></div>
           </div>
           <div class="kb">
             <div class="toolbar">
@@ -1326,15 +1348,17 @@ footer .links a { margin-right: 18px; }
 
   function script() {
     return {
-      draft: t('明天的会我可能去不了 客户那边临时要改方案 我得留下来弄 不好意思', "cant make tmrw meeting probly, client wants changes last minute so i gotta stay and fix it sorry"),
-      polished: t('抱歉，明天的会议我可能无法参加。客户临时需要调整方案，我得留下来处理。', "Sorry, I probably can't make tomorrow's meeting. The client asked for last-minute changes, so I need to stay and handle them."),
-      translated: t("Sorry, I may not be able to make tomorrow's meeting. The client needs last-minute changes to the plan, so I have to stay and take care of it.", 'Lo siento, probablemente no pueda asistir a la reunión de mañana. El cliente pidió cambios de último momento y tengo que quedarme a resolverlos.'),
+      draft: t('cant do 10 tmrw, can we do 11', '明天10点来不了 11点行吗'),
+      polished: t("I can't make 10am tomorrow. Could we move it to 11?", '明天上午 10 点我来不了，能改到 11 点吗？'),
+      translated: t('明天上午 10 点我来不了，能改到 11 点吗？', "I can't make 10am tomorrow. Could we move it to 11?"),
       chip: t('EN', 'ES'),
       reply: t('可以，11 点没问题', 'Sure, 11 works'),
       replyOut: t("Sure, 11 o'clock works for me.", '好的，11 点没问题。'),
-      c1: t('随手打一句口语…', 'Type the way you talk…'),
+      c1: t('客户在手机上随手打一句…', 'A customer types a quick note…'),
       c2: t('点 <b>润色</b>，改成通顺得体的句子', 'Tap <b>Polish</b> for a clear, polite sentence'),
-      c3: t('点 <b>AI 翻译为 EN</b>，直接发给外国客户', 'Tap <b>AI translate</b> to send it in another language')
+      c3: t('消息发到你的电脑，选中就能看懂', 'It reaches your computer: select it to read it'),
+      c4: t('用中文回复，点 <b>AI 翻译</b> 发回去', 'Reply in English, then tap <b>AI translate</b>'),
+      c5: t('客户收到地道的回复', 'The customer gets a natural reply')
     };
   }
 
@@ -1342,13 +1366,20 @@ footer .links a { margin-right: 18px; }
   function setCaption(html) { caption.style.opacity = 0; later(150, function () { caption.innerHTML = html; caption.style.opacity = 1; }); }
   function press(el, ms) { el.classList.add('press'); later(ms, function () { el.classList.remove('press'); }); }
 
-  // The computer behind the phone: once the phone has sent its translation, a reply comes in there and
-  // is read with reading translation (select, the 翻译为 pill, the card).
+  // One conversation between the two devices: the phone sends, the computer reads it with reading translation,
+  // answers with the 润色 | AI 翻译 pill, and the reply lands on the phone.
   var desk = document.getElementById('hero-desk');
+  var deskMsg = document.getElementById('desk-msg');
+  var deskOut = document.getElementById('desk-out');
+  var deskTr = document.getElementById('desk-tr');
   var deskText = document.getElementById('desk-text');
   var deskPill = document.getElementById('desk-pill');
   var deskTranslate = document.getElementById('desk-translate');
   var deskSend = document.getElementById('desk-send');
+  var phoneOut = document.getElementById('phone-out');
+  var phoneIn = document.getElementById('phone-in');
+  var phoneSend = document.getElementById('demo-send');
+  var fly = document.getElementById('hero-fly');
   function deskState(state) { desk.className = 'hero-desk' + (state ? ' ' + state : ''); }
   function deskReset(text) {
     deskText.textContent = text;
@@ -1356,17 +1387,31 @@ footer .links a { margin-right: 18px; }
     deskPill.classList.remove('show');
     deskTranslate.classList.remove('on');
   }
-  // Then the reply goes out from the computer too: type, select, the 润色 | AI 翻译 pill, send.
+  function flyTo(where) { fly.className = 'hero-fly to-' + where; later(650, function () { fly.className = 'hero-fly'; }); }
+  function showBubble(el, text) { el.textContent = text; el.hidden = false; el.classList.add('fresh'); }
+
+  function replyArrives(s) {
+    setCaption(s.c5);
+    showBubble(phoneIn, s.replyOut);
+    later(3600, restartDemo);
+  }
   function deskReply(s) {
+    setCaption(s.c4);
     var i = 0;
     (function type() {
-      if (i <= s.reply.length) { deskText.textContent = s.reply.slice(0, i++); later(70, type); return; }
+      if (i <= s.reply.length) { deskText.textContent = s.reply.slice(0, i++); later(90, type); return; }
       later(350, function () { deskText.classList.add('sel'); });
       later(650, function () { deskPill.classList.add('show'); });
       later(1550, function () { deskTranslate.classList.add('on'); });
       later(1900, function () { deskReset(s.replyOut); });
       later(3000, function () { press(deskSend, 260); });
-      later(5500, restartDemo);
+      later(3300, function () {
+        deskOut.textContent = s.replyOut;
+        deskState('is-in is-sent');
+        deskReset('');
+        flyTo('phone');
+      });
+      later(3950, function () { replyArrives(s); });
     })();
   }
 
@@ -1375,12 +1420,22 @@ footer .links a { margin-right: 18px; }
     var s = script();
     translateBtn.querySelector('.chip').textContent = s.chip + ' ▾';
     polishBtn.classList.remove('press'); translateBtn.classList.remove('press'); inputEl.classList.remove('busy');
-    // At rest the computer shows a finished reading translation, never an empty window.
-    deskState('is-sel is-card');
-    deskReset(reduce ? s.replyOut : '');
-    if (reduce) { textEl.textContent = s.polished; caption.innerHTML = s.c2; return; }
-
+    fly.className = 'hero-fly';
+    deskMsg.textContent = s.polished;
+    deskTr.textContent = s.translated;
+    phoneOut.hidden = true; phoneIn.hidden = true;
+    phoneOut.classList.remove('fresh'); phoneIn.classList.remove('fresh');
+    deskReset('');
+    deskState('');
     textEl.textContent = '';
+    if (reduce) {
+      phoneOut.textContent = s.polished; phoneOut.hidden = false;
+      phoneIn.textContent = s.replyOut; phoneIn.hidden = false;
+      deskState('is-in is-sel is-card');
+      caption.innerHTML = s.c5;
+      return;
+    }
+
     setCaption(s.c1);
     var i = 0, step = 70;
     (function type() {
@@ -1390,18 +1445,20 @@ footer .links a { margin-right: 18px; }
         later(900, function () {
           press(polishBtn, 260); inputEl.classList.add('busy');
           later(1300, function () { inputEl.classList.remove('busy'); textEl.textContent = s.polished; });
+          later(3300, function () { press(phoneSend, 260); });
           later(3600, function () {
+            textEl.textContent = '';
+            showBubble(phoneOut, s.polished);
+            flyTo('desk');
+          });
+          later(4250, function () {
+            deskState('is-in');
             setCaption(s.c3);
-            later(900, function () {
-              press(translateBtn, 260); inputEl.classList.add('busy');
-              deskState('');
-              later(1400, function () { inputEl.classList.remove('busy'); textEl.textContent = s.translated; });
-              later(2000, function () { deskState('is-sel'); });
-              later(2700, function () { deskState('is-sel is-pill'); });
-              later(3500, function () { deskState('is-sel is-card'); });
-              if (desk.offsetWidth) later(4600, function () { deskReply(s); });
-              else later(6600, restartDemo);
-            });
+            if (!desk.offsetWidth) { later(1800, function () { replyArrives(s); }); return; }
+            later(1000, function () { deskState('is-in is-sel'); });
+            later(1700, function () { deskState('is-in is-sel is-pill'); });
+            later(2500, function () { deskState('is-in is-sel is-card'); });
+            later(4300, function () { deskReply(s); });
           });
         });
       });
