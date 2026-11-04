@@ -279,6 +279,15 @@ nav .wrap { display: flex; align-items: center; gap: 24px; height: 60px; }
 kbd { font: inherit; font-size: 13px; background: var(--bg-soft); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 6px; padding: 0 6px; color: var(--ink); white-space: nowrap; }
 
 /* Features: six cards in three groups (writing blue, reading teal, keyboard green), platforms as chips */
+.who-section { padding: 40px 0 72px; }
+.grid.who { grid-template-columns: repeat(2, 1fr); }
+@media (max-width: 600px) { .grid.who { grid-template-columns: 1fr; } }
+.who-card h3 { font-size: 18px; margin: 14px 0 6px; }
+.who-card .ico { width: 46px; height: 46px; border-radius: 14px; display: grid; place-items: center; background: var(--blue-soft); color: var(--blue); }
+.who-card .ico svg { width: 24px; height: 24px; }
+.who-card p { margin: 0; color: var(--muted); font-size: 15px; }
+.who-card p.fix { margin-top: 6px; color: var(--ink); }
+.who-cta { text-align: center; margin-top: 32px; }
 .grid.feat { grid-template-columns: repeat(3, 1fr); }
 @media (max-width: 960px) { .grid.feat { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 600px) { .grid.feat { grid-template-columns: 1fr; } }
@@ -433,6 +442,7 @@ footer .links a { margin-right: 18px; }
   <div class="wrap">
     <a class="brand" href="#top"><img src="assets/favicon.png" alt="">ZnKeyboard</a>
     <div class="nav-links">
+      <a href="#who" data-en="Who it's for">适合谁</a>
       <a href="#features" data-en="Features">功能</a>
       <a href="#download" data-en="Download">下载</a>
       <a href="#start" data-en="Get started">上手</a>
@@ -447,7 +457,7 @@ footer .links a { margin-right: 18px; }
     <div>
       <span class="eyebrow"><svg class="spark"><use href="#spark"/></svg><span data-en="AI polish &amp; translate">AI 润色与翻译</span></span>
       <h1 data-en="Select text.<br><em>Polish or translate</em> in one tap.">选中文字，<br><em>一键润色或翻译</em></h1>
-      <p class="sub" data-en="A pinyin keyboard for Android with AI built in, plus companion apps for Mac and Windows. Turn rough drafts into clear sentences, send them in 14 languages, and translate whatever you read: select it, or take a screenshot.">带 AI 的拼音输入法，另有 Mac 和 Windows 版。随手打的口语，一点就变成通顺的句子，或者直接翻译成 14 种语言发出去；看不懂的外文，选中或截个图就能翻译。</p>
+      <p class="sub" data-en="Replies to overseas customers that sound natural, in one tap. Foreign text you can't read, translated from a selection or a screenshot. 14 languages on Android, Mac and Windows.">给海外客户的回复，一点就地道；看不懂的外文，选中或截图就能翻译。支持 14 种语言，Android、Mac、Windows 都能用。</p>
       <div class="cta">
         <a class="btn" id="hero-btn" href="#download">
           <svg><use href="#i-download"/></svg><span id="hero-label" data-en="Download">免费下载</span>
@@ -507,6 +517,40 @@ footer .links a { margin-right: 18px; }
     </div>
   </div>
 </header>
+
+<section class="who-section" id="who">
+  <div class="wrap">
+    <h2 data-en="Talk to overseas customers without language getting in the way">和海外客户沟通，不再卡在语言上</h2>
+    <p class="lead" data-en="Find the problem you run into, and see how it helps.">看你平时遇到什么问题，就知道它怎么帮你。</p>
+    <div class="grid who">
+      <div class="card who-card">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="20" r="1.5"/><circle cx="18" cy="20" r="1.5"/><path d="M3 4h2l2.4 11.5h11l2-8.5H6"/></svg></div>
+        <h3 data-en="Cross-border sellers">跨境电商运营</h3>
+        <p data-en="Buyer messages you can't read; foreign text in product files and images.">买家消息看不懂，商品资料和图片上的外文也难处理。</p>
+        <p class="fix" data-en="Select or screenshot to translate (Mac, Windows), and turn replies into natural foreign-language messages in one tap.">选中或截图就能翻译（Mac、Windows），回复一键写成地道外语。</p>
+      </div>
+      <div class="card who-card">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="m3.5 7.5 8.5 6 8.5-6"/></svg></div>
+        <h3 data-en="Export sales">外贸业务</h3>
+        <p data-en="Inquiries need a fast answer, and you worry your emails won't sound professional.">询盘要及时回，又担心邮件写得不够专业。</p>
+        <p class="fix" data-en="Write the key points in Chinese, then translate them into your customer's language in one tap.">中文写好要点，一键翻译成客户的语言。</p>
+      </div>
+      <div class="card who-card">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14v-2a8 8 0 0 1 16 0v2"/><rect x="3" y="14" width="4" height="6" rx="1.5"/><rect x="17" y="14" width="4" height="6" rx="1.5"/><path d="M19 20a3 3 0 0 1-3 2h-3"/></svg></div>
+        <h3 data-en="Overseas customer support">海外客服</h3>
+        <p data-en="Messages in many languages, and endless copying between phone and computer.">多语言消息多，手机和电脑之间来回复制。</p>
+        <p class="fix" data-en="Translate and polish right in the text box, without switching apps.">就在输入框里翻译和润色，不用切换 App。</p>
+      </div>
+      <div class="card who-card">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6.5C10.2 5 7.6 4.5 4 4.5v14c3.6 0 6.2.5 8 2 1.8-1.5 4.4-2 8-2v-14c-3.6 0-6.2.5-8 2Z"/><path d="M12 6.5v14"/></svg></div>
+        <h3 data-en="Anyone who reads and writes in another language">经常读写外文的人</h3>
+        <p data-en="Foreign web pages and PDFs are slow going, and you're never sure about what you write.">看外文网页、PDF 吃力，写外文又没把握。</p>
+        <p class="fix" data-en="On a computer, select text to see the translation; polish what you write before you send it.">电脑上划词看译文，写完先润色再发。</p>
+      </div>
+    </div>
+    <div class="who-cta"><a class="btn" href="#download"><svg><use href="#i-download"/></svg><span data-en="Download">免费下载</span></a></div>
+  </div>
+</section>
 
 <!-- Filled from /api/stats; numbers still at zero, or the whole band when it can't load, stay hidden. -->
 <section class="stats" id="stats" hidden>
