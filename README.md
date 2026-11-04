@@ -129,7 +129,7 @@ Hot paths (`onDraw`, `onTouchEvent`, input dispatch) deliberately avoid allocati
 Requirements:
 - Android Studio (recent stable) or the Android SDK command‑line tools
 - JDK 17
-- Android SDK with API 36; `minSdk` is 36 (Android 16)
+- Android SDK with API 36; `minSdk` is 34 (Android 14)
 
 ```sh
 # Point Gradle at your SDK
