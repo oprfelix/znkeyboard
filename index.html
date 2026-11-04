@@ -70,7 +70,7 @@ body {
 a { color: var(--blue); text-decoration: none; }
 a:hover { text-decoration: underline; }
 .wrap { max-width: 1120px; margin: 0 auto; padding: 0 20px; }
-section { padding: 88px 0; }
+section { padding: 64px 0; }
 h1, h2, h3 { line-height: 1.25; margin: 0; }
 h2 { font-size: clamp(26px, 4vw, 36px); text-align: center; text-wrap: balance; }
 .lead { color: var(--muted); text-align: center; max-width: 620px; margin: 12px auto 0; }
@@ -181,28 +181,28 @@ nav .wrap { display: flex; align-items: center; gap: 24px; height: 60px; }
 .k { flex: 1; max-width: 25px; height: 36px; border-radius: 6px; background: var(--key); font-size: 14px; display: grid; place-items: center; box-shadow: 0 1px 0 rgba(0,0,0,.12); color: var(--ink); }
 .k.fn { background: color-mix(in srgb, var(--key) 70%, var(--kb)); max-width: 36px; font-size: 12px; }
 .k.space { max-width: none; flex: 5; font-size: 11px; color: var(--muted); }
-/* The computer behind the phone (wide screens only): the reading side of the story. The phone moves
-   left; the window behind it overlaps it by 150px, which its contact list fills, so the chat to the right
-   is never cut by the phone's edge. The column is 464px wide at every width the window shows. */
+/* The computer behind the phone (wide screens only): the reading side of the story. The phone leans at the
+   right; the window sits behind it on the left and the phone covers its right edge, so its content keeps clear. */
 .hero-visual { position: relative; }
 .hero-desk { display: none; }
-@media (min-width: 1280px) {
-  .hero-front { position: relative; z-index: 1; transform: translateX(-130px); }
+@media (min-width: 1100px) {
+  .hero .wrap { grid-template-columns: minmax(0, 1fr) 594px; gap: 36px; }
+  .hero h1 { font-size: 52px; }
+  .hero-front { position: relative; z-index: 1; width: 300px; margin: 0 40px 0 auto; }
+  .hero-visual .hero-tag { display: inline-flex; }
   .hero-desk {
-    display: grid; grid-template-columns: 160px 1fr; position: absolute; left: 102px; width: 440px; top: 96px;
+    display: block; position: absolute; left: -10px; top: 96px; width: 380px;
     background: var(--card); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; font-size: 13px;
-    /* A step back from the phone: a little smaller and a softer shadow. */
-    transform: scale(.96); transform-origin: left center; box-shadow: 0 14px 40px rgba(30, 70, 160, .10);
+    box-shadow: 0 14px 40px rgba(30, 70, 160, .10);
   }
+  .hero-visual .hero-desk .main { padding-right: 130px; }
 }
-.hero-desk .bar { grid-column: 1 / -1; display: flex; gap: 6px; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+@media (min-width: 1100px) and (max-width: 1159px) { .hero h1 { font-size: 46px; } }
+.hero-desk .bar { display: flex; gap: 6px; padding: 10px 12px; border-bottom: 1px solid var(--line); }
 .hero-desk .bar i { width: 9px; height: 9px; border-radius: 50%; background: #ff5f57; }
 .hero-desk .bar i:nth-child(2) { background: #febc2e; }
 .hero-desk .bar i:nth-child(3) { background: #28c840; }
-.hero-desk .side { background: var(--bg-soft); border-right: 1px solid var(--line); padding: 10px 8px; display: grid; gap: 8px; align-content: start; }
-.hero-desk .side span { display: block; height: 30px; border-radius: 8px; background: var(--line); opacity: .6; }
-.hero-desk .side span:first-child { background: var(--blue-soft); opacity: 1; }
-.hero-desk .main { padding: 12px 14px 14px; }
+.hero-desk .main { position: relative; padding: 12px 14px 14px; }
 .hero-desk .who { font-weight: 650; }
 .hero-desk .who small { display: block; color: var(--muted); font-weight: 400; font-size: 11px; }
 .hero-desk .in { margin-top: 12px; padding: 8px 11px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg-soft); line-height: 1.55; }
@@ -227,11 +227,39 @@ nav .wrap { display: flex; align-items: center; gap: 24px; height: 60px; }
 }
 .hero-desk .dcard .head { display: flex; align-items: center; gap: 5px; font-weight: 650; font-size: 12px; margin-bottom: 4px; }
 .hero-desk .dcard .head .spark { color: var(--blue); }
+.hero-desk .dreply { display: flex; align-items: center; gap: 8px; min-height: 38px; margin-top: 56px; padding: 5px 6px 5px 11px; border: 1px solid var(--line); border-radius: 12px; }
+.hero-desk .dtext { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hero-desk .dtext span { border-radius: 3px; transition: background .2s; }
+.hero-desk .dtext span.sel { background: var(--select); }
+.hero-desk .dsend { flex: none; display: grid; place-items: center; width: 26px; height: 26px; color: #fff; font-size: 14px; font-weight: 700; background: var(--blue); border-radius: 50%; transition: transform .2s; }
+.hero-desk .dsend.press { transform: scale(.82); }
+.hero-desk .dwpill {
+  position: absolute; left: 14px; bottom: 62px; display: inline-flex; align-items: center; overflow: hidden; font-size: 12px; font-weight: 600;
+  background: var(--card); border: 1px solid var(--line); border-radius: 999px; box-shadow: 0 6px 16px rgba(30,70,160,.16);
+  opacity: 0; transform: translateY(4px); transition: opacity .25s, transform .25s;
+}
+.hero-desk .dwpill.show { opacity: 1; transform: none; }
+.hero-desk .dwpill > span { display: inline-flex; align-items: center; gap: 5px; padding: 5px 10px; transition: background .2s; }
+.hero-desk .dwpill > span + span { border-left: 1px solid var(--line); }
+.hero-desk .dwpill > span.on { background: var(--blue-soft); }
+.hero-desk .dwpill .spark { color: var(--blue); }
+.hero-desk .dwpill b { color: var(--blue); background: var(--blue-soft); border-radius: 999px; padding: 0 6px; font-size: 10px; }
+.hero-tag {
+  display: none; position: absolute; align-items: center; gap: 7px; padding: 7px 13px; font-size: 13px;
+  background: var(--card); border: 1px solid var(--line); border-radius: 999px; box-shadow: 0 8px 22px rgba(30,70,160,.12);
+  animation: tag-float 6s ease-in-out infinite;
+}
+.hero-tag b { color: var(--blue); font-size: 11px; }
+.hero-tag.a { left: 20px; top: 40px; }
+.hero-tag.b { left: 84px; top: 500px; animation-delay: -2s; }
+.hero-tag.c { left: 8px; top: 560px; animation-delay: -4s; }
+@keyframes tag-float { 50% { transform: translateY(-7px); } }
+@media (prefers-reduced-motion: reduce) { .hero-tag { animation: none; } }
 .demo-caption { text-align: center; margin-top: 18px; color: var(--muted); font-size: 14px; min-height: 1.6em; transition: opacity .3s; }
 .demo-caption b { color: var(--blue); }
 
 /* Cards */
-.grid { display: grid; gap: 20px; margin-top: 44px; }
+.grid { display: grid; gap: 16px; margin-top: 32px; }
 .grid.three { grid-template-columns: repeat(3, 1fr); }
 .grid.four { grid-template-columns: repeat(4, 1fr); }
 @media (max-width: 960px) { .grid.four { grid-template-columns: repeat(2, 1fr); } }
@@ -240,7 +268,7 @@ nav .wrap { display: flex; align-items: center; gap: 24px; height: 60px; }
 .grid.six { grid-template-columns: repeat(3, 1fr); }
 @media (max-width: 960px) { .grid.six { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 540px) { .grid.six { grid-template-columns: 1fr; } }
-.card { background: var(--card); border: 1px solid var(--line); border-radius: 22px; padding: 26px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 22px; padding: 22px; }
 .platform { display: flex; flex-direction: column; gap: 14px; }
 .platform.current { border-color: var(--blue); box-shadow: 0 0 0 3px color-mix(in srgb, var(--blue) 18%, transparent); }
 .platform header { display: flex; align-items: center; gap: 14px; }
@@ -252,7 +280,7 @@ nav .wrap { display: flex; align-items: center; gap: 24px; height: 60px; }
 .platform .btn { margin-top: auto; width: 100%; font-size: 16px; padding: 12px 18px; }
 .platform .meta { text-align: center; }
 /* Usage numbers: one centred band, numbers in the headline's gradient */
-.stats { padding: 0 0 72px; }
+.stats { padding: 0 0 24px; }
 .stat-band {
   display: flex; flex-wrap: wrap; justify-content: center;
   max-width: 980px; margin: 0 auto; padding: 10px;
@@ -279,23 +307,54 @@ nav .wrap { display: flex; align-items: center; gap: 24px; height: 60px; }
 kbd { font: inherit; font-size: 13px; background: var(--bg-soft); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 6px; padding: 0 6px; color: var(--ink); white-space: nowrap; }
 
 /* Features: six cards in three groups (writing blue, reading teal, keyboard green), platforms as chips */
-.who-section { padding: 40px 0 72px; }
-.grid.who { grid-template-columns: repeat(2, 1fr); }
-@media (max-width: 600px) { .grid.who { grid-template-columns: 1fr; } }
-.who-card h3 { font-size: 18px; margin: 14px 0 6px; }
-.who-card .ico { width: 46px; height: 46px; border-radius: 14px; display: grid; place-items: center; background: var(--blue-soft); color: var(--blue); }
-.who-card .ico svg { width: 24px; height: 24px; }
-.who-card p { margin: 0; color: var(--muted); font-size: 15px; }
-.who-card p.fix { margin-top: 6px; color: var(--ink); }
-.who-cta { text-align: center; margin-top: 32px; }
+.who-layout { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 72px; align-items: start; }
+.who-head { position: sticky; top: 104px; }
+.who-head h2, .who-head .lead { text-align: left; }
+.who-head .lead { margin: 14px 0 0; max-width: 340px; }
+.who-demo { position: relative; margin-top: 28px; padding: 16px; display: flex; flex-direction: column; gap: 12px; min-height: 324px; text-align: left; background: var(--card); border: 1px solid var(--line); border-radius: 20px; box-shadow: var(--shadow); }
+.wd-label { font-size: 13px; font-weight: 600; color: var(--muted); }
+.wd-chat { flex: 1; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.wd-in, .wd-tr, .wd-out { max-width: 88%; font-size: 15px; line-height: 1.5; opacity: 0; transform: translateY(6px); transition: opacity .35s, transform .35s; }
+.wd-in.show, .wd-tr.show, .wd-out.show { opacity: 1; transform: none; }
+.wd-in { padding: 9px 13px; color: var(--ink); background: var(--bg-soft); border-radius: 4px 16px 16px 16px; }
+.wd-tr { display: flex; gap: 6px; padding-left: 13px; color: var(--muted); font-size: 14px; }
+.wd-tr .spark { flex: none; width: 13px; height: 13px; margin-top: 4px; color: var(--blue); }
+.wd-out { align-self: flex-end; margin-top: auto; padding: 9px 13px; color: #fff; background: var(--blue); border-radius: 16px 4px 16px 16px; }
+.wd-bar { display: flex; align-items: center; gap: 8px; min-height: 42px; padding: 5px 5px 5px 13px; border: 1px solid var(--line); border-radius: 14px; }
+.wd-input { flex: 1; min-width: 0; font-size: 14px; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wd-in mark, .wd-input mark { color: inherit; background: transparent; padding: 0; transition: background .2s; }
+.wd-in mark.sel, .wd-input mark.sel { background: var(--select); }
+.wd-slot { position: relative; align-self: stretch; }
+.who-demo .pill { z-index: 1; opacity: 0; transform: translateY(4px); pointer-events: none; transition: opacity .25s, transform .25s; }
+.who-demo .pill.show { opacity: 1; transform: none; }
+.who-demo .pill > span { transition: background .2s; }
+.who-demo .pill > span.on { background: var(--blue-soft); }
+.wd-rpill { left: 0; top: 0; }
+.wd-wpill { left: 16px; bottom: 70px; }
+.who-item { cursor: pointer; }
+.who-item h3 { transition: color .25s; }
+.who-item.on h3 { color: var(--blue); }
+@media (prefers-reduced-motion: reduce) { .wd-in, .wd-tr, .wd-out, .who-demo .pill, .who-item h3 { transition: none; } }
+.who-item { padding: 26px 0; border-top: 1px solid var(--line); }
+.who-item:first-child { padding-top: 0; border-top: 0; }
+.who-item:last-child { padding-bottom: 0; }
+.who-item h3 { font-size: 18px; margin-bottom: 8px; }
+.who-item p { margin: 0; color: var(--muted); font-size: 15px; }
+.who-item p.fix { margin-top: 4px; color: var(--ink); }
+@media (max-width: 860px) {
+  .who-layout { grid-template-columns: minmax(0, 1fr); gap: 36px; }
+  .who-head { position: static; }
+  .who-head h2, .who-head .lead { text-align: center; }
+  .who-head .lead { margin: 12px auto 0; max-width: 620px; }
+}
 .grid.feat { grid-template-columns: repeat(3, 1fr); }
 @media (max-width: 960px) { .grid.feat { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 600px) { .grid.feat { grid-template-columns: 1fr; } }
-.feature .top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; }
-.feature .ico { width: 46px; height: 46px; border-radius: 14px; display: grid; place-items: center; background: var(--blue-soft); color: var(--blue); }
+.feature .top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
+.feature .ico { width: 40px; height: 40px; border-radius: 14px; display: grid; place-items: center; background: var(--blue-soft); color: var(--blue); }
 .feature .ico.read { background: color-mix(in srgb, var(--teal) 14%, transparent); color: var(--teal); }
 .feature .ico.keys { background: color-mix(in srgb, var(--green) 14%, transparent); color: var(--green); }
-.feature .ico svg { width: 24px; height: 24px; }
+.feature .ico svg { width: 22px; height: 22px; }
 .plat { font-size: 12px; font-weight: 600; color: var(--muted); background: var(--bg-soft); border: 1px solid var(--line); border-radius: 999px; padding: 1px 9px; white-space: nowrap; }
 .feature h3 { font-size: 18px; margin-bottom: 6px; white-space: nowrap; }
 .feature p { margin: 0; color: var(--muted); font-size: 15px; }
@@ -378,12 +437,19 @@ mark { background: var(--select); color: var(--ink); border-radius: 3px; padding
 }
 
 /* Languages */
-.langs { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 36px; }
+.langs-title { margin-top: 32px; text-align: center; font-size: 18px; }
+.langs { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 14px; }
 .langs > span { background: var(--card); border: 1px solid var(--line); border-radius: 999px; padding: 6px 14px; font-size: 15px; }
 .langs > span b { color: var(--blue); font-size: 12px; margin-right: 6px; }
 
 /* Steps */
 .steps { counter-reset: step; row-gap: 40px; }
+.key-guide { margin-top: 40px; scroll-margin-top: 80px; }
+.key-guide h3 { font-size: 20px; text-align: center; margin-bottom: 18px; }
+.key-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; align-items: start; }
+@media (max-width: 760px) { .key-grid { grid-template-columns: 1fr; } }
+.key-guide .tip { margin: 10px 0 0; font-size: 14px; }
+.key-guide .safe { margin: 16px auto 0; max-width: 680px; text-align: center; color: var(--muted); font-size: 14px; }
 .step { position: relative; padding-top: 40px; }
 .step::before {
   counter-increment: step; content: counter(step);
@@ -403,7 +469,15 @@ mark { background: var(--select); color: var(--ink); border-radius: 3px; padding
 .ok { color: var(--green); font-weight: 600; }
 
 /* Help + FAQ */
-.qa { max-width: 780px; margin: 40px auto 0; display: grid; gap: 12px; }
+.help-layout { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 72px; align-items: start; margin-top: 32px; }
+.qa-title { margin: 0 0 6px; font-size: 18px; scroll-margin-top: 80px; }
+.qa details { padding: 0; background: none; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; }
+.qa summary { gap: 16px; padding: 14px 0; font-size: 15px; font-weight: 500; }
+.qa summary:hover { color: var(--blue); }
+.qa summary::after { flex: none; font-size: 20px; }
+@media (max-width: 860px) {
+  .help-layout { grid-template-columns: minmax(0, 1fr); gap: 32px; }
+}
 details { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 0 22px; }
 summary { cursor: pointer; list-style: none; padding: 18px 0; font-weight: 600; font-size: 16px; display: flex; justify-content: space-between; gap: 16px; }
 summary::-webkit-details-marker { display: none; }
@@ -419,7 +493,7 @@ footer .wrap { display: flex; flex-wrap: wrap; gap: 10px 28px; justify-content: 
 footer .links a { margin-right: 18px; }
 
 @media (max-width: 540px) {
-  section { padding: 64px 0; }
+  section { padding: 48px 0; }
   .wrap { padding: 0 16px; }
   .card { padding: 22px; }
   .phone { width: 280px; }
@@ -442,9 +516,9 @@ footer .links a { margin-right: 18px; }
   <div class="wrap">
     <a class="brand" href="#top"><img src="assets/favicon.png" alt="">ZnKeyboard</a>
     <div class="nav-links">
-      <a href="#who" data-en="Who it's for">适合谁</a>
       <a href="#features" data-en="Features">功能</a>
       <a href="#download" data-en="Download">下载</a>
+      <a href="#who" data-en="Who it's for">适合谁</a>
       <a href="#start" data-en="Get started">上手</a>
       <a href="#faq" data-en="FAQ">常见问题</a>
     </div>
@@ -470,7 +544,6 @@ footer .links a { margin-right: 18px; }
     <div class="hero-visual">
       <div class="hero-desk" id="hero-desk" aria-hidden="true">
         <div class="bar"><i></i><i></i><i></i></div>
-        <div class="side"><span></span><span></span><span></span><span></span></div>
         <div class="main">
           <div class="who"><span data-en="Wang Fang">Emma Chen</span><small data-en="Shanghai office">海外客户</small></div>
           <div class="in" data-en="<mark>明天上午 10 点的会能改到 11 点吗？</mark>"><mark>Could we move tomorrow's 10am meeting to 11?</mark></div>
@@ -481,8 +554,13 @@ footer .links a { margin-right: 18px; }
             <div data-en="Could we move tomorrow's 10am meeting to 11?">明天上午 10 点的会能改到 11 点吗？</div>
           </div>
           </div>
+          <div class="dwpill" id="desk-pill"><span><svg class="spark"><use href="#spark"/></svg><span data-en="Polish">润色</span></span><span id="desk-translate"><span data-en="AI translate to">AI 翻译为</span><b data-en="ZH">EN</b></span></div>
+          <div class="dreply"><span class="dtext"><span id="desk-text"></span></span><span class="dsend" id="desk-send">↑</span></div>
         </div>
       </div>
+      <span class="hero-tag a" aria-hidden="true"><b>ES</b>Hola</span>
+      <span class="hero-tag b" aria-hidden="true"><b>DE</b>Guten Tag</span>
+      <span class="hero-tag c" aria-hidden="true"><b>JA</b>こんにちは</span>
       <div class="hero-front">
       <div class="phone" aria-label="演示：在聊天里润色和翻译" role="img">
         <div class="screen">
@@ -517,40 +595,6 @@ footer .links a { margin-right: 18px; }
     </div>
   </div>
 </header>
-
-<section class="who-section" id="who">
-  <div class="wrap">
-    <h2 data-en="Talk to overseas customers without language getting in the way">和海外客户沟通，不再卡在语言上</h2>
-    <p class="lead" data-en="Find the problem you run into, and see how it helps.">看你平时遇到什么问题，就知道它怎么帮你。</p>
-    <div class="grid who">
-      <div class="card who-card">
-        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="20" r="1.5"/><circle cx="18" cy="20" r="1.5"/><path d="M3 4h2l2.4 11.5h11l2-8.5H6"/></svg></div>
-        <h3 data-en="Cross-border sellers">跨境电商运营</h3>
-        <p data-en="Buyer messages you can't read; foreign text in product files and images.">买家消息看不懂，商品资料和图片上的外文也难处理。</p>
-        <p class="fix" data-en="Select or screenshot to translate (Mac, Windows), and turn replies into natural foreign-language messages in one tap.">选中或截图就能翻译（Mac、Windows），回复一键写成地道外语。</p>
-      </div>
-      <div class="card who-card">
-        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="m3.5 7.5 8.5 6 8.5-6"/></svg></div>
-        <h3 data-en="Export sales">外贸业务</h3>
-        <p data-en="Inquiries need a fast answer, and you worry your emails won't sound professional.">询盘要及时回，又担心邮件写得不够专业。</p>
-        <p class="fix" data-en="Write the key points in Chinese, then translate them into your customer's language in one tap.">中文写好要点，一键翻译成客户的语言。</p>
-      </div>
-      <div class="card who-card">
-        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14v-2a8 8 0 0 1 16 0v2"/><rect x="3" y="14" width="4" height="6" rx="1.5"/><rect x="17" y="14" width="4" height="6" rx="1.5"/><path d="M19 20a3 3 0 0 1-3 2h-3"/></svg></div>
-        <h3 data-en="Overseas customer support">海外客服</h3>
-        <p data-en="Messages in many languages, and endless copying between phone and computer.">多语言消息多，手机和电脑之间来回复制。</p>
-        <p class="fix" data-en="Translate and polish right in the text box, without switching apps.">就在输入框里翻译和润色，不用切换 App。</p>
-      </div>
-      <div class="card who-card">
-        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6.5C10.2 5 7.6 4.5 4 4.5v14c3.6 0 6.2.5 8 2 1.8-1.5 4.4-2 8-2v-14c-3.6 0-6.2.5-8 2Z"/><path d="M12 6.5v14"/></svg></div>
-        <h3 data-en="Anyone who reads and writes in another language">经常读写外文的人</h3>
-        <p data-en="Foreign web pages and PDFs are slow going, and you're never sure about what you write.">看外文网页、PDF 吃力，写外文又没把握。</p>
-        <p class="fix" data-en="On a computer, select text to see the translation; polish what you write before you send it.">电脑上划词看译文，写完先润色再发。</p>
-      </div>
-    </div>
-    <div class="who-cta"><a class="btn" href="#download"><svg><use href="#i-download"/></svg><span data-en="Download">免费下载</span></a></div>
-  </div>
-</section>
 
 <!-- Filled from /api/stats; numbers still at zero, or the whole band when it can't load, stay hidden. -->
 <section class="stats" id="stats" hidden>
@@ -605,6 +649,23 @@ footer .links a { margin-right: 18px; }
         <h3 data-en="Pinyin that gets you">懂你的拼音输入</h3>
         <p data-en="Whole-sentence pinyin that fixes slips and learns your words; fuzzy, 9-key and stroke.">整句理解、按点按位置纠错，支持模糊音、九宫格和笔画。</p>
       </div>
+    </div>
+    <h3 class="langs-title" data-en="14 translation languages">14 种翻译语言</h3>
+    <div class="langs">
+      <span><b>EN</b><span data-en="English">英语</span></span>
+      <span><b>ZH</b><span data-en="Chinese (Simplified)">简体中文</span></span>
+      <span><b>TW</b><span data-en="Chinese (Traditional)">繁體中文</span></span>
+      <span><b>ES</b><span data-en="Spanish">西班牙语</span></span>
+      <span><b>FR</b><span data-en="French">法语</span></span>
+      <span><b>AR</b><span data-en="Arabic">阿拉伯语</span></span>
+      <span><b>RU</b><span data-en="Russian">俄语</span></span>
+      <span><b>PT</b><span data-en="Portuguese">葡萄牙语</span></span>
+      <span><b>DE</b><span data-en="German">德语</span></span>
+      <span><b>JA</b><span data-en="Japanese">日语</span></span>
+      <span><b>KO</b><span data-en="Korean">韩语</span></span>
+      <span><b>ID</b><span data-en="Indonesian">印尼语</span></span>
+      <span><b>VI</b><span data-en="Vietnamese">越南语</span></span>
+      <span><b>TH</b><span data-en="Thai">泰语</span></span>
     </div>
     <p class="trust"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 5 6v5.5c0 4.4 3 8 7 9.5 4-1.5 7-5.1 7-9.5V6z"/><path d="m9 12 2 2 4-4" stroke-linecap="round"/></svg><span data-en="&lt;b&gt;Your key, your data.&lt;/b&gt; Text goes straight from your device to the AI provider: no middleman server, no account."><b>你的 Key，你的数据。</b>文字从你的设备直达 AI 服务商，没有中转服务器，也不用注册账号。</span></p>
   </div>
@@ -729,24 +790,46 @@ footer .links a { margin-right: 18px; }
   </div>
 </section>
 
-<section class="soft">
-  <div class="wrap">
-    <h2 data-en="14 translation languages">14 种翻译语言</h2>
-    <div class="langs">
-      <span><b>EN</b><span data-en="English">英语</span></span>
-      <span><b>ZH</b><span data-en="Chinese (Simplified)">简体中文</span></span>
-      <span><b>TW</b><span data-en="Chinese (Traditional)">繁體中文</span></span>
-      <span><b>ES</b><span data-en="Spanish">西班牙语</span></span>
-      <span><b>FR</b><span data-en="French">法语</span></span>
-      <span><b>AR</b><span data-en="Arabic">阿拉伯语</span></span>
-      <span><b>RU</b><span data-en="Russian">俄语</span></span>
-      <span><b>PT</b><span data-en="Portuguese">葡萄牙语</span></span>
-      <span><b>DE</b><span data-en="German">德语</span></span>
-      <span><b>JA</b><span data-en="Japanese">日语</span></span>
-      <span><b>KO</b><span data-en="Korean">韩语</span></span>
-      <span><b>ID</b><span data-en="Indonesian">印尼语</span></span>
-      <span><b>VI</b><span data-en="Vietnamese">越南语</span></span>
-      <span><b>TH</b><span data-en="Thai">泰语</span></span>
+<section class="soft" id="who">
+  <div class="wrap who-layout">
+    <div class="who-head">
+      <h2 data-en="Talk to overseas customers without language getting in the way">和海外客户沟通，不再卡在语言上</h2>
+      <p class="lead" data-en="Find the problem you run into, and see how it helps.">看你平时遇到什么问题，就知道它怎么帮你。</p>
+      <div class="who-demo" id="who-demo" aria-hidden="true">
+        <div class="wd-label" id="wd-label"></div>
+        <div class="wd-chat">
+          <div class="wd-in" id="wd-in-box"><mark id="wd-in"></mark></div>
+          <div class="wd-slot">
+            <div class="wd-tr" id="wd-tr-row"><svg class="spark"><use href="#spark"/></svg><span id="wd-tr"></span></div>
+            <div class="pill wd-rpill" id="wd-rpill"><span id="wd-rseg"><span id="wd-rlabel"></span><span class="chip" id="wd-rchip"></span></span></div>
+          </div>
+          <div class="wd-out" id="wd-out"></div>
+        </div>
+        <div class="pill wd-wpill" id="wd-wpill"><span id="wd-polish"><svg class="spark" style="color:var(--blue)"><use href="#spark"/></svg><span id="wd-polish-label"></span></span><span id="wd-translate"><span id="wd-translate-label"></span><span class="chip" id="wd-chip"></span></span></div>
+        <div class="wd-bar"><span class="wd-input"><mark id="wd-input"></mark></span></div>
+      </div>
+    </div>
+    <div class="who-list">
+      <div class="who-item">
+        <h3 data-en="Cross-border sellers">跨境电商运营</h3>
+        <p data-en="Buyer messages you can't read; foreign text in product files and images.">买家消息看不懂，商品资料和图片上的外文也难处理。</p>
+        <p class="fix" data-en="Select or screenshot to translate (Mac, Windows), and turn replies into natural foreign-language messages in one tap.">选中或截图就能翻译（Mac、Windows），回复一键写成地道外语。</p>
+      </div>
+      <div class="who-item">
+        <h3 data-en="Export sales">外贸业务</h3>
+        <p data-en="Inquiries need a fast answer, and you worry your emails won't sound professional.">询盘要及时回，又担心邮件写得不够专业。</p>
+        <p class="fix" data-en="Write the key points in Chinese, then translate them into your customer's language in one tap.">中文写好要点，一键翻译成客户的语言。</p>
+      </div>
+      <div class="who-item">
+        <h3 data-en="Overseas customer support">海外客服</h3>
+        <p data-en="Messages in many languages, and endless copying between phone and computer.">多语言消息多，手机和电脑之间来回复制。</p>
+        <p class="fix" data-en="Translate and polish right in the text box, without switching apps.">就在输入框里翻译和润色，不用切换 App。</p>
+      </div>
+      <div class="who-item">
+        <h3 data-en="Anyone who reads and writes in another language">经常读写外文的人</h3>
+        <p data-en="Foreign web pages and PDFs are slow going, and you're never sure about what you write.">看外文网页、PDF 吃力，写外文又没把握。</p>
+        <p class="fix" data-en="On a computer, select text to see the translation; polish what you write before you send it.">电脑上划词看译文，写完先润色再发。</p>
+      </div>
     </div>
   </div>
 </section>
@@ -762,11 +845,12 @@ footer .links a { margin-right: 18px; }
       </div>
       <div class="card step">
         <h3 data-en="Get an API key">获取 API Key</h3>
-        <div class="step-body" data-en="&lt;ul&gt;&lt;li&gt;&lt;b&gt;DeepSeek&lt;/b&gt; (fast in mainland China): create a key on the &lt;a href=&quot;https://platform.deepseek.com/api_keys&quot;&gt;DeepSeek platform&lt;/a&gt;. Pay as you go after a small top-up; a rewrite costs a tiny fraction of a cent.&lt;/li&gt;&lt;li&gt;&lt;b&gt;Gemini&lt;/b&gt; (free tier): create a key in &lt;a href=&quot;https://aistudio.google.com/apikey&quot;&gt;Google AI Studio&lt;/a&gt;. Needs a network that can reach Google.&lt;/li&gt;&lt;/ul&gt;">
+        <div class="step-body" data-en="&lt;ul&gt;&lt;li&gt;&lt;b&gt;DeepSeek&lt;/b&gt; (fast in mainland China): create a key on the &lt;a href=&quot;https://platform.deepseek.com/api_keys&quot;&gt;DeepSeek platform&lt;/a&gt;. Pay as you go after a small top-up; a rewrite costs a tiny fraction of a cent.&lt;/li&gt;&lt;li&gt;&lt;b&gt;Gemini&lt;/b&gt; (free tier): create a key in &lt;a href=&quot;https://aistudio.google.com/apikey&quot;&gt;Google AI Studio&lt;/a&gt;. Needs a network that can reach Google.&lt;/li&gt;&lt;/ul&gt;&lt;p class=&quot;note&quot;&gt;&lt;a href=&quot;#key-guide&quot;&gt;First time? See the full steps&lt;/a&gt;&lt;/p&gt;">
         <ul>
           <li><b>DeepSeek</b>（国内可直连）：登录 <a href="https://platform.deepseek.com/api_keys">DeepSeek 开放平台</a> 创建 Key。按用量付费，需要先充值，润色一次只要几厘钱。</li>
           <li><b>Gemini</b>（有免费额度）：登录 <a href="https://aistudio.google.com/apikey">Google AI Studio</a> 创建 Key。需要能访问 Google 的网络。</li>
         </ul>
+        <p class="note"><a href="#key-guide">第一次申请？看详细步骤</a></p>
         </div>
       </div>
       <div class="card step">
@@ -782,87 +866,120 @@ footer .links a { margin-right: 18px; }
         </div>
       </div>
     </div>
-  </div>
-</section>
-
-<section class="soft" id="help">
-  <div class="wrap">
-    <h2 data-en="Installation help">安装帮助</h2>
-    <div class="qa">
+    <div class="key-guide" id="key-guide">
+      <h3 data-en="First time getting an API key?">第一次申请 API Key？</h3>
+      <div class="key-grid">
       <details>
-        <summary data-en="Android: “Install blocked” or “unknown apps”">Android：提示「禁止安装未知应用」</summary>
-        <div class="answer" data-en="<ol><li>Open the downloaded APK. When Android asks, tap <b>Settings</b> and allow your browser or file manager to install apps.</li><li>Go back and tap <b>Install</b>.</li><li>Open ZnKeyboard and follow the steps to enable it as a keyboard.</li></ol>Updating: install the new APK over the old one; your settings and API key stay. If your keyboard switched to another one after updating, open ZnKeyboard and follow the prompt on its home screen to select it again.">
-          <ol>
-            <li>打开下载好的 APK，系统提示时点 <b>设置</b>，允许浏览器或文件管理器安装应用。</li>
-            <li>返回后点 <b>安装</b>。</li>
-            <li>打开 ZnKeyboard，按首页提示启用输入法。</li>
-          </ol>
-          以后更新：直接安装新版 APK 覆盖即可，设置和 API Key 都会保留。更新后如果键盘被换成了别的输入法，打开 ZnKeyboard，按首页提示重新选择即可。
+        <summary data-en="DeepSeek: recommended in mainland China">DeepSeek：国内用户推荐</summary>
+        <div class="answer">
+        <ol>
+          <li data-en="Open the &lt;a href=&quot;https://platform.deepseek.com&quot;&gt;DeepSeek platform&lt;/a&gt;, sign up and log in.">打开 <a href="https://platform.deepseek.com">DeepSeek 开放平台</a>，注册并登录。</li>
+          <li data-en="Find the top-up page and &lt;b&gt;start with 10 yuan&lt;/b&gt;. Usage is deducted from your balance as you go; top up again when it runs out.">在平台里找到充值入口，<b>建议先充 10 元</b>试用。费用按实际用量从余额扣除，用完再充。</li>
+          <li data-en="Open the &lt;a href=&quot;https://platform.deepseek.com/api_keys&quot;&gt;API Keys&lt;/a&gt; page, create a key, then copy it and keep it somewhere safe right away.">打开 <a href="https://platform.deepseek.com/api_keys">API Keys</a> 页面，创建一个 Key，马上复制并保存好。</li>
+          <li data-en="In ZnKeyboard settings, choose “OpenAI compatible” as the provider and “DeepSeek” as the endpoint, then paste your key.">打开 ZnKeyboard 设置：服务商选「OpenAI 兼容」，接口选「DeepSeek」，粘贴 Key。</li>
+        </ol>
+        <p class="tip" data-en="DeepSeek is pay as you go, so you top up before your first use.">DeepSeek 按用量付费，第一次使用前需要先充值。</p>
         </div>
       </details>
       <details>
-        <summary data-en="Mac: first launch and permissions">Mac：第一次打开和授权</summary>
-        <div class="answer" data-en="&lt;ol&gt;&lt;li&gt;Drag ZnKeyboard into Applications and open it.&lt;/li&gt;&lt;li&gt;When asked, turn on ZnKeyboard under &lt;b&gt;System Settings → Privacy &amp; Security → Accessibility&lt;/b&gt; so it can read the text you select.&lt;/li&gt;&lt;li&gt;The first time you use screenshot translate, turn on ZnKeyboard under &lt;b&gt;Screen Recording&lt;/b&gt; as well, then quit and reopen ZnKeyboard.&lt;/li&gt;&lt;/ol&gt;Updates install from the menu bar with one click (0.3 and later); your settings, API key and permissions stay.">
-          <ol>
-            <li>把 ZnKeyboard 拖进「应用程序」后打开。</li>
-            <li>按提示在 <b>系统设置 → 隐私与安全性 → 辅助功能</b> 里打开 ZnKeyboard，它才能读取你选中的文字。</li>
-            <li>第一次使用截图翻译时，再在 <b>屏幕录制</b> 里打开 ZnKeyboard，然后退出并重新打开 ZnKeyboard。</li>
-          </ol>
-          以后升级：有新版本时菜单栏会提醒，点「立即更新」即可（0.3 起），设置、API Key 和权限都会保留，不用重新授权。
+        <summary data-en="Gemini: free tier, needs access to Google">Gemini：有免费额度，需要能访问 Google</summary>
+        <div class="answer">
+        <ol>
+          <li data-en="Have a Google account and make sure your network can reach Google.">准备一个 Google 账号，并确认网络能打开 Google。</li>
+          <li data-en="Open &lt;a href=&quot;https://aistudio.google.com/apikey&quot;&gt;Google AI Studio&lt;/a&gt;, create an API key and copy it.">打开 <a href="https://aistudio.google.com/apikey">Google AI Studio</a>，创建 API Key 并复制。</li>
+          <li data-en="In ZnKeyboard settings, choose “Google Gemini”, then paste your key.">打开 ZnKeyboard 设置：服务商选「Google Gemini」，粘贴 Key。</li>
+        </ol>
+        <p class="tip" data-en="Mainland China networks usually can't reach Gemini directly; choose DeepSeek there.">中国内地网络通常无法直接使用 Gemini，国内用户建议选 DeepSeek。</p>
+        <p class="tip" data-en="On the free tier, Google may use what you send to improve its products, and people may review it. Don't send customer data, quotes or other sensitive content.">免费额度下，Google 可能用你发送的内容改进产品，也可能由人工查看。请不要发送客户资料、报价等敏感内容。</p>
         </div>
       </details>
-      <details>
-        <summary data-en="Windows: “Windows protected your PC” or it won't start">Windows：提示「Windows 已保护你的电脑」或打不开</summary>
-        <div class="answer" data-en="<ol><li>Install the <a href=&quot;https://dotnet.microsoft.com/download/dotnet/10.0&quot;>.NET 10 Desktop Runtime</a> (x64) first.</li><li>Run the downloaded <b>ZnKeyboard-Windows-….exe</b>. It installs itself for you (no admin rights) and adds ZnKeyboard to the Start menu; you can then delete the download. Later updates install from the tray with one click (0.6 and later).</li><li>If SmartScreen appears, click <b>More info → Run anyway</b>.</li><li>ZnKeyboard sits in the tray (bottom right) and starts with Windows. Right-click it for settings. To uninstall, go to Settings → Apps → Installed apps.</li></ol>Something not working? Right-click the tray icon → <b>Open diagnostic log</b> and send it with your <a href=&quot;https://github.com/oprfelix/Znkeyboard-for-Windows/issues&quot;>report</a>. It never contains your text.">
-          <ol>
-            <li>先安装 <a href="https://dotnet.microsoft.com/download/dotnet/10.0">.NET 10 桌面运行时</a>（x64）。</li>
-            <li>双击下载的 <b>ZnKeyboard-Windows-….exe</b>，会自动安装到本机（不需要管理员权限）并添加到开始菜单，之后下载的文件可以删除。以后有新版本时托盘会提醒，点一下即可更新（0.6 起）。</li>
-            <li>如果出现蓝色的 SmartScreen 提示，点 <b>更多信息 → 仍要运行</b>。</li>
-            <li>ZnKeyboard 会出现在右下角托盘里，并且开机自动启动，右键可打开设置。卸载：Windows「设置」→「应用」→「已安装的应用」。</li>
-          </ol>
-          遇到问题：右键托盘图标 → <b>打开诊断日志</b>，连同问题描述一起<a href="https://github.com/oprfelix/Znkeyboard-for-Windows/issues">反馈给我们</a>。日志里不包含任何你输入或选中的文字。
-        </div>
-      </details>
+      </div>
+      <p class="safe" data-en="An API key works like a password: don't post it in group chats. Teams should give each person their own key, so usage is clear and a leaked key is easy to replace.">API Key 相当于账号密码，不要发到群里。团队使用时建议每人一个 Key，方便看用量，泄露时也好更换。</p>
     </div>
   </div>
 </section>
 
-<section id="faq">
+<section class="soft" id="faq">
   <div class="wrap">
-    <h2 data-en="FAQ">常见问题</h2>
-    <div class="qa">
-      <details>
-        <summary data-en="Is it free?">要花钱吗？</summary>
-        <div class="answer" data-en="The apps are free. AI requests are billed by your provider to your own key. <b>DeepSeek</b> is pay as you go after a small top-up; a polish or translation costs a tiny fraction of a cent. <b>Google Gemini</b>'s free tier is plenty for everyday use, and ZnKeyboard uses its low-cost Flash-Lite models.">软件本身免费。AI 请求由服务商按你自己的 Key 计费：<b>DeepSeek</b> 按用量付费，需要先充值，润色或翻译一次只要几厘钱；<b>Google Gemini</b> 的免费额度足够日常使用，ZnKeyboard 默认用的也是它价格最低的 Flash-Lite 模型。</div>
-      </details>
-      <details>
-        <summary data-en="Where does my text go?">我的文字会发到哪里？</summary>
-        <div class="answer" data-en="Only when you tap Polish or Translate (or use AI voice input), that text is sent directly to the AI provider you chose. There is no middleman server and no account. Once a day the Mac and Windows apps send an anonymous count for the numbers on this site: a random ID, platform, version and how many times you polished or translated, never any text; turn it off in Settings → General. For screenshot translate, the image is read on your computer and never uploaded; only the recognised text is sent. Your API key is stored on your device (Android Keystore, macOS Keychain, Windows Credential Manager). Ordinary typing never leaves the keyboard.">只有在你点「润色」「翻译」或使用 AI 语音输入时，那一段文字才会直接发给你选择的 AI 服务商。ZnKeyboard 没有中转服务器，也不需要注册。Mac 和 Windows 版每天发送一次匿名统计，用于本站的用户数：只有随机编号、平台、版本和使用次数，不含任何文字，可在 设置 →「通用」里关闭。截图翻译时，截图只在你的电脑上识别，不会上传，只有识别出的文字会发给服务商。API Key 只保存在你的设备上（Android 密钥库、macOS 钥匙串、Windows 凭据管理器）。平时普通打字的内容不会离开键盘。</div>
-      </details>
-      <details>
-        <summary data-en="How do I turn on reading translation?">划词翻译怎么打开？</summary>
-        <div class="answer" data-en="On Mac and Windows, open Settings → Usage and turn on &lt;b&gt;On web pages and documents&lt;/b&gt;. Then select text while reading and tap &lt;b&gt;Translate&lt;/b&gt;. Without the pill, select text and press &lt;kbd&gt;⇧⌘1&lt;/kbd&gt; / &lt;kbd&gt;Ctrl+Shift+1&lt;/kbd&gt;. It translates into the language set under &lt;b&gt;Reading and screenshots to&lt;/b&gt;, the same one screenshot translate uses.">在 Mac 或 Windows 版的 设置 →「使用」里打开 <b>网页和文档</b>，之后看网页、文档时选中文字，点「翻译为」就行。不想要小胶囊的话，选中后按 <kbd>⇧⌘1</kbd> / <kbd>Ctrl+Shift+1</kbd> 也可以。翻译成的语言在「划词和截图翻译成」里设置，和截图翻译共用。</div>
-      </details>
-      <details>
-        <summary data-en="Can I change the shortcuts?">快捷键可以改吗？</summary>
-        <div class="answer" data-en="Yes, in Settings → Shortcuts: click one and press the new keys. The defaults are &lt;kbd&gt;⇧⌘1&lt;/kbd&gt; reading translation, &lt;kbd&gt;⇧⌘2&lt;/kbd&gt; screenshot, &lt;kbd&gt;⇧⌘E&lt;/kbd&gt; polish and &lt;kbd&gt;⇧⌘R&lt;/kbd&gt; translate on Mac, and the same with &lt;kbd&gt;Ctrl+Shift&lt;/kbd&gt; on Windows.">可以，在 设置 →「快捷键」里点一下快捷键，再按新的组合键即可。默认是 Mac 上 <kbd>⇧⌘1</kbd> 划词翻译、<kbd>⇧⌘2</kbd> 截图翻译、<kbd>⇧⌘E</kbd> 润色、<kbd>⇧⌘R</kbd> AI 翻译，Windows 上把 ⇧⌘ 换成 <kbd>Ctrl+Shift</kbd>。</div>
-      </details>
-      <details>
-        <summary data-en="zn.2amz.com or GitHub: where should I download?">在官网下载和在 GitHub 下载有什么区别？</summary>
-        <div class="answer" data-en="They are the same files. &lt;a href=&quot;https://zn.2amz.com/&quot;&gt;zn.2amz.com&lt;/a&gt; serves them from Cloudflare, which is faster in mainland China; &lt;a href=&quot;https://oprfelix.github.io/znkeyboard/&quot;&gt;oprfelix.github.io/znkeyboard&lt;/a&gt; serves them from GitHub. The apps update from the faster one and fall back to the other.">安装包完全一样。<a href="https://zn.2amz.com/">zn.2amz.com</a> 从 Cloudflare 下载，国内更快；<a href="https://oprfelix.github.io/znkeyboard/">oprfelix.github.io/znkeyboard</a> 从 GitHub 下载。App 内更新也会先用 Cloudflare，连不上再改用 GitHub。</div>
-      </details>
-      <details>
-        <summary data-en="Which AI services can I use?">可以用哪些 AI 服务？</summary>
-        <div class="answer" data-en="Google Gemini and DeepSeek are set up for you; see <a href=&quot;#start&quot;>Get started</a>. Under “OpenAI compatible”, the “Custom” endpoint also works with OpenAI, OpenRouter and other compatible services: type their address and model. AI voice input needs a Gemini key.">Google Gemini 和 DeepSeek 都已内置，设置方法见上方<a href="#start">三步开始使用</a>。「OpenAI 兼容」里的「自定义」接口还可以接 OpenAI、OpenRouter 等其他兼容服务，填写对方的地址和模型即可。AI 语音输入需要 Gemini Key。</div>
-      </details>
-      <details>
-        <summary data-en="Is there an iPhone version?">有 iPhone 版吗？</summary>
-        <div class="answer" data-en="Not for now. iOS restricts third-party keyboards (for example, they can't reliably read and replace the text you've written), so the experience would fall short. Mac and Windows users can use the desktop apps.">暂时没有。iOS 对第三方输入法限制较多（比如无法可靠地读取和替换已经输入的文字），做出来体验会打折扣。电脑上可以使用 Mac 和 Windows 版。</div>
-      </details>
-      <details>
-        <summary data-en="Is it open source?">是开源的吗？</summary>
-        <div class="answer" data-en="Yes. The Android keyboard is a GPL-3.0 fork of <a href=&quot;https://github.com/zainbits/zn-keyboard&quot;>zainbits/zn-keyboard</a>, with a pinyin dictionary derived from <a href=&quot;https://github.com/iDvel/rime-ice&quot;>rime-ice</a>. All source code is on <a href=&quot;https://github.com/oprfelix&quot;>GitHub</a>.">是的。Android 输入法基于 <a href="https://github.com/zainbits/zn-keyboard">zainbits/zn-keyboard</a>（GPL-3.0）修改，拼音词库来自 <a href="https://github.com/iDvel/rime-ice">雾凇拼音 rime-ice</a>。全部源代码都在 <a href="https://github.com/oprfelix">GitHub</a> 上。</div>
-      </details>
+    <h2 data-en="Help &amp; FAQ">帮助与常见问题</h2>
+    <p class="lead" data-en="Stuck on install, or curious about something else? Start here.">安装遇到问题，或者想了解更多，都可以先看这里。</p>
+    <div class="help-layout">
+    <div class="help-side">
+      <h3 class="qa-title" id="help" data-en="Installation help">安装帮助</h3>
+      <div class="qa">
+        <details>
+          <summary data-en="Android: “Install blocked” or “unknown apps”">Android：提示「禁止安装未知应用」</summary>
+          <div class="answer" data-en="<ol><li>Open the downloaded APK. When Android asks, tap <b>Settings</b> and allow your browser or file manager to install apps.</li><li>Go back and tap <b>Install</b>.</li><li>Open ZnKeyboard and follow the steps to enable it as a keyboard.</li></ol>Updating: install the new APK over the old one; your settings and API key stay. If your keyboard switched to another one after updating, open ZnKeyboard and follow the prompt on its home screen to select it again.">
+            <ol>
+              <li>打开下载好的 APK，系统提示时点 <b>设置</b>，允许浏览器或文件管理器安装应用。</li>
+              <li>返回后点 <b>安装</b>。</li>
+              <li>打开 ZnKeyboard，按首页提示启用输入法。</li>
+            </ol>
+            以后更新：直接安装新版 APK 覆盖即可，设置和 API Key 都会保留。更新后如果键盘被换成了别的输入法，打开 ZnKeyboard，按首页提示重新选择即可。
+          </div>
+        </details>
+        <details>
+          <summary data-en="Mac: first launch and permissions">Mac：第一次打开和授权</summary>
+          <div class="answer" data-en="&lt;ol&gt;&lt;li&gt;Drag ZnKeyboard into Applications and open it.&lt;/li&gt;&lt;li&gt;When asked, turn on ZnKeyboard under &lt;b&gt;System Settings → Privacy &amp; Security → Accessibility&lt;/b&gt; so it can read the text you select.&lt;/li&gt;&lt;li&gt;The first time you use screenshot translate, turn on ZnKeyboard under &lt;b&gt;Screen Recording&lt;/b&gt; as well, then quit and reopen ZnKeyboard.&lt;/li&gt;&lt;/ol&gt;Updates install from the menu bar with one click (0.3 and later); your settings, API key and permissions stay.">
+            <ol>
+              <li>把 ZnKeyboard 拖进「应用程序」后打开。</li>
+              <li>按提示在 <b>系统设置 → 隐私与安全性 → 辅助功能</b> 里打开 ZnKeyboard，它才能读取你选中的文字。</li>
+              <li>第一次使用截图翻译时，再在 <b>屏幕录制</b> 里打开 ZnKeyboard，然后退出并重新打开 ZnKeyboard。</li>
+            </ol>
+            以后升级：有新版本时菜单栏会提醒，点「立即更新」即可（0.3 起），设置、API Key 和权限都会保留，不用重新授权。
+          </div>
+        </details>
+        <details>
+          <summary data-en="Windows: “Windows protected your PC” or it won't start">Windows：提示「Windows 已保护你的电脑」或打不开</summary>
+          <div class="answer" data-en="<ol><li>Install the <a href=&quot;https://dotnet.microsoft.com/download/dotnet/10.0&quot;>.NET 10 Desktop Runtime</a> (x64) first.</li><li>Run the downloaded <b>ZnKeyboard-Windows-….exe</b>. It installs itself for you (no admin rights) and adds ZnKeyboard to the Start menu; you can then delete the download. Later updates install from the tray with one click (0.6 and later).</li><li>If SmartScreen appears, click <b>More info → Run anyway</b>.</li><li>ZnKeyboard sits in the tray (bottom right) and starts with Windows. Right-click it for settings. To uninstall, go to Settings → Apps → Installed apps.</li></ol>Something not working? Right-click the tray icon → <b>Open diagnostic log</b> and send it with your <a href=&quot;https://github.com/oprfelix/Znkeyboard-for-Windows/issues&quot;>report</a>. It never contains your text.">
+            <ol>
+              <li>先安装 <a href="https://dotnet.microsoft.com/download/dotnet/10.0">.NET 10 桌面运行时</a>（x64）。</li>
+              <li>双击下载的 <b>ZnKeyboard-Windows-….exe</b>，会自动安装到本机（不需要管理员权限）并添加到开始菜单，之后下载的文件可以删除。以后有新版本时托盘会提醒，点一下即可更新（0.6 起）。</li>
+              <li>如果出现蓝色的 SmartScreen 提示，点 <b>更多信息 → 仍要运行</b>。</li>
+              <li>ZnKeyboard 会出现在右下角托盘里，并且开机自动启动，右键可打开设置。卸载：Windows「设置」→「应用」→「已安装的应用」。</li>
+            </ol>
+            遇到问题：右键托盘图标 → <b>打开诊断日志</b>，连同问题描述一起<a href="https://github.com/oprfelix/Znkeyboard-for-Windows/issues">反馈给我们</a>。日志里不包含任何你输入或选中的文字。
+          </div>
+        </details>
+      </div>
+    </div>
+    <div class="help-main">
+      <h3 class="qa-title" data-en="FAQ">常见问题</h3>
+      <div class="qa">
+        <details>
+          <summary data-en="Is it free?">要花钱吗？</summary>
+          <div class="answer" data-en="The apps are free. AI requests are billed by your provider to your own key. <b>DeepSeek</b> is pay as you go after a small top-up; a polish or translation costs a tiny fraction of a cent. <b>Google Gemini</b>'s free tier is plenty for everyday use, and ZnKeyboard uses its low-cost Flash-Lite models.">软件本身免费。AI 请求由服务商按你自己的 Key 计费：<b>DeepSeek</b> 按用量付费，需要先充值，润色或翻译一次只要几厘钱；<b>Google Gemini</b> 的免费额度足够日常使用，ZnKeyboard 默认用的也是它价格最低的 Flash-Lite 模型。</div>
+        </details>
+        <details>
+          <summary data-en="Where does my text go?">我的文字会发到哪里？</summary>
+          <div class="answer" data-en="Only when you tap Polish or Translate (or use AI voice input), that text is sent directly to the AI provider you chose. There is no middleman server and no account. Once a day the Mac and Windows apps send an anonymous count for the numbers on this site: a random ID, platform, version and how many times you polished or translated, never any text; turn it off in Settings → General. For screenshot translate, the image is read on your computer and never uploaded; only the recognised text is sent. Your API key is stored on your device (Android Keystore, macOS Keychain, Windows Credential Manager). Ordinary typing never leaves the keyboard.">只有在你点「润色」「翻译」或使用 AI 语音输入时，那一段文字才会直接发给你选择的 AI 服务商。ZnKeyboard 没有中转服务器，也不需要注册。Mac 和 Windows 版每天发送一次匿名统计，用于本站的用户数：只有随机编号、平台、版本和使用次数，不含任何文字，可在 设置 →「通用」里关闭。截图翻译时，截图只在你的电脑上识别，不会上传，只有识别出的文字会发给服务商。API Key 只保存在你的设备上（Android 密钥库、macOS 钥匙串、Windows 凭据管理器）。平时普通打字的内容不会离开键盘。</div>
+        </details>
+        <details>
+          <summary data-en="How do I turn on reading translation?">划词翻译怎么打开？</summary>
+          <div class="answer" data-en="On Mac and Windows, open Settings → Usage and turn on &lt;b&gt;On web pages and documents&lt;/b&gt;. Then select text while reading and tap &lt;b&gt;Translate&lt;/b&gt;. Without the pill, select text and press &lt;kbd&gt;⇧⌘1&lt;/kbd&gt; / &lt;kbd&gt;Ctrl+Shift+1&lt;/kbd&gt;. It translates into the language set under &lt;b&gt;Reading and screenshots to&lt;/b&gt;, the same one screenshot translate uses.">在 Mac 或 Windows 版的 设置 →「使用」里打开 <b>网页和文档</b>，之后看网页、文档时选中文字，点「翻译为」就行。不想要小胶囊的话，选中后按 <kbd>⇧⌘1</kbd> / <kbd>Ctrl+Shift+1</kbd> 也可以。翻译成的语言在「划词和截图翻译成」里设置，和截图翻译共用。</div>
+        </details>
+        <details>
+          <summary data-en="Can I change the shortcuts?">快捷键可以改吗？</summary>
+          <div class="answer" data-en="Yes, in Settings → Shortcuts: click one and press the new keys. The defaults are &lt;kbd&gt;⇧⌘1&lt;/kbd&gt; reading translation, &lt;kbd&gt;⇧⌘2&lt;/kbd&gt; screenshot, &lt;kbd&gt;⇧⌘E&lt;/kbd&gt; polish and &lt;kbd&gt;⇧⌘R&lt;/kbd&gt; translate on Mac, and the same with &lt;kbd&gt;Ctrl+Shift&lt;/kbd&gt; on Windows.">可以，在 设置 →「快捷键」里点一下快捷键，再按新的组合键即可。默认是 Mac 上 <kbd>⇧⌘1</kbd> 划词翻译、<kbd>⇧⌘2</kbd> 截图翻译、<kbd>⇧⌘E</kbd> 润色、<kbd>⇧⌘R</kbd> AI 翻译，Windows 上把 ⇧⌘ 换成 <kbd>Ctrl+Shift</kbd>。</div>
+        </details>
+        <details>
+          <summary data-en="zn.2amz.com or GitHub: where should I download?">在官网下载和在 GitHub 下载有什么区别？</summary>
+          <div class="answer" data-en="They are the same files. &lt;a href=&quot;https://zn.2amz.com/&quot;&gt;zn.2amz.com&lt;/a&gt; serves them from Cloudflare, which is faster in mainland China; &lt;a href=&quot;https://oprfelix.github.io/znkeyboard/&quot;&gt;oprfelix.github.io/znkeyboard&lt;/a&gt; serves them from GitHub. The apps update from the faster one and fall back to the other.">安装包完全一样。<a href="https://zn.2amz.com/">zn.2amz.com</a> 从 Cloudflare 下载，国内更快；<a href="https://oprfelix.github.io/znkeyboard/">oprfelix.github.io/znkeyboard</a> 从 GitHub 下载。App 内更新也会先用 Cloudflare，连不上再改用 GitHub。</div>
+        </details>
+        <details>
+          <summary data-en="Which AI services can I use?">可以用哪些 AI 服务？</summary>
+          <div class="answer" data-en="Google Gemini and DeepSeek are set up for you; see <a href=&quot;#start&quot;>Get started</a>. Under “OpenAI compatible”, the “Custom” endpoint also works with OpenAI, OpenRouter and other compatible services: type their address and model. AI voice input needs a Gemini key.">Google Gemini 和 DeepSeek 都已内置，设置方法见上方<a href="#start">三步开始使用</a>。「OpenAI 兼容」里的「自定义」接口还可以接 OpenAI、OpenRouter 等其他兼容服务，填写对方的地址和模型即可。AI 语音输入需要 Gemini Key。</div>
+        </details>
+        <details>
+          <summary data-en="Is there an iPhone version?">有 iPhone 版吗？</summary>
+          <div class="answer" data-en="Not for now. iOS restricts third-party keyboards (for example, they can't reliably read and replace the text you've written), so the experience would fall short. Mac and Windows users can use the desktop apps.">暂时没有。iOS 对第三方输入法限制较多（比如无法可靠地读取和替换已经输入的文字），做出来体验会打折扣。电脑上可以使用 Mac 和 Windows 版。</div>
+        </details>
+        <details>
+          <summary data-en="Is it open source?">是开源的吗？</summary>
+          <div class="answer" data-en="Yes. The Android keyboard is a GPL-3.0 fork of <a href=&quot;https://github.com/zainbits/zn-keyboard&quot;>zainbits/zn-keyboard</a>, with a pinyin dictionary derived from <a href=&quot;https://github.com/iDvel/rime-ice&quot;>rime-ice</a>. All source code is on <a href=&quot;https://github.com/oprfelix&quot;>GitHub</a>.">是的。Android 输入法基于 <a href="https://github.com/zainbits/zn-keyboard">zainbits/zn-keyboard</a>（GPL-3.0）修改，拼音词库来自 <a href="https://github.com/iDvel/rime-ice">雾凇拼音 rime-ice</a>。全部源代码都在 <a href="https://github.com/oprfelix">GitHub</a> 上。</div>
+        </details>
+      </div>
+    </div>
     </div>
   </div>
 </section>
@@ -900,12 +1017,107 @@ footer .links a { margin-right: 18px; }
     renderDownloads();
     renderStats();
     restartDemo();
+    restartWho();
   }
   langBtn.addEventListener('click', function () {
     lang = lang === 'en' ? 'zh' : 'en';
     try { localStorage.setItem('zn-lang', lang); } catch (e) {}
     applyLang();
   });
+
+  // ---- Who it's for: a short exchange for each group; the list follows along. ----
+  var whoScenes = [
+    { label: ['买家消息 · 西班牙语', 'Buyer message · Spanish'], in: 'Hola, ¿cuándo llegará mi pedido?',
+      tr: ['你好，我的订单什么时候到？', 'Hi, when will my order arrive?'],
+      draft: ['昨天发货了，大概三天到', 'Shipped yesterday, about three days'],
+      code: 'ES', out: 'Se envió ayer y llegará en unos tres días.' },
+    { label: ['询盘邮件 · 德语', 'Inquiry email · German'], in: 'Können Sie uns ein Angebot für 500 Stück senden?',
+      tr: ['能给我们报一下 500 件的价格吗？', 'Could you send us a quote for 500 units?'],
+      draft: ['可以，今天把报价发给你', 'Sure, quote coming today'],
+      code: 'DE', out: 'Gerne, Sie erhalten das Angebot noch heute.' },
+    { label: ['售后消息 · 日语', 'Support message · Japanese'], in: '届いた商品が壊れていました。',
+      tr: ['收到的商品是坏的。', 'The item arrived broken.'],
+      draft: ['很抱歉，我们马上补发', 'So sorry, sending a new one now'],
+      code: 'JA', out: '大変申し訳ございません。すぐに再送いたします。' },
+    { label: ['选中文字 · 法语', 'Selected text · French'], in: 'Retours gratuits sous 30 jours après réception.',
+      tr: ['收货后 30 天内免费退货。', 'Free returns within 30 days of delivery.'],
+      draft: ['can i return it after 30 day', 'can i return it after 30 day'],
+      code: '', out: 'Can I still return it after 30 days?' }
+  ];
+  var whoEl = {};
+  ['label', 'in', 'in-box', 'tr', 'tr-row', 'rpill', 'rseg', 'rlabel', 'rchip', 'out', 'input', 'wpill', 'polish', 'polish-label', 'translate', 'translate-label', 'chip'].forEach(function (k) { whoEl[k] = document.getElementById('wd-' + k); });
+  var whoItems = Array.prototype.slice.call(document.querySelectorAll('.who-item'));
+  var whoTimers = [], whoIndex = 0, whoInView = false;
+  function whoLater(ms, fn) { whoTimers.push(setTimeout(fn, ms)); }
+  function whoStop() { whoTimers.forEach(clearTimeout); whoTimers = []; }
+  function whoShow(el, on) { el.classList.toggle('show', on); }
+  function whoType(text, done) {
+    var chars = Array.from(text), n = 0;
+    (function next() {
+      whoEl.input.textContent = chars.slice(0, ++n).join('');
+      whoLater(n < chars.length ? 55 : 500, n < chars.length ? next : done);
+    })();
+  }
+  function whoPlay(i) {
+    whoStop();
+    whoIndex = i;
+    var s = whoScenes[i], l = lang === 'en' ? 1 : 0, seg = s.code ? whoEl.translate : whoEl.polish;
+    whoItems.forEach(function (item, j) { item.classList.toggle('on', j === i); });
+    whoEl.label.textContent = s.label[l];
+    whoEl.in.textContent = s.in;
+    whoEl.tr.textContent = s.tr[l];
+    whoEl.out.textContent = s.out;
+    whoEl.input.textContent = '';
+    whoEl.rlabel.textContent = t('翻译为', 'Translate to');
+    whoEl.rchip.textContent = t('ZH', 'EN');
+    whoEl['polish-label'].textContent = t('润色', 'Polish');
+    whoEl['translate-label'].textContent = t('AI 翻译为', 'AI translate to');
+    whoEl.chip.textContent = s.code || 'EN';
+    [whoEl.in, whoEl.input].forEach(function (el) { el.classList.remove('sel'); });
+    [whoEl.rseg, whoEl.polish, whoEl.translate].forEach(function (el) { el.classList.remove('on'); });
+    [whoEl.rpill, whoEl.wpill].forEach(function (el) { whoShow(el, false); });
+    [whoEl['in-box'], whoEl['tr-row'], whoEl.out].forEach(function (el) { whoShow(el, reduce); });
+    if (reduce) return;
+    whoLater(250, function () { whoShow(whoEl['in-box'], true); });
+    whoLater(1000, function () { whoEl.in.classList.add('sel'); whoShow(whoEl.rpill, true); });
+    whoLater(1700, function () { whoEl.rseg.classList.add('on'); });
+    whoLater(2000, function () {
+      whoEl.in.classList.remove('sel');
+      whoShow(whoEl.rpill, false);
+      whoShow(whoEl['tr-row'], true);
+    });
+    whoLater(3300, function () {
+      whoType(s.draft[l], function () {
+        whoEl.input.classList.add('sel');
+        whoShow(whoEl.wpill, true);
+        whoLater(800, function () {
+          seg.classList.add('on');
+          whoLater(300, function () {
+            whoShow(whoEl.wpill, false);
+            whoEl.input.classList.remove('sel');
+            whoEl.input.textContent = s.out;
+            whoLater(1100, function () {
+              whoEl.input.textContent = '';
+              whoShow(whoEl.out, true);
+              whoLater(2800, function () { whoPlay((i + 1) % whoScenes.length); });
+            });
+          });
+        });
+      });
+    });
+  }
+  function restartWho() { if (whoInView || reduce) whoPlay(whoIndex); }
+  whoItems.forEach(function (item, i) {
+    item.addEventListener('click', function () { whoPlay(i); });
+  });
+  if ('IntersectionObserver' in window) {
+    new IntersectionObserver(function (entries) {
+      whoInView = entries[0].isIntersecting;
+      if (whoInView) whoPlay(whoIndex); else whoStop();
+    }, { threshold: 0.3 }).observe(document.getElementById('who-demo'));
+  } else {
+    whoInView = true;
+  }
 
   // ---- Platform detection for the main button. ----
   var ua = navigator.userAgent;
@@ -1118,6 +1330,8 @@ footer .links a { margin-right: 18px; }
       polished: t('抱歉，明天的会议我可能无法参加。客户临时需要调整方案，我得留下来处理。', "Sorry, I probably can't make tomorrow's meeting. The client asked for last-minute changes, so I need to stay and handle them."),
       translated: t("Sorry, I may not be able to make tomorrow's meeting. The client needs last-minute changes to the plan, so I have to stay and take care of it.", 'Lo siento, probablemente no pueda asistir a la reunión de mañana. El cliente pidió cambios de último momento y tengo que quedarme a resolverlos.'),
       chip: t('EN', 'ES'),
+      reply: t('可以，11 点没问题', 'Sure, 11 works'),
+      replyOut: t("Sure, 11 o'clock works for me.", '好的，11 点没问题。'),
       c1: t('随手打一句口语…', 'Type the way you talk…'),
       c2: t('点 <b>润色</b>，改成通顺得体的句子', 'Tap <b>Polish</b> for a clear, polite sentence'),
       c3: t('点 <b>AI 翻译为 EN</b>，直接发给外国客户', 'Tap <b>AI translate</b> to send it in another language')
@@ -1131,7 +1345,30 @@ footer .links a { margin-right: 18px; }
   // The computer behind the phone: once the phone has sent its translation, a reply comes in there and
   // is read with reading translation (select, the 翻译为 pill, the card).
   var desk = document.getElementById('hero-desk');
+  var deskText = document.getElementById('desk-text');
+  var deskPill = document.getElementById('desk-pill');
+  var deskTranslate = document.getElementById('desk-translate');
+  var deskSend = document.getElementById('desk-send');
   function deskState(state) { desk.className = 'hero-desk' + (state ? ' ' + state : ''); }
+  function deskReset(text) {
+    deskText.textContent = text;
+    deskText.classList.remove('sel');
+    deskPill.classList.remove('show');
+    deskTranslate.classList.remove('on');
+  }
+  // Then the reply goes out from the computer too: type, select, the 润色 | AI 翻译 pill, send.
+  function deskReply(s) {
+    var i = 0;
+    (function type() {
+      if (i <= s.reply.length) { deskText.textContent = s.reply.slice(0, i++); later(70, type); return; }
+      later(350, function () { deskText.classList.add('sel'); });
+      later(650, function () { deskPill.classList.add('show'); });
+      later(1550, function () { deskTranslate.classList.add('on'); });
+      later(1900, function () { deskReset(s.replyOut); });
+      later(3000, function () { press(deskSend, 260); });
+      later(5500, restartDemo);
+    })();
+  }
 
   function restartDemo() {
     timers.forEach(clearTimeout); timers = [];
@@ -1140,6 +1377,7 @@ footer .links a { margin-right: 18px; }
     polishBtn.classList.remove('press'); translateBtn.classList.remove('press'); inputEl.classList.remove('busy');
     // At rest the computer shows a finished reading translation, never an empty window.
     deskState('is-sel is-card');
+    deskReset(reduce ? s.replyOut : '');
     if (reduce) { textEl.textContent = s.polished; caption.innerHTML = s.c2; return; }
 
     textEl.textContent = '';
@@ -1161,7 +1399,8 @@ footer .links a { margin-right: 18px; }
               later(2000, function () { deskState('is-sel'); });
               later(2700, function () { deskState('is-sel is-pill'); });
               later(3500, function () { deskState('is-sel is-card'); });
-              later(6600, restartDemo);
+              if (desk.offsetWidth) later(4600, function () { deskReply(s); });
+              else later(6600, restartDemo);
             });
           });
         });
