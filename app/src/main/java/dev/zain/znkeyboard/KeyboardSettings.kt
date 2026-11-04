@@ -62,18 +62,8 @@ object KeyboardSettings {
     private const val KEY_PINYIN_LEARNING_ENABLED = "pinyin_learning_enabled"
     private const val KEY_PINYIN_LEARNING_GENERATION = "pinyin_learning_generation"
     private const val KEY_PINYIN_PREDICTIONS_ENABLED = "pinyin_predictions_enabled"
-    private const val KEY_UPDATE_AUTO_CHECK = "update_auto_check"
-    private const val KEY_UPDATE_LAST_CHECKED_AT = "update_last_checked_at"
-    private const val KEY_UPDATE_LATEST_VERSION = "update_latest_version"
-    private const val KEY_UPDATE_LATEST_NOTES = "update_latest_notes"
-    private const val KEY_UPDATE_LATEST_DOWNLOAD_URL = "update_latest_download_url"
-    private const val KEY_UPDATE_LATEST_PAGE_URL = "update_latest_page_url"
-    private const val KEY_UPDATE_LATEST_FALLBACK_URL = "update_latest_fallback_url"
-    private const val KEY_UPDATE_LATEST_SHA256 = "update_latest_sha256"
     private const val KEY_ANONYMOUS_STATS = "anonymous_stats"
-    private const val KEY_UPDATE_DISMISSED_VERSION = "update_dismissed_version"
     private const val KEY_CHINESE_KEYBOARD = "chinese_keyboard"
-    private const val KEY_UPDATE_NOTIFIED_VERSION = "update_notified_version"
     private const val KEY_KEYBOARD_THEME = "keyboard_theme"
     private const val KEY_TYPING_MODEL_GENERATION = "typing_model_generation"
     private const val KEY_AGENT_MODE_ENABLED = "agent_mode_enabled"
@@ -269,62 +259,10 @@ object KeyboardSettings {
 
     /** Off by default: checking contacts GitHub, so the user opts in. */
     /** On by default, as on Mac and Windows: a daily look at the public release list. */
-    fun readUpdateAutoCheck(context: Context) = readFlag(context, KEY_UPDATE_AUTO_CHECK, true)
-    fun saveUpdateAutoCheck(context: Context, enabled: Boolean) = saveFlag(context, KEY_UPDATE_AUTO_CHECK, enabled)
 
     /** The anonymous daily usage ping ([UsageStats]). On by default, as on Mac and Windows. */
     fun readAnonymousStats(context: Context) = readFlag(context, KEY_ANONYMOUS_STATS, true)
     fun saveAnonymousStats(context: Context, enabled: Boolean) = saveFlag(context, KEY_ANONYMOUS_STATS, enabled)
-
-    /** When GitHub last answered a check, or 0 if never. */
-    fun readUpdateLastCheckedAt(context: Context): Long =
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).getLong(KEY_UPDATE_LAST_CHECKED_AT, 0L)
-
-    /** The latest release from the last successful check, kept so the banner shows without checking again. */
-    fun readLatestRelease(context: Context): UpdateChecker.Release? {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val version = prefs.getString(KEY_UPDATE_LATEST_VERSION, null) ?: return null
-        return UpdateChecker.Release(
-            version = version,
-            notes = prefs.getString(KEY_UPDATE_LATEST_NOTES, null).orEmpty(),
-            downloadUrl = prefs.getString(KEY_UPDATE_LATEST_DOWNLOAD_URL, null) ?: return null,
-            pageUrl = prefs.getString(KEY_UPDATE_LATEST_PAGE_URL, null) ?: return null,
-            fallbackUrl = prefs.getString(KEY_UPDATE_LATEST_FALLBACK_URL, null),
-            sha256 = prefs.getString(KEY_UPDATE_LATEST_SHA256, null),
-        )
-    }
-
-    fun saveLatestRelease(context: Context, release: UpdateChecker.Release, checkedAt: Long) {
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
-            .putLong(KEY_UPDATE_LAST_CHECKED_AT, checkedAt)
-            .putString(KEY_UPDATE_LATEST_VERSION, release.version)
-            .putString(KEY_UPDATE_LATEST_NOTES, release.notes)
-            .putString(KEY_UPDATE_LATEST_DOWNLOAD_URL, release.downloadUrl)
-            .putString(KEY_UPDATE_LATEST_PAGE_URL, release.pageUrl)
-            .putString(KEY_UPDATE_LATEST_FALLBACK_URL, release.fallbackUrl)
-            .putString(KEY_UPDATE_LATEST_SHA256, release.sha256)
-            .apply()
-    }
-
-    /** The version whose banner the user closed; a newer release shows the banner again. */
-    /** The newest version already announced in a notification, so each is announced once. */
-    fun readNotifiedUpdateVersion(context: Context): String? =
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).getString(KEY_UPDATE_NOTIFIED_VERSION, null)
-
-    fun saveNotifiedUpdateVersion(context: Context, version: String) {
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
-            .putString(KEY_UPDATE_NOTIFIED_VERSION, version)
-            .apply()
-    }
-
-    fun readDismissedUpdateVersion(context: Context): String? =
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).getString(KEY_UPDATE_DISMISSED_VERSION, null)
-
-    fun saveDismissedUpdateVersion(context: Context, version: String) {
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
-            .putString(KEY_UPDATE_DISMISSED_VERSION, version)
-            .apply()
-    }
 
     /** Bumped when settings clear or restore learned pinyin, so the keyboard reloads it. */
     fun readPinyinLearningGeneration(context: Context): Int =

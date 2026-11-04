@@ -14,9 +14,13 @@ import java.util.UUID
  *
  * The keyboard itself never goes online for it: it only notes the day it was used, and how many AI
  * results it produced, in a private preferences file (not part of settings backups). The daily
- * [UpdateCheckJob] and the settings app send the ping, and only for a day the keyboard was used, so
+ * [UsagePingJob] and the settings app send the ping, and only for a day the keyboard was used, so
  * the count is of people using ZnKeyboard, not of phones it sits on. Off with the setting.
  */
+/** The installed version's name, as the About section and the ping show it. */
+fun appVersion(context: Context): String =
+    runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }.getOrNull().orEmpty()
+
 object UsageStats {
     private const val PREFS_NAME = "usage_stats"
     private const val KEY_INSTALL_ID = "install_id"
@@ -65,7 +69,7 @@ object UsageStats {
         val body = JSONObject()
             .put("id", id)
             .put("platform", "android")
-            .put("version", UpdateChecker.currentVersion(context).substringBefore('-'))
+            .put("version", appVersion(context).substringBefore('-'))
             .put("uses", uses)
             .toString()
         val sent = runCatching {

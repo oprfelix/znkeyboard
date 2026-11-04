@@ -3,12 +3,7 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
-    <!-- Updates: the downloaded APK goes to the system installer, which asks the user to confirm. -->
-    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
-    <!-- Once ZnKeyboard installed itself, later updates may go through without asking again. -->
-    <uses-permission android:name="android.permission.UPDATE_PACKAGES_WITHOUT_USER_ACTION" />
-    <!-- The daily update check: a notification per new version, kept scheduled across restarts. -->
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- The daily anonymous usage ping stays scheduled across restarts. -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <!-- Android 14+ refuses a job that waits for a network without this. -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
@@ -35,12 +30,8 @@
             </intent-filter>
         </activity>
 
-        <receiver
-            android:name=".UpdateInstallReceiver"
-            android:exported="false" />
-
         <service
-            android:name=".UpdateCheckJob"
+            android:name=".UsagePingJob"
             android:exported="false"
             android:permission="android.permission.BIND_JOB_SERVICE" />
 

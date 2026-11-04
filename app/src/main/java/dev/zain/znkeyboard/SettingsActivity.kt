@@ -138,7 +138,6 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.PopupProperties
 import androidx.lifecycle.compose.LifecycleResumeEffect
-import dev.zain.znkeyboard.constants.UpdateDefaults
 import dev.zain.znkeyboard.constants.AgentDefaults
 import dev.zain.znkeyboard.constants.LiquidNavDimensions
 import dev.zain.znkeyboard.constants.SettingsBackupDefaults
@@ -155,18 +154,13 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 class SettingsActivity : ComponentActivity() {
-    /** Set by the update notification: open the update dialog. */
-    private val showUpdateRequest = mutableStateOf(false)
-
     override fun onCreate(savedInstanceState: android.os.Bundle?) {
         super.onCreate(savedInstanceState)
         KeyboardSettings.migrateAgentProviders(this)
-        showUpdateRequest.value = intent?.getBooleanExtra(EXTRA_SHOW_UPDATE, false) == true
-        UpdateCheckJob.sync(this)
+        UsagePingJob.sync(this)
         UsageStats.markUsed(this)
         val appContext = applicationContext
         Thread({ UsageStats.pingIfDue(appContext) }, "ZnKeyboardUsagePing").start()
-        askForNotificationsOnce()
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.auto(AndroidColor.TRANSPARENT, AndroidColor.TRANSPARENT),
             navigationBarStyle = SystemBarStyle.auto(AndroidColor.TRANSPARENT, AndroidColor.TRANSPARENT),
@@ -195,8 +189,6 @@ class SettingsActivity : ComponentActivity() {
                         stateHolder.SaveableStateProvider("settings") {
                             SettingsScreen(
                                 onOpenShortcuts = { shortcutsOpen = true },
-                                showUpdateRequested = showUpdateRequest.value,
-                                onShowUpdateHandled = { showUpdateRequest.value = false },
                             )
                         }
                     }
@@ -205,33 +197,12 @@ class SettingsActivity : ComponentActivity() {
         }
     }
 
-    override fun onNewIntent(intent: Intent) {
-        super.onNewIntent(intent)
-        setIntent(intent)
-        if (intent.getBooleanExtra(EXTRA_SHOW_UPDATE, false)) showUpdateRequest.value = true
-    }
-
-    /** The daily update check tells about new versions in a notification; ask once whether that's OK. */
-    private fun askForNotificationsOnce() {
-        if (!KeyboardSettings.readUpdateAutoCheck(this)) return
-        if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) return
-        val prefs = getSharedPreferences("update_prompts", MODE_PRIVATE)
-        if (prefs.getBoolean("asked_notifications", false)) return
-        prefs.edit().putBoolean("asked_notifications", true).apply()
-        requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1)
-    }
-
-    companion object {
-        const val EXTRA_SHOW_UPDATE = "dev.zain.znkeyboard.SHOW_UPDATE"
-    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SettingsScreen(
     onOpenShortcuts: () -> Unit,
-    showUpdateRequested: Boolean = false,
-    onShowUpdateHandled: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val focusManager = LocalFocusManager.current
@@ -259,58 +230,8 @@ private fun SettingsScreen(
         ?: SettingsDestination.Typing
     val destinationScrollState = rememberSaveable(selectedDestinationId, saver = ScrollState.Saver) { ScrollState(0) }
     val scope = rememberCoroutineScope()
-    val currentVersion = remember { UpdateChecker.currentVersion(context) }
-    var latestRelease by remember { mutableStateOf(KeyboardSettings.readLatestRelease(context)) }
-    var updateLastCheckedAt by remember { mutableLongStateOf(KeyboardSettings.readUpdateLastCheckedAt(context)) }
-    var dismissedUpdateVersion by remember { mutableStateOf(KeyboardSettings.readDismissedUpdateVersion(context)) }
-    var updateAutoCheck by remember { mutableStateOf(KeyboardSettings.readUpdateAutoCheck(context)) }
+    val currentVersion = remember { appVersion(context) }
     var anonymousStats by remember { mutableStateOf(KeyboardSettings.readAnonymousStats(context)) }
-    var checkingForUpdates by remember { mutableStateOf(false) }
-    var shownRelease by remember { mutableStateOf<UpdateChecker.Release?>(null) }
-    val availableRelease = latestRelease?.takeIf { UpdateChecker.isNewer(it.version, currentVersion) }
-
-    /** [manual]: the user tapped Check, so report the outcome; automatic checks stay silent. */
-    fun checkForUpdates(manual: Boolean) {
-        if (checkingForUpdates) return
-        checkingForUpdates = true
-        scope.launch {
-            val result = withContext(Dispatchers.IO) { runCatching { UpdateChecker.fetchLatest() } }
-            checkingForUpdates = false
-            result
-                .onSuccess { release ->
-                    val now = System.currentTimeMillis()
-                    KeyboardSettings.saveLatestRelease(context, release, now)
-                    latestRelease = release
-                    updateLastCheckedAt = now
-                    if (manual) {
-                        if (UpdateChecker.isNewer(release.version, currentVersion)) {
-                            shownRelease = release
-                        } else {
-                            Toast.makeText(context, context.getString(R.string.update_latest), Toast.LENGTH_SHORT).show()
-                        }
-                    }
-                }
-                .onFailure {
-                    if (manual) Toast.makeText(context, context.getString(R.string.update_failed), Toast.LENGTH_LONG).show()
-                }
-        }
-    }
-
-    LaunchedEffect(Unit) {
-        val due = System.currentTimeMillis() - updateLastCheckedAt >= UpdateDefaults.AUTO_CHECK_INTERVAL_MS
-        if (updateAutoCheck && due) checkForUpdates(manual = false)
-    }
-
-    // From the update notification.
-    LaunchedEffect(showUpdateRequested) {
-        if (showUpdateRequested) {
-            availableRelease?.let { shownRelease = it }
-            onShowUpdateHandled()
-        }
-    }
-
-    shownRelease?.let { release -> UpdateDialog(release, onDismiss = { shownRelease = null }) }
-
     fun refreshSettingsFromStorage() {
         val nextProviderType = KeyboardSettings.readAgentProviderType(context)
         heightScale = KeyboardSettings.readHeightScale(context)
@@ -436,16 +357,6 @@ private fun SettingsScreen(
         ) {
             when (selectedDestination) {
                 SettingsDestination.Typing -> {
-                    availableRelease?.takeIf { it.version != dismissedUpdateVersion }?.let { release ->
-                        UpdateBanner(
-                            version = release.version,
-                            onView = { shownRelease = release },
-                            onDismiss = {
-                                KeyboardSettings.saveDismissedUpdateVersion(context, release.version)
-                                dismissedUpdateVersion = release.version
-                            },
-                        )
-                    }
                     SetupStatusCard()
                     TryTypingField()
                     PinyinSection()
@@ -596,25 +507,13 @@ private fun SettingsScreen(
                         },
                     )
 
-                    AboutUpdateSection(
+                    AboutSection(
                         currentVersion = currentVersion,
-                        availableRelease = availableRelease,
-                        lastCheckedAt = updateLastCheckedAt,
-                        checking = checkingForUpdates,
-                        autoCheck = updateAutoCheck,
-                        onAutoCheckChange = { enabled ->
-                            updateAutoCheck = enabled
-                            KeyboardSettings.saveUpdateAutoCheck(context, enabled)
-                            UpdateCheckJob.sync(context)
-                            if (enabled) checkForUpdates(manual = false)
-                        },
-                        onCheck = { checkForUpdates(manual = true) },
-                        onView = { shownRelease = it },
                         anonymousStats = anonymousStats,
                         onAnonymousStatsChange = { enabled ->
                             anonymousStats = enabled
                             KeyboardSettings.saveAnonymousStats(context, enabled)
-                            UpdateCheckJob.sync(context)
+                            UsagePingJob.sync(context)
                         },
                     )
                 }
