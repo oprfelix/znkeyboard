@@ -10,6 +10,8 @@ tools/pinyin/bench/run_bench.sh
 tools/pinyin/bench/run_bench.sh --lm app/src/main/assets/pinyin/lm.bin --taps
 # The same clauses typed on the 9-key keyboard (full, initials and mixed; typo is QWERTY slips)
 tools/pinyin/bench/run_bench.sh --nine --lm app/src/main/assets/pinyin/lm.bin
+# On the connected phone; this computer only compiles it (see the script for its options)
+tools/pinyin/bench/run_bench_phone.sh /tmp/cases.tsv --taps --latency-every 0
 # One set typed in order by a user who fixes every mistake, learning as they go
 tools/pinyin/bench/run_bench.sh --lm app/src/main/assets/pinyin/lm.bin --taps --learn --set full
 # Fuzzy sounds off, and every case written out for diffing against another run
@@ -130,6 +132,26 @@ Until 1.9.7 the 9-key sentence ignored the language model, so the model changed 
 Up to 16 words per run of digits are tried (8 scored 52.3%, 4 scored 51.3%), since one code
 spells many words. Per keystroke stays near 0.1 ms. 9-key 简拼 and mixes stay near zero: a digit
 does not say whether it starts a syllable or is one, and those cases need more than ranking.
+
+## Other readings (the candidates after the first)
+
+The decoder used to offer one reading of the whole input, so top3 barely passed top1: of the
+`full` clauses it got wrong, 98% had no right reading among the candidates, and half of those were
+one character off. It now offers up to three. The beam keeps, per reading, the worse ways to the
+same last word, and swapping one in gives another reading at a known extra cost. Others follow the
+words that read all the input, and must cost less than 6 more than the best.
+
+| set | top3, 26-key before | top3, 26-key | top3, 9-key before | top3, 9-key |
+|---|---:|---:|---:|---:|
+| full | 67.5% | 82.6% | 53.8% | 69.0% |
+| initials | 7.4% | 10.3% | 0.5% | 0.8% |
+| mixed | 25.8% | 35.6% | 1.4% | 1.4% |
+| typo | 39.6% | 50.2% | | |
+
+top1 and CER don't change. Five readings, a margin of 10 and 6 kept ways reach 86.3% within five
+candidates on `full`, but a long reading fills the bar, so more of them would only push the words
+off screen. On a Pixel 9 Pro XL through `app_process`, a keystroke takes 11.18 ms on average
+against 10.93 ms with one reading (p95 39.9 against 39.5 ms). Many of the gains are 他 / 她 / 它.
 
 ## Learning (`--learn --set S`)
 

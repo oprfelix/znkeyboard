@@ -37,11 +37,10 @@ object NineKeyEngine {
             PinyinEngine.Candidate(match.word.text, consumedFor(composing, parsed, match.digits), match.word.syllables)
         }
         if (parsed.locked.isNotEmpty() || parsed.boundaries.isNotEmpty()) return words
-        val sentence = SentenceDecoder.decodeNineKey(parsed.digits, dictionary) ?: return words
-        val top = words.firstOrNull()
-        if (top != null && top.text == sentence.text && top.consumed >= composing.length) return words
-        val whole = PinyinEngine.Candidate(sentence.text, composing.length, sentence.parts.flatMap { it.syllables }, sentence.parts, sentence.spelling)
-        return listOf(whole) + words.filter { it.text != sentence.text }
+        val limit = if (dictionary.languageModel == null) 1 else PinyinEngine.MAX_SENTENCES
+        val sentences = SentenceDecoder.decodeAllNineKey(parsed.digits, dictionary, limit)
+        if (sentences.isEmpty()) return words
+        return PinyinEngine.withSentences(sentences.map { PinyinEngine.wholeInput(it, composing.length) }, words, composing.length)
     }
 
     /** Characters of [composing] a candidate using [digits] digits takes up, with a following separator. */

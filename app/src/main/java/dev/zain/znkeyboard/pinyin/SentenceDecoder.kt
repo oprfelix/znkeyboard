@@ -1,5 +1,6 @@
 package dev.zain.znkeyboard.pinyin
 
+import java.util.PriorityQueue
 import kotlin.math.exp
 import kotlin.math.ln
 
@@ -46,7 +47,21 @@ object SentenceDecoder {
         val pieces: List<Piece>,
         val context: Int,
         val text: String?,
-    )
+    ) {
+        /** Worse ways to the same place and last word, best first: what the other readings differ by. */
+        var alternates: ArrayList<Step>? = null
+
+        fun addAlternate(step: Step) {
+            val list = alternates ?: ArrayList<Step>(MAX_ALTERNATES + 1).also { alternates = it }
+            var at = list.size
+            while (at > 0 && list[at - 1].cost > step.cost) at--
+            list.add(at, step)
+            if (list.size > MAX_ALTERNATES) list.removeAt(MAX_ALTERNATES)
+        }
+    }
+
+    /** A whole reading: its [steps] from last to first, and [from], the first it may still change. */
+    private class Reading(val cost: Float, val steps: List<Step>, val from: Int)
 
     /** The word committed just before this input, so its first word is read in context. */
     class Context(val text: String, val id: Int)
@@ -59,9 +74,13 @@ object SentenceDecoder {
         fun costs(at: Int): FloatArray?
     }
 
-    fun decode(input: String, dictionary: PinyinDictionary, taps: Taps? = null, before: Context? = null): Sentence? {
+    fun decode(input: String, dictionary: PinyinDictionary, taps: Taps? = null, before: Context? = null): Sentence? =
+        decodeAll(input, dictionary, taps, before, 1).firstOrNull()
+
+    /** The best [limit] different readings of [input], best first; see [decode]. */
+    fun decodeAll(input: String, dictionary: PinyinDictionary, taps: Taps?, before: Context?, limit: Int): List<Sentence> {
         val n = input.length
-        if (n == 0 || n > MAX_INPUT) return null
+        if (n == 0 || n > MAX_INPUT) return emptyList()
         val model = dictionary.languageModel
         val beam = if (model == null) 1 else BEAM
         val choices = if (model == null) 1 else LM_CHOICES
@@ -119,22 +138,13 @@ object SentenceDecoder {
             }
         }
 
-        val last = finish(best[n], model) ?: return null
-        val words = ArrayList<PinyinDictionary.Word>()
-        val spelling = ArrayList<String>()
-        var step: Step? = last
-        while (step != null) {
-            step.word?.let { word ->
-                words += word
-                spelling += step.pieces.joinToString(" ") { it.text }
-            }
-            step = step.previous
+        return bestReadings(best[n], model, limit).mapNotNull { reading ->
+            val steps = reading.steps.asReversed().filter { it.word != null }
+            if (steps.isEmpty()) return@mapNotNull null
+            val parts = steps.map { step -> step.word!!.let { PinyinEngine.Candidate(it.text, n, it.syllables, id = it.id) } }
+            val spelling = steps.joinToString(" ") { step -> step.pieces.joinToString(" ") { it.text } }
+            Sentence(parts.joinToString("") { it.text }, parts, spelling, reading.cost)
         }
-        words.reverse()
-        spelling.reverse()
-        if (words.isEmpty()) return null
-        val parts = words.map { PinyinEngine.Candidate(it.text, n, it.syllables, id = it.id) }
-        return Sentence(words.joinToString("") { it.text }, parts, spelling.joinToString(" "), last.cost)
     }
 
     /**
@@ -142,9 +152,13 @@ object SentenceDecoder {
      * digits that is its whole code or its 简拼. Ranked like [decode]: with a language model, by
      * context, so 5422468 reads 家丑 and not 家抽, the commoner characters.
      */
-    fun decodeNineKey(digits: String, dictionary: PinyinDictionary): Sentence? {
+    fun decodeNineKey(digits: String, dictionary: PinyinDictionary): Sentence? =
+        decodeAllNineKey(digits, dictionary, 1).firstOrNull()?.takeIf { it.parts.size >= 2 }
+
+    /** The best [limit] different readings of [digits], best first; see [decodeNineKey]. */
+    fun decodeAllNineKey(digits: String, dictionary: PinyinDictionary, limit: Int): List<Sentence> {
         val n = digits.length
-        if (n < 2 || n > MAX_INPUT) return null
+        if (n < 2 || n > MAX_INPUT) return emptyList()
         val model = dictionary.languageModel
         val beam = if (model == null) 1 else BEAM
         val choices = if (model == null) 1 else NINE_KEY_LM_CHOICES
@@ -169,22 +183,43 @@ object SentenceDecoder {
                 }
             }
         }
-        val last = finish(best[n], model) ?: return null
-        val words = ArrayList<PinyinDictionary.Word>()
-        var step: Step? = last
-        while (step != null) {
-            step.word?.let(words::add)
-            step = step.previous
+        return bestReadings(best[n], model, limit).map { reading ->
+            val words = reading.steps.asReversed().mapNotNull { it.word }
+            val parts = words.map { PinyinEngine.Candidate(it.text, n, it.syllables) }
+            Sentence(words.joinToString("") { it.text }, parts, words.flatMap { it.syllables }.joinToString(" "), reading.cost)
         }
-        words.reverse()
-        if (words.size < 2) return null
-        val parts = words.map { PinyinEngine.Candidate(it.text, n, it.syllables) }
-        return Sentence(words.joinToString("") { it.text }, parts, words.flatMap { it.syllables }.joinToString(" "), last.cost)
     }
 
-    /** The best of the readings that reach the end, counting how likely the sentence is to end there. */
-    private fun finish(steps: List<Step>, model: PinyinLanguageModel?): Step? = steps.minByOrNull { step ->
-        step.cost + if (model != null && step.context >= 0) -LM_WEIGHT * model.logP(step.context, model.end) else 0f
+    /**
+     * The best [limit] readings with different text among those ending in [ends], counting how
+     * likely a sentence is to end there. Each is the best way to its last word, or one with a step
+     * swapped for an alternate, which ends in the same word, so what follows costs the same and
+     * the swap adds exactly the difference.
+     */
+    private fun bestReadings(ends: List<Step>, model: PinyinLanguageModel?, limit: Int): List<Reading> {
+        fun trail(step: Step): List<Step> = generateSequence(step) { it.previous }.toList()
+        val queue = PriorityQueue<Reading>(compareBy { it.cost })
+        for (step in ends) {
+            val end = if (model != null && step.context >= 0) -LM_WEIGHT * model.logP(step.context, model.end) else 0f
+            queue += Reading(step.cost + end, trail(step), 0)
+        }
+        val worst = (queue.peek()?.cost ?: return emptyList()) + ALTERNATIVE_MARGIN
+        val result = ArrayList<Reading>(limit)
+        val seen = HashSet<String>()
+        var tried = 0
+        while (result.size < limit && tried++ < MAX_READINGS_TRIED) {
+            val reading = queue.poll() ?: break
+            if (reading.cost > worst) break
+            if (seen.add(reading.steps.joinToString("") { it.word?.text.orEmpty() })) result += reading
+            if (result.size == limit) break
+            for (at in reading.from until reading.steps.size) {
+                val step = reading.steps[at]
+                step.alternates?.forEach { other ->
+                    queue += Reading(reading.cost + other.cost - step.cost, reading.steps.subList(0, at) + trail(other), at)
+                }
+            }
+        }
+        return result
     }
 
     /** What [match] costs after [step] with a language model: less the likelier it is there. */
@@ -242,7 +277,14 @@ object SentenceDecoder {
     private fun relax(steps: ArrayList<Step>, step: Step, beam: Int) {
         val same = steps.indexOfFirst { it.context == step.context && (step.context >= 0 || it.word?.text == step.word?.text) }
         if (same >= 0) {
-            if (steps[same].cost <= step.cost) return
+            val kept = steps[same]
+            if (kept.cost <= step.cost) {
+                kept.addAlternate(step)
+                return
+            }
+            step.addAlternate(kept)
+            kept.alternates?.forEach(step::addAlternate)
+            kept.alternates = null
             steps.removeAt(same)
         } else if (steps.size >= beam) {
             if (steps.last().cost <= step.cost) return
@@ -357,6 +399,11 @@ object SentenceDecoder {
     private const val LM_CHOICES = 8
     /** A 9-key code spells many words (each digit is three or four letters), so more per run. */
     private const val NINE_KEY_LM_CHOICES = 16
+    /** Worse ways kept per reading in the beam, to build other readings from. */
+    private const val MAX_ALTERNATES = 3
+    /** Other readings must stay this close to the best, and the search for them this short. */
+    private const val ALTERNATIVE_MARGIN = 6f
+    private const val MAX_READINGS_TRIED = 24
     /** With a language model, per word on top of its -ln P; favours fewer, longer words. */
     private const val LM_WORD_COST = 1f
     private const val LM_WEIGHT = 0.6f

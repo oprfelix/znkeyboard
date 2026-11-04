@@ -75,6 +75,13 @@ private val NINE_KEY_WITH_MODEL = listOf(
     "woxiangchifan" to "我想吃饭",
 )
 
+/** Input whose best reading is wrong or a toss-up, with the reading that must still be offered. */
+private val OTHER_READINGS = listOf(
+    "tagongzuole" to "她工作了",
+    "xiangshangqu" to "向上去",
+    "jiuhaohaozuo" to "就好好做",
+)
+
 /** Correct spellings that must not be "fixed": the reading keeps them as typed. */
 private val KEEP = listOf("min", "xian", "nin", "fan", "an", "ren", "jin", "shen")
 
@@ -125,6 +132,16 @@ fun main(args: Array<String>) {
             val ok = sentence?.text == expected
             if (!ok) failures++
             println((if (ok) "ok   " else "FAIL ") + "9-key $digits -> ${sentence?.text}" + if (ok) "" else "  (want $expected)")
+        }
+    }
+    if (withModel) {
+        // Other readings: the first stays decode's, they differ, and the wanted one is among them.
+        for ((input, wanted) in OTHER_READINGS) {
+            val sentences = SentenceDecoder.decodeAll(input, dictionary, null, null, 3).map { it.text }
+            val ok = sentences.firstOrNull() == SentenceDecoder.decode(input, dictionary)?.text &&
+                sentences.distinct().size == sentences.size && wanted in sentences
+            if (!ok) failures++
+            println((if (ok) "ok   " else "FAIL ") + "readings of $input: $sentences" + if (ok) "" else "  (want $wanted)")
         }
     }
     println("slowest per keystroke after warm-up: ${worst}ms")

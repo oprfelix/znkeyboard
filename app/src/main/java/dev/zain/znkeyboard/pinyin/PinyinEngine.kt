@@ -30,6 +30,8 @@ object PinyinEngine {
     private const val FULL_MATCH_LIMIT = 30
     private const val PARTIAL_MATCH_LIMIT = 8
     private const val SINGLE_SYLLABLE_LIMIT = 40
+    /** Readings of the whole input to offer: the best, and others that stay close to it. */
+    const val MAX_SENTENCES = 3
 
     /**
      * Splits [input] into pieces, longest first, backtracking when the rest would not parse.
@@ -104,7 +106,7 @@ object PinyinEngine {
     /**
      * The whole input read as one sentence (when that takes more than one word, reads past a
      * slip, or the language model prefers another word than the dictionary's first), then the
-     * words for its leading part.
+     * words for its leading part, with the next best sentences after the words that read it all.
      */
     /** [before] is the word committed just before, so the sentence reads on from it. */
     fun candidates(
@@ -114,14 +116,31 @@ object PinyinEngine {
         before: SentenceDecoder.Context? = null,
     ): List<Candidate> {
         val words = wordCandidates(input, dictionary)
-        val sentence = SentenceDecoder.decode(input, dictionary, taps, before) ?: return words
+        val limit = if (dictionary.languageModel == null) 1 else MAX_SENTENCES
+        val sentences = SentenceDecoder.decodeAll(input, dictionary, taps, before, limit)
+        val sentence = sentences.firstOrNull() ?: return words
         val typed = input.replace(SEPARATOR.toString(), "")
         val corrected = sentence.spelling.replace(" ", "") != typed
         if (sentence.parts.size < 2 && !corrected && dictionary.languageModel == null) return words
+        return withSentences(sentences.map { wholeInput(it, input.length) }, words, input.length)
+    }
+
+    /** [sentence] as a candidate that reads all [length] characters. */
+    fun wholeInput(sentence: SentenceDecoder.Sentence, length: Int) =
+        Candidate(sentence.text, length, sentence.parts.flatMap { it.syllables }, sentence.parts, sentence.spelling)
+
+    /**
+     * [sentences], best first, placed among [words]: the best leads unless the first word is the
+     * same reading, and the rest follow the words that read all [length] characters.
+     */
+    fun withSentences(sentences: List<Candidate>, words: List<Candidate>, length: Int): List<Candidate> {
+        val best = sentences.first()
         val top = words.firstOrNull()
-        if (top != null && top.text == sentence.text && top.consumed >= input.length) return words
-        val whole = Candidate(sentence.text, input.length, sentence.parts.flatMap { it.syllables }, sentence.parts, sentence.spelling)
-        return listOf(whole) + words.filter { it.text != sentence.text }
+        val listed = if (top != null && top.text == best.text && top.consumed >= length) words else listOf(best) + words.filter { it.text != best.text }
+        val others = sentences.drop(1).filter { other -> other.parts.orEmpty().size >= 2 && listed.none { it.text == other.text } }
+        if (others.isEmpty()) return listed
+        val at = listed.indexOfFirst { it.consumed < length }.let { if (it < 0) listed.size else it }
+        return listed.subList(0, at) + others + listed.subList(at, listed.size)
     }
 
     private fun wordCandidates(input: String, dictionary: PinyinDictionary): List<Candidate> {
