@@ -142,13 +142,11 @@ async function download(request, env, ctx, path) {
   if (!PLATFORMS.has(platform)) return json({ error: "not found" }, 404);
   const latest = await env.DOWNLOADS.get("latest.json").then((o) => o?.json());
   const entry = latest?.[platform];
-  // Only the latest installer is kept here; older ones are on GitHub.
-  if (!entry || (file && file !== entry.file)) {
-    return Response.redirect(`https://github.com/oprfelix/${REPOS[["android", "macos", "windows"].indexOf(platform)]}/releases`, 302);
-  }
+  // Only the latest installer is kept here; anything else comes straight from GitHub.
+  if (!entry || (file && file !== entry.file)) return Response.redirect(await githubFile(platform, file), 302);
   const key = `${platform}/${entry.file}`;
   const object = request.method === "HEAD" ? await env.DOWNLOADS.head(key) : await env.DOWNLOADS.get(key);
-  if (!object) return json({ error: "not found" }, 404);
+  if (!object) return Response.redirect(await githubFile(platform, file), 302);
   if (request.method === "GET") {
     ctx.waitUntil(
       env.DB.prepare(`INSERT INTO downloads (platform, count) VALUES (?1, 1) ON CONFLICT(platform) DO UPDATE SET count = count + 1`)
@@ -166,6 +164,23 @@ async function download(request, env, ctx, path) {
       ETag: object.httpEtag,
     },
   });
+}
+
+/** The file itself on GitHub, so a download link never lands on a list of releases. */
+async function githubFile(platform, file) {
+  const repo = REPOS[["android", "macos", "windows"].indexOf(platform)];
+  const page = `https://github.com/oprfelix/${repo}/releases/latest`;
+  try {
+    const response = await fetch(`https://api.github.com/repos/oprfelix/${repo}/releases/latest`, {
+      headers: { "User-Agent": "znkeyboard-site", Accept: "application/vnd.github+json" },
+    });
+    if (!response.ok) return page;
+    const release = await response.json();
+    const wanted = (name) => (file ? name === file : /\.(apk|dmg|exe)$/i.test(name));
+    return release.assets?.find((asset) => wanted(asset.name))?.browser_download_url ?? page;
+  } catch {
+    return page;
+  }
 }
 
 /**

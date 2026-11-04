@@ -779,7 +779,7 @@ footer .links a { margin-right: 18px; }
           <li data-en="Whole-sentence pinyin, fuzzy pinyin, 9-key and stroke input, adaptive touch">整句拼音、模糊音、九宫格和笔画、自适应触控</li>
           <li data-en="Requires Android 14 or later">需要 Android 14 及以上</li>
         </ul>
-        <a class="btn" data-repo="znkeyboard" data-ext=".apk" href="https://github.com/oprfelix/znkeyboard/releases/latest"><svg><use href="#i-download"/></svg><span data-en="Download APK">下载 APK</span></a>
+        <a class="btn" data-repo="znkeyboard" data-ext=".apk" href="https://zn.2amz.com/download/android"><svg><use href="#i-download"/></svg><span data-en="Download APK">下载 APK</span></a>
         <div class="meta" data-meta="znkeyboard"></div>
       </article>
       <article class="card platform" data-platform="mac">
@@ -790,7 +790,7 @@ footer .links a { margin-right: 18px; }
           <li data-en="For Apple silicon and Intel Macs">适用于 Apple 芯片和 Intel 芯片的 Mac</li>
           <li data-en="Requires macOS 14 or later">需要 macOS 14 及以上</li>
         </ul>
-        <a class="btn" data-repo="Znkeyboard-for-macOS" data-ext=".dmg" href="https://github.com/oprfelix/Znkeyboard-for-macOS/releases/latest"><svg><use href="#i-download"/></svg><span data-en="Download DMG">下载 DMG</span></a>
+        <a class="btn" data-repo="Znkeyboard-for-macOS" data-ext=".dmg" href="https://zn.2amz.com/download/macos"><svg><use href="#i-download"/></svg><span data-en="Download DMG">下载 DMG</span></a>
         <div class="meta" data-meta="Znkeyboard-for-macOS"></div>
       </article>
       <article class="card platform" data-platform="windows">
@@ -802,7 +802,7 @@ footer .links a { margin-right: 18px; }
           <li data-en="Windows 10 / 11, 64-bit (Intel / AMD)">Windows 10 / 11，64 位（Intel / AMD）</li>
           <li data-en="Needs the free <a href=&quot;https://dotnet.microsoft.com/download/dotnet/10.0&quot;>.NET 10 Desktop Runtime</a>">需先安装免费的 <a href="https://dotnet.microsoft.com/download/dotnet/10.0">.NET 10 桌面运行时</a></li>
         </ul>
-        <a class="btn" data-repo="Znkeyboard-for-Windows" data-ext=".exe" href="https://github.com/oprfelix/Znkeyboard-for-Windows/releases/latest"><svg><use href="#i-download"/></svg><span data-en="Download installer">下载安装程序</span></a>
+        <a class="btn" data-repo="Znkeyboard-for-Windows" data-ext=".exe" href="https://zn.2amz.com/download/windows"><svg><use href="#i-download"/></svg><span data-en="Download installer">下载安装程序</span></a>
         <div class="meta" data-meta="Znkeyboard-for-Windows"></div>
       </article>
     </div>
@@ -984,8 +984,8 @@ footer .links a { margin-right: 18px; }
           <div class="answer" data-en="Yes, in Settings → Shortcuts: click one and press the new keys. The defaults are &lt;kbd&gt;⇧⌘1&lt;/kbd&gt; reading translation, &lt;kbd&gt;⇧⌘2&lt;/kbd&gt; screenshot, &lt;kbd&gt;⇧⌘E&lt;/kbd&gt; polish and &lt;kbd&gt;⇧⌘R&lt;/kbd&gt; translate on Mac, and the same with &lt;kbd&gt;Ctrl+Shift&lt;/kbd&gt; on Windows.">可以，在 设置 →「快捷键」里点一下快捷键，再按新的组合键即可。默认是 Mac 上 <kbd>⇧⌘1</kbd> 划词翻译、<kbd>⇧⌘2</kbd> 截图翻译、<kbd>⇧⌘E</kbd> 润色、<kbd>⇧⌘R</kbd> AI 翻译，Windows 上把 ⇧⌘ 换成 <kbd>Ctrl+Shift</kbd>。</div>
         </details>
         <details>
-          <summary data-en="zn.2amz.com or GitHub: where should I download?">在官网下载和在 GitHub 下载有什么区别？</summary>
-          <div class="answer" data-en="They are the same files. &lt;a href=&quot;https://zn.2amz.com/&quot;&gt;zn.2amz.com&lt;/a&gt; serves them from Cloudflare, which is faster in mainland China; &lt;a href=&quot;https://oprfelix.github.io/znkeyboard/&quot;&gt;oprfelix.github.io/znkeyboard&lt;/a&gt; serves them from GitHub. The apps update from the faster one and fall back to the other.">安装包完全一样。<a href="https://zn.2amz.com/">zn.2amz.com</a> 从 Cloudflare 下载，国内更快；<a href="https://oprfelix.github.io/znkeyboard/">oprfelix.github.io/znkeyboard</a> 从 GitHub 下载。App 内更新也会先用 Cloudflare，连不上再改用 GitHub。</div>
+          <summary data-en="Are the downloads the same on GitHub?">官网和 GitHub 的安装包有什么区别？</summary>
+          <div class="answer" data-en="They are the same files. Both addresses download from Cloudflare first, which is faster in mainland China; if that fails, use the GitHub backup links under the download cards. The apps update the same way.">安装包完全一样。网站优先从 Cloudflare 下载，国内更快；下载不了时，可以用下载卡片下方的 GitHub 备用链接。App 内更新也是同样的顺序。</div>
         </details>
         <details>
           <summary data-en="Which AI services can I use?">可以用哪些 AI 服务？</summary>
@@ -1153,12 +1153,13 @@ footer .links a { margin-right: 18px; }
     windows: { repo: 'Znkeyboard-for-Windows', ext: '.exe', name: 'Windows' }
   };
   var latest = {}; // repo -> { url, version, size }
-  // On zn.2amz.com installers come from Cloudflare; on GitHub Pages, from GitHub Releases.
+  var backup = {}; // platform -> the file on GitHub
   var fromCloudflare = !/github\.io$/.test(location.hostname);
   var cloudflareKeys = { android: 'android', mac: 'macos', windows: 'windows' };
   var statsUrl = fromCloudflare ? '/api/stats' : 'https://zn.2amz.com/api/stats';
 
-  function releasesPage(repo) { return 'https://github.com/oprfelix/' + repo + '/releases/latest'; }
+  // Every download link is the file itself, never a list of releases. Cloudflare first, on every copy of this site.
+  function directUrl(key) { return 'https://zn.2amz.com/download/' + cloudflareKeys[key]; }
 
   // "v1.6.2 · 4.8 MB": the version links to that release's notes.
   function fillMeta(el, repo) {
@@ -1193,7 +1194,7 @@ footer .links a { margin-right: 18px; }
     var target = repos[platform];
     if (target) {
       var info = latest[target.repo];
-      btn.href = info ? info.url : releasesPage(target.repo);
+      btn.href = info ? info.url : directUrl(platform);
       label.textContent = t('下载 ' + target.name + ' 版', 'Download for ' + target.name);
       fillMeta(meta, target.repo);
     } else {
@@ -1207,16 +1208,17 @@ footer .links a { margin-right: 18px; }
     others.innerHTML = target ? t('其他平台：', 'Other platforms: ') + links.join('') : '';
 
     // Where the installers come from here, and the other site.
-    document.getElementById('dl-source').innerHTML = fromCloudflare
-      ? t('安装包从 Cloudflare 国内加速节点下载 · 也可以去 <a href="https://oprfelix.github.io/znkeyboard/#download">GitHub 镜像</a>下载',
-          'Downloads come from Cloudflare, fast in mainland China · also on the <a href="https://oprfelix.github.io/znkeyboard/#download">GitHub mirror</a>')
-      : t('安装包从 GitHub 下载 · 国内用户可以去 <a href="https://zn.2amz.com/#download">zn.2amz.com</a> 加速下载',
-          'Downloads come from GitHub · in mainland China, <a href="https://zn.2amz.com/#download">zn.2amz.com</a> is faster');
+    var backups = Object.keys(repos).filter(function (k) { return backup[k]; }).map(function (k) {
+      return '<a href="' + backup[k] + '">' + repos[k].name + '</a>';
+    }).join(' · ');
+    document.getElementById('dl-source').innerHTML = t('安装包从 Cloudflare 下载，国内更快', 'Downloads come from Cloudflare, fast in mainland China')
+      + (backups ? t(' · 下载不了时用 GitHub 备用下载：', " · If that doesn't work, download from GitHub: ") + backups : '');
   }
 
-  // Latest release of each app, from Cloudflare's latest.json or GitHub; links fall back to the releases page.
-  function loadFromGitHub() {
-    Object.keys(repos).forEach(function (k) {
+  // Latest release of each app from Cloudflare's latest.json, or from GitHub for what it can't answer. The links
+  // already point at the files, so this only adds version, size and the GitHub backup.
+  function loadFromGitHub(keys) {
+    keys.forEach(function (k) {
       var r = repos[k];
       fetch('https://api.github.com/repos/oprfelix/' + r.repo + '/releases/latest')
         .then(function (res) { return res.ok ? res.json() : null; })
@@ -1225,28 +1227,28 @@ footer .links a { margin-right: 18px; }
           var asset = rel.assets.find(function (a) { return a.name.toLowerCase().endsWith(r.ext); });
           if (!asset) return;
           latest[r.repo] = { url: asset.browser_download_url, notes: rel.html_url, version: rel.tag_name, size: (asset.size / 1048576).toFixed(1) };
+          backup[k] = asset.browser_download_url;
           renderDownloads();
         })
         .catch(function () {});
     });
   }
 
-  if (fromCloudflare) {
-    fetch('/download/latest.json', { cache: 'no-cache' })
-      .then(function (res) { return res.ok ? res.json() : null; })
-      .then(function (all) {
-        if (!all) { loadFromGitHub(); return; }
-        Object.keys(repos).forEach(function (k) {
-          var entry = all[cloudflareKeys[k]];
-          if (!entry) return;
-          latest[repos[k].repo] = { url: '/download/' + cloudflareKeys[k], notes: entry.notes, version: 'v' + entry.version, size: (entry.size / 1048576).toFixed(1) };
-        });
-        renderDownloads();
-      })
-      .catch(loadFromGitHub);
-  } else {
-    loadFromGitHub();
-  }
+  fetch('https://zn.2amz.com/download/latest.json', { cache: 'no-cache' })
+    .then(function (res) { return res.ok ? res.json() : null; })
+    .then(function (all) {
+      var keys = Object.keys(repos);
+      var missing = keys.filter(function (k) { return !all || !all[cloudflareKeys[k]]; });
+      keys.forEach(function (k) {
+        var entry = all && all[cloudflareKeys[k]];
+        if (!entry) return;
+        latest[repos[k].repo] = { url: directUrl(k), notes: entry.notes, version: 'v' + entry.version, size: (entry.size / 1048576).toFixed(1) };
+        backup[k] = 'https://github.com/oprfelix/' + repos[k].repo + '/releases/download/v' + entry.version + '/' + entry.file;
+      });
+      renderDownloads();
+      loadFromGitHub(missing);
+    })
+    .catch(function () { loadFromGitHub(Object.keys(repos)); });
 
   // ---- Usage numbers: users, active installs, downloads, polish and translate runs. ----
   var stats = null;

@@ -14,7 +14,9 @@ NAME=$(basename "$FILE")
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 
-npx wrangler r2 object get "$BUCKET/latest.json" --remote --file "$TMP/latest.json" >/dev/null 2>&1 || echo '{}' > "$TMP/latest.json"
+# Never start from an empty file: if this read fails, writing back would drop the other platforms.
+npx wrangler r2 object get "$BUCKET/latest.json" --remote --file "$TMP/latest.json" >/dev/null 2>&1 \
+    || { echo "could not read latest.json; nothing was changed" >&2; exit 1; }
 OLD=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get(sys.argv[2], {}).get("file", ""))' "$TMP/latest.json" "$PLATFORM")
 
 npx wrangler r2 object put "$BUCKET/$PLATFORM/$NAME" --remote --file "$FILE" >/dev/null
