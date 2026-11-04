@@ -132,7 +132,6 @@ nav .wrap { display: flex; align-items: center; gap: 24px; height: 60px; }
 .btn.ghost { background: var(--card); color: var(--ink); border: 1px solid var(--line); box-shadow: none; }
 .btn.ghost:hover { border-color: var(--blue); }
 .meta { color: var(--muted); font-size: 14px; }
-.meta .warn { color: var(--warn); font-weight: 600; }
 .others { margin-top: 14px; font-size: 14px; color: var(--muted); }
 .others a { margin-right: 14px; }
 @media (max-width: 880px) {
@@ -662,7 +661,7 @@ footer .links a { margin-right: 18px; }
         <ul>
           <li data-en="Select text in a text box for Polish | Translate, or press <kbd>⇧⌘E</kbd> / <kbd>⇧⌘R</kbd>">输入框里选中文字弹出「润色 | AI 翻译」，或按 <kbd>⇧⌘E</kbd> / <kbd>⇧⌘R</kbd></li>
           <li data-en="Reading translation <kbd>⇧⌘1</kbd>, screenshot translate <kbd>⇧⌘2</kbd>">划词翻译 <kbd>⇧⌘1</kbd>，截图翻译 <kbd>⇧⌘2</kbd></li>
-          <li data-en="For Apple silicon Macs (M1 and later)">适用于 Apple 芯片的 Mac（M1 及以后）</li>
+          <li data-en="For Apple silicon and Intel Macs">适用于 Apple 芯片和 Intel 芯片的 Mac</li>
           <li data-en="Requires macOS 14 or later">需要 macOS 14 及以上</li>
         </ul>
         <a class="btn" data-repo="Znkeyboard-for-macOS" data-ext=".dmg" href="https://github.com/oprfelix/Znkeyboard-for-macOS/releases/latest"><svg><use href="#i-download"/></svg><span data-en="Download DMG">下载 DMG</span></a>
@@ -884,7 +883,7 @@ footer .links a { margin-right: 18px; }
 
   function releasesPage(repo) { return 'https://github.com/oprfelix/' + repo + '/releases/latest'; }
 
-  // "v1.6.2 · 4.8 MB": the version links to that release's notes. The Mac build runs on Apple silicon only.
+  // "v1.6.2 · 4.8 MB": the version links to that release's notes.
   function fillMeta(el, repo) {
     var info = latest[repo];
     el.textContent = '';
@@ -895,13 +894,6 @@ footer .links a { margin-right: 18px; }
       link.title = t('查看更新内容', "What's new");
       el.appendChild(link);
       el.appendChild(document.createTextNode(' · ' + info.size + ' MB'));
-    }
-    if (repo === repos.mac.repo) {
-      if (info) el.appendChild(document.createTextNode(' · '));
-      var note = document.createElement('span');
-      note.className = 'warn';
-      note.textContent = t('仅支持 Apple 芯片', 'Apple silicon only');
-      el.appendChild(note);
     }
   }
 
