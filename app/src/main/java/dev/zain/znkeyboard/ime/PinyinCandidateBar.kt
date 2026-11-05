@@ -29,6 +29,9 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
         fun onPinyinFixRequested() {}
         /** The ▾ button: show every candidate over the keys, or close that. */
         fun onPinyinExpandRequested() {}
+        /** The bar's offer to translate the text just copied: its button, and its ✕. */
+        fun onReadingOfferAccepted() {}
+        fun onReadingOfferDismissed() {}
         fun onTranslateLanguageSelected(index: Int)
         fun onAgentPolishOnlyRequested()
         fun onAgentRewriteRequested()
@@ -72,6 +75,31 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
         textSize = EXPAND_TEXT_SP
         visibility = View.GONE
         setOnClickListener { callback?.onPinyinExpandRequested() }
+    }
+    private val offerButton = TextView(context).apply {
+        gravity = Gravity.CENTER_VERTICAL or Gravity.START
+        textSize = 14f
+        isSingleLine = true
+        ellipsize = TextUtils.TruncateAt.END
+        setPadding(context.dp(14), 0, context.dp(14), 0)
+        setOnClickListener { callback?.onReadingOfferAccepted() }
+    }
+    private val offerClose = TextView(context).apply {
+        gravity = Gravity.CENTER
+        textSize = 14f
+        text = "✕"
+        setOnClickListener { callback?.onReadingOfferDismissed() }
+    }
+    private val offerRow = LinearLayout(context).apply {
+        orientation = HORIZONTAL
+        gravity = Gravity.CENTER_VERTICAL
+        visibility = View.GONE
+        setPadding(context.dp(8), 0, context.dp(8), 0)
+        addView(offerButton, LayoutParams(0, context.dp(34), 1f))
+        addView(
+            offerClose,
+            LayoutParams(context.dp(OFFER_CLOSE_WIDTH_DP), context.dp(34)).apply { marginStart = context.dp(6) },
+        )
     }
     private val polishButton = TextView(context).apply {
         gravity = Gravity.CENTER
@@ -133,6 +161,7 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
         addView(composingLabel, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
         addView(mainRow, LayoutParams(LayoutParams.MATCH_PARENT, 0, 1f))
         mainRow.addView(scroller, LayoutParams(0, LayoutParams.MATCH_PARENT, 1f))
+        mainRow.addView(offerRow, LayoutParams(0, LayoutParams.MATCH_PARENT, 1f))
         mainRow.addView(
             fixButton,
             LayoutParams(LayoutParams.WRAP_CONTENT, context.dp(34)).apply { marginStart = context.dp(4) },
@@ -155,6 +184,10 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
         expandButton.background = pill()
         fixButton.setTextColor(ImeColors.TEXT)
         fixButton.background = pill()
+        offerButton.setTextColor(ImeColors.TEXT)
+        offerButton.background = pill()
+        offerClose.setTextColor(ImeColors.TEXT)
+        offerClose.background = pill()
         candidateRow.dividerDrawable = GradientDrawable().apply {
             setColor(ImeColors.DIVIDER)
             setSize(context.dp(1), 0)
@@ -192,6 +225,19 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
         show(composing, candidates)
     }
 
+    /** Offers to translate the text just copied, in place of candidates, until something else renders. */
+    fun renderReadingOffer(label: String) {
+        choosingLanguage = false
+        showTools(null)
+        fixButton.visibility = View.GONE
+        expandButton.visibility = View.GONE
+        show("", emptyList())
+        visibility = View.VISIBLE
+        scroller.visibility = View.GONE
+        offerRow.visibility = View.VISIBLE
+        offerButton.text = label
+    }
+
     private fun showTools(tools: Tools?) {
         if (tools == null) {
             toolsRow.visibility = View.GONE
@@ -225,6 +271,8 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
 
     private fun show(label: String, items: List<String>) {
         visibility = if (label.isEmpty() && items.isEmpty()) View.GONE else View.VISIBLE
+        offerRow.visibility = View.GONE
+        scroller.visibility = View.VISIBLE
         composingLabel.text = label
         composingLabel.visibility = if (label.isEmpty()) View.GONE else View.VISIBLE
         while (candidateViews.size < items.size) {
@@ -292,6 +340,7 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
         const val CANDIDATE_TEXT_SP = 22f
         const val COMPOSING_TEXT_SP = 12f
         const val EXPAND_WIDTH_DP = 56
+        const val OFFER_CLOSE_WIDTH_DP = 44
         const val EXPAND_TEXT_SP = 18f
         const val CANDIDATE_MIN_WIDTH_DP = 52
         const val HIGHLIGHT_RADIUS_DP = 10

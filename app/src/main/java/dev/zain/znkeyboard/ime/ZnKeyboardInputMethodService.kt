@@ -29,6 +29,8 @@ import android.widget.LinearLayout
 import android.widget.Toast
 import dev.zain.znkeyboard.KeyboardSettings
 import dev.zain.znkeyboard.R
+import dev.zain.znkeyboard.ReadingTranslateActivity
+import dev.zain.znkeyboard.isWorthReading
 import dev.zain.znkeyboard.constants.AgentDefaults
 import dev.zain.znkeyboard.constants.ImeColors
 import dev.zain.znkeyboard.typing.AdaptiveTypingEngine
@@ -152,7 +154,12 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     private var lastCapturedClipboardSnapshot: ClipboardSnapshot? = null
     private val clipboardChangeListener = ClipboardManager.OnPrimaryClipChangedListener {
         capturePrimaryClipboardText(inferSourceApp = true)
+        renderReadingOffer()
     }
+    // Text just copied that the bar offers to translate, and whether this field may offer it.
+    private var readingOffer: String? = null
+    private var readingOfferAllowed = false
+    private val readingOfferExpiry = Runnable { dismissReadingOffer() }
     private var clipboardListenerRegistered = false
     private val clipboardManager: ClipboardManager by lazy(LazyThreadSafetyMode.NONE) {
         getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
@@ -300,6 +307,9 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         }
         renderSecondRow()
         capturePrimaryClipboardText()
+        readingOfferAllowed = isRewriteAvailable() && !shouldUsePhonePadMode(info) &&
+            KeyboardSettings.readAgentProviderSettings(this).isConfigured
+        renderReadingOffer()
         updateAutoShift()
     }
 
@@ -318,6 +328,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     override fun onDestroy() {
         cancelVoiceInput()
         requestGeneration++
+        mainHandler.removeCallbacks(readingOfferExpiry)
         unregisterClipboardListener()
         typingEngine.shutdown()
         savePinyinLearning()
@@ -356,6 +367,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     }
 
     override fun onKeyboardAction(action: KeyboardAction, modifiers: ModifierState) {
+        if (readingOffer != null) dismissReadingOffer()
         if (activeSurface == KeyboardSurface.ClipboardSearch && handleClipboardSearchKeyboardAction(action, modifiers)) {
             return
         }
@@ -1345,7 +1357,11 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         val fix = pinyinFix?.takeIf { pinyinComposing.isNotEmpty() }
         renderPinyinPanel(fix == null)
         val parts = pinyinCandidates.firstOrNull()?.parts.orEmpty()
+        val offer = readingOffer?.takeIf {
+            readingOfferAllowed && pinyinComposing.isEmpty() && activeSurface == KeyboardSurface.Keyboard
+        }
         when {
+            offer != null -> bar.renderReadingOffer("${t("翻译", "Translate")}  ${offer.take(READING_OFFER_PREVIEW_CHARS).replace('\n', ' ')}")
             pinyinComposing.isEmpty() && pinyinPredictions.isNotEmpty() ->
                 bar.render("", pinyinPredictions.map { it.text }, pinyinBarTools())
             fix != null && fix.part < 0 ->
@@ -1359,6 +1375,29 @@ class ZnKeyboardInputMethodService : InputMethodService(),
                 expandLabel = (if (pinyinExpanded) "▴" else "▾").takeIf { pinyinCandidates.size > 1 },
             )
         }
+    }
+
+    private fun renderReadingOffer() {
+        if (activeSurface == KeyboardSurface.Keyboard && pinyinBar?.isChoosingLanguage == false) renderPinyinBar()
+    }
+
+    private fun dismissReadingOffer() {
+        mainHandler.removeCallbacks(readingOfferExpiry)
+        readingOffer = null
+        renderReadingOffer()
+    }
+
+    override fun onReadingOfferDismissed() = dismissReadingOffer()
+
+    override fun onReadingOfferAccepted() {
+        val text = readingOffer ?: return
+        dismissReadingOffer()
+        startActivity(
+            Intent(this, ReadingTranslateActivity::class.java)
+                .putExtra(Intent.EXTRA_PROCESS_TEXT, text)
+                .putExtra(Intent.EXTRA_PROCESS_TEXT_READONLY, true)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+        )
     }
 
     /** 润色 | 翻译 for the prediction bar when it hides the toolbar's own; predictions only follow pinyin. */
@@ -1809,6 +1848,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         val snapshot = readPrimaryPlainClipboardText(inferSourceApp = inferSourceApp) ?: return
         if (snapshot.matchesClip(lastCapturedClipboardSnapshot)) return
         lastCapturedClipboardSnapshot = snapshot
+        noteReadingOffer(snapshot)
 
         ClipboardHistoryStore.recordText(
             context = this,
@@ -1819,6 +1859,15 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         if (activeSurface == KeyboardSurface.Clipboard || activeSurface == KeyboardSurface.ClipboardSearch) {
             refreshClipboardHistoryViews()
         }
+    }
+
+    /** Only text copied a moment ago: an older clip was not copied to be read now. */
+    private fun noteReadingOffer(snapshot: ClipboardSnapshot) {
+        mainHandler.removeCallbacks(readingOfferExpiry)
+        val left = READING_OFFER_DURATION_MS - (System.currentTimeMillis() - snapshot.timestampMillis)
+        val fresh = left in 1..READING_OFFER_DURATION_MS
+        readingOffer = snapshot.text.trim().takeIf { fresh && isWorthReading(it, KeyboardSettings.readReadingTarget(this)) }
+        if (readingOffer != null) mainHandler.postDelayed(readingOfferExpiry, left)
     }
 
     private fun readPrimaryPlainClipboardText(inferSourceApp: Boolean): ClipboardSnapshot? {
@@ -2613,6 +2662,8 @@ class ZnKeyboardInputMethodService : InputMethodService(),
 
     private companion object {
         const val TAG = "ZnKeyboardAgent"
+        const val READING_OFFER_DURATION_MS = 120_000L
+        const val READING_OFFER_PREVIEW_CHARS = 60
         const val MAX_REWRITE_SOURCE_CHARS = AgentDefaults.MAX_REWRITE_SOURCE_CHARS
         const val GESTURE_DELETE_CONTEXT_CHARS = 4_096
         const val MAX_GESTURE_DELETE_WORDS = 80

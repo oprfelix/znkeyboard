@@ -54,9 +54,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /**
- * Translates text selected in another app, from the "ZnKeyboard 翻译" entry of its selection menu,
- * so it can be read: faithfully, in a sheet, leaving the other app's text as it is. Chinese text
- * goes to English when the reading language is Chinese, as on Mac and Windows.
+ * Translates text from another app so it can be read: faithfully, in a sheet, leaving that app's
+ * text as it is. The text comes from the "ZnKeyboard 翻译" entry of a selection menu, where the app
+ * offers one, or from the keyboard's offer after copying. Chinese text goes to English when the
+ * reading language is Chinese, as on Mac and Windows.
  */
 class ReadingTranslateActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -83,6 +84,16 @@ private fun isMostlyChinese(text: String): Boolean {
     if (letters.isEmpty()) return false
     val chinese = letters.count { it in '一'..'鿿' || it in '㐀'..'䶿' }
     return chinese * 2 > letters.length
+}
+
+/**
+ * Whether just-copied text is worth offering to translate: not a link, a code or a tracking number,
+ * and not already in the language it would be read in.
+ */
+internal fun isWorthReading(text: String, target: TranslateLanguage): Boolean {
+    if (text.length > AgentDefaults.MAX_REWRITE_SOURCE_CHARS || text.count(Char::isLetter) < MIN_READING_LETTERS) return false
+    if (text.none(Char::isWhitespace) && (text.any(Char::isDigit) || "://" in text || text.startsWith("www."))) return false
+    return target.code !in CHINESE_CODES || !isMostlyChinese(text)
 }
 
 private fun translationLanguage(text: String, chosen: TranslateLanguage): TranslateLanguage {
@@ -250,5 +261,6 @@ private fun copy(context: Context, text: String) {
 }
 
 private val CHINESE_CODES = setOf("ZH", "TW")
+private const val MIN_READING_LETTERS = 2
 private const val ORIGINAL_MAX_HEIGHT_DP = 110
 private const val RESULT_MAX_HEIGHT_DP = 260
