@@ -7,12 +7,12 @@ object AgentDefaults {
     /** Waits before each further try when the provider answers busy (429, 5xx); two more tries in all. */
     val BUSY_RETRY_DELAYS_MS = longArrayOf(1_000, 3_000)
 
-    // The OpenAI-compatible provider starts on the DeepSeek preset; a custom address starts here.
+    // Where the OpenAI-compatible provider's address starts before the user types their own.
     const val DEFAULT_API_BASE_URL = "https://api.openai.com/v1"
     const val DEEPSEEK_API_BASE_URL = "https://api.deepseek.com"
     const val GEMINI_API_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai"
     const val DEFAULT_GEMINI_MODEL = "gemini-3.5-flash-lite"
-    const val DEFAULT_MODEL = "deepseek-flash"
+    const val DEFAULT_DEEPSEEK_MODEL = "deepseek-flash"
 
     // Long enough for an email; a full-length Chinese answer still fits MAX_REWRITE_LLM_TOKENS.
     const val MAX_REWRITE_SOURCE_CHARS = 5_000

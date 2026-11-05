@@ -143,7 +143,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         registerClipboardListener()
         capturePrimaryClipboardText()
         // Only schedules the settings app's daily check and usage ping; the keyboard itself never goes online for them.
-        dev.zain.znkeyboard.UsagePingJob.sync(this)
+        dev.zain.znkeyboard.UpdateCheckJob.sync(this)
     }
 
     override fun onCreateInputView(): View {

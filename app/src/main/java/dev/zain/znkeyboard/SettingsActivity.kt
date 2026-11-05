@@ -138,6 +138,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.PopupProperties
 import androidx.lifecycle.compose.LifecycleResumeEffect
+import dev.zain.znkeyboard.constants.UpdateDefaults
 import dev.zain.znkeyboard.constants.AgentDefaults
 import dev.zain.znkeyboard.constants.LiquidNavDimensions
 import dev.zain.znkeyboard.constants.SettingsBackupDefaults
@@ -154,13 +155,18 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 class SettingsActivity : ComponentActivity() {
+    /** Set by the update notification: open the update dialog. */
+    private val showUpdateRequest = mutableStateOf(false)
+
     override fun onCreate(savedInstanceState: android.os.Bundle?) {
         super.onCreate(savedInstanceState)
         KeyboardSettings.migrateAgentProviders(this)
-        UsagePingJob.sync(this)
+        showUpdateRequest.value = intent?.getBooleanExtra(EXTRA_SHOW_UPDATE, false) == true
+        UpdateCheckJob.sync(this)
         UsageStats.markUsed(this)
         val appContext = applicationContext
         Thread({ UsageStats.pingIfDue(appContext) }, "ZnKeyboardUsagePing").start()
+        askForNotificationsOnce()
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.auto(AndroidColor.TRANSPARENT, AndroidColor.TRANSPARENT),
             navigationBarStyle = SystemBarStyle.auto(AndroidColor.TRANSPARENT, AndroidColor.TRANSPARENT),
@@ -189,6 +195,8 @@ class SettingsActivity : ComponentActivity() {
                         stateHolder.SaveableStateProvider("settings") {
                             SettingsScreen(
                                 onOpenShortcuts = { shortcutsOpen = true },
+                                showUpdateRequested = showUpdateRequest.value,
+                                onShowUpdateHandled = { showUpdateRequest.value = false },
                             )
                         }
                     }
@@ -197,12 +205,33 @@ class SettingsActivity : ComponentActivity() {
         }
     }
 
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (intent.getBooleanExtra(EXTRA_SHOW_UPDATE, false)) showUpdateRequest.value = true
+    }
+
+    /** The daily update check tells about new versions in a notification; ask once whether that's OK. */
+    private fun askForNotificationsOnce() {
+        if (!KeyboardSettings.readUpdateAutoCheck(this)) return
+        if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) return
+        val prefs = getSharedPreferences("update_prompts", MODE_PRIVATE)
+        if (prefs.getBoolean("asked_notifications", false)) return
+        prefs.edit().putBoolean("asked_notifications", true).apply()
+        requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1)
+    }
+
+    companion object {
+        const val EXTRA_SHOW_UPDATE = "dev.zain.znkeyboard.SHOW_UPDATE"
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SettingsScreen(
     onOpenShortcuts: () -> Unit,
+    showUpdateRequested: Boolean = false,
+    onShowUpdateHandled: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val focusManager = LocalFocusManager.current
@@ -213,7 +242,6 @@ private fun SettingsScreen(
     }
     var agentModeEnabled by remember { mutableStateOf(KeyboardSettings.readAgentModeEnabled(context)) }
     var agentProviderType by remember { mutableStateOf(KeyboardSettings.readAgentProviderType(context)) }
-    var agentApiPreset by remember { mutableStateOf(KeyboardSettings.readAgentApiPreset(context)) }
     var agentApiBaseUrl by remember { mutableStateOf(KeyboardSettings.readAgentApiBaseUrl(context)) }
     var agentModel by remember { mutableStateOf(KeyboardSettings.readAgentModel(context)) }
     var agentTranslateTarget by remember { mutableStateOf(KeyboardSettings.readAgentTranslateTarget(context).code) }
@@ -230,8 +258,58 @@ private fun SettingsScreen(
         ?: SettingsDestination.Typing
     val destinationScrollState = rememberSaveable(selectedDestinationId, saver = ScrollState.Saver) { ScrollState(0) }
     val scope = rememberCoroutineScope()
-    val currentVersion = remember { appVersion(context) }
+    val currentVersion = remember { UpdateChecker.currentVersion(context) }
+    var latestRelease by remember { mutableStateOf(KeyboardSettings.readLatestRelease(context)) }
+    var updateLastCheckedAt by remember { mutableLongStateOf(KeyboardSettings.readUpdateLastCheckedAt(context)) }
+    var dismissedUpdateVersion by remember { mutableStateOf(KeyboardSettings.readDismissedUpdateVersion(context)) }
+    var updateAutoCheck by remember { mutableStateOf(KeyboardSettings.readUpdateAutoCheck(context)) }
     var anonymousStats by remember { mutableStateOf(KeyboardSettings.readAnonymousStats(context)) }
+    var checkingForUpdates by remember { mutableStateOf(false) }
+    var shownRelease by remember { mutableStateOf<UpdateChecker.Release?>(null) }
+    val availableRelease = latestRelease?.takeIf { UpdateChecker.isNewer(it.version, currentVersion) }
+
+    /** [manual]: the user tapped Check, so report the outcome; automatic checks stay silent. */
+    fun checkForUpdates(manual: Boolean) {
+        if (checkingForUpdates) return
+        checkingForUpdates = true
+        scope.launch {
+            val result = withContext(Dispatchers.IO) { runCatching { UpdateChecker.fetchLatest() } }
+            checkingForUpdates = false
+            result
+                .onSuccess { release ->
+                    val now = System.currentTimeMillis()
+                    KeyboardSettings.saveLatestRelease(context, release, now)
+                    latestRelease = release
+                    updateLastCheckedAt = now
+                    if (manual) {
+                        if (UpdateChecker.isNewer(release.version, currentVersion)) {
+                            shownRelease = release
+                        } else {
+                            Toast.makeText(context, context.getString(R.string.update_latest), Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }
+                .onFailure {
+                    if (manual) Toast.makeText(context, context.getString(R.string.update_failed), Toast.LENGTH_LONG).show()
+                }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        val due = System.currentTimeMillis() - updateLastCheckedAt >= UpdateDefaults.AUTO_CHECK_INTERVAL_MS
+        if (updateAutoCheck && due) checkForUpdates(manual = false)
+    }
+
+    // From the update notification.
+    LaunchedEffect(showUpdateRequested) {
+        if (showUpdateRequested) {
+            availableRelease?.let { shownRelease = it }
+            onShowUpdateHandled()
+        }
+    }
+
+    shownRelease?.let { release -> UpdateDialog(release, onDismiss = { shownRelease = null }) }
+
     fun refreshSettingsFromStorage() {
         val nextProviderType = KeyboardSettings.readAgentProviderType(context)
         heightScale = KeyboardSettings.readHeightScale(context)
@@ -239,7 +317,6 @@ private fun SettingsScreen(
         functionKeyBackgroundsEnabled = KeyboardSettings.readFunctionKeyBackgroundsEnabled(context)
         agentModeEnabled = KeyboardSettings.readAgentModeEnabled(context)
         agentProviderType = nextProviderType
-        agentApiPreset = KeyboardSettings.readAgentApiPreset(context)
         agentApiBaseUrl = KeyboardSettings.readAgentApiBaseUrl(context)
         agentModel = KeyboardSettings.readAgentModel(context)
         agentReasoningMode = KeyboardSettings.readAgentReasoningMode(context)
@@ -357,6 +434,16 @@ private fun SettingsScreen(
         ) {
             when (selectedDestination) {
                 SettingsDestination.Typing -> {
+                    availableRelease?.takeIf { it.version != dismissedUpdateVersion }?.let { release ->
+                        UpdateBanner(
+                            version = release.version,
+                            onView = { shownRelease = release },
+                            onDismiss = {
+                                KeyboardSettings.saveDismissedUpdateVersion(context, release.version)
+                                dismissedUpdateVersion = release.version
+                            },
+                        )
+                    }
                     SetupStatusCard()
                     TryTypingField()
                     PinyinSection()
@@ -428,7 +515,6 @@ private fun SettingsScreen(
                     AgentModeSection(
                         agentModeEnabled = agentModeEnabled,
                         agentProviderType = agentProviderType,
-                        agentApiPreset = agentApiPreset,
                         agentApiBaseUrl = agentApiBaseUrl,
                         agentModel = agentModel,
                         agentTranslateTarget = agentTranslateTarget,
@@ -446,15 +532,6 @@ private fun SettingsScreen(
                             agentModel = KeyboardSettings.readAgentModel(context, it)
                             agentApiKey = KeyboardSettings.readAgentApiKey(context, it)
                             agentApiKeyLocked = KeyboardSettings.readAgentApiKeyLocked(context, it)
-                        },
-                        onAgentApiPresetChange = {
-                            agentApiPreset = it
-                            KeyboardSettings.saveAgentApiPreset(context, it)
-                            // A model typed for another service would not exist on DeepSeek.
-                            if (it == KeyboardSettings.AgentApiPreset.DeepSeek && !agentModel.startsWith("deepseek")) {
-                                agentModel = AgentDefaults.DEFAULT_MODEL
-                                KeyboardSettings.saveAgentModel(context, agentModel, agentProviderType)
-                            }
                         },
                         onAgentApiBaseUrlChange = {
                             agentApiBaseUrl = it
@@ -507,13 +584,25 @@ private fun SettingsScreen(
                         },
                     )
 
-                    AboutSection(
+                    AboutUpdateSection(
                         currentVersion = currentVersion,
+                        availableRelease = availableRelease,
+                        lastCheckedAt = updateLastCheckedAt,
+                        checking = checkingForUpdates,
+                        autoCheck = updateAutoCheck,
+                        onAutoCheckChange = { enabled ->
+                            updateAutoCheck = enabled
+                            KeyboardSettings.saveUpdateAutoCheck(context, enabled)
+                            UpdateCheckJob.sync(context)
+                            if (enabled) checkForUpdates(manual = false)
+                        },
+                        onCheck = { checkForUpdates(manual = true) },
+                        onView = { shownRelease = it },
                         anonymousStats = anonymousStats,
                         onAnonymousStatsChange = { enabled ->
                             anonymousStats = enabled
                             KeyboardSettings.saveAnonymousStats(context, enabled)
-                            UsagePingJob.sync(context)
+                            UpdateCheckJob.sync(context)
                         },
                     )
                 }
@@ -992,7 +1081,6 @@ private fun VoiceInputSection() {
 private fun AgentModeSection(
     agentModeEnabled: Boolean,
     agentProviderType: KeyboardSettings.AgentProviderType,
-    agentApiPreset: KeyboardSettings.AgentApiPreset,
     agentApiBaseUrl: String,
     agentModel: String,
     agentTranslateTarget: String,
@@ -1002,7 +1090,6 @@ private fun AgentModeSection(
     agentApiKeyLocked: Boolean,
     onAgentModeEnabledChange: (Boolean) -> Unit,
     onAgentProviderTypeChange: (KeyboardSettings.AgentProviderType) -> Unit,
-    onAgentApiPresetChange: (KeyboardSettings.AgentApiPreset) -> Unit,
     onAgentApiBaseUrlChange: (String) -> Unit,
     onAgentModelChange: (String) -> Unit,
     onAgentTranslateTargetChange: (String) -> Unit,
@@ -1012,7 +1099,7 @@ private fun AgentModeSection(
     onAgentApiKeyLockedChange: (Boolean) -> Unit,
 ) {
     val context = LocalContext.current
-    val listingBaseUrl = agentProviderType.fixedBaseUrl ?: agentApiPreset.baseUrl ?: agentApiBaseUrl
+    val listingBaseUrl = agentProviderType.fixedBaseUrl ?: agentApiBaseUrl
     var listing by remember { mutableStateOf<ModelListing>(ModelListing.Idle) }
     // Set when the key is typed or pasted here, so a key that already worked when the page
     // opened doesn't turn back on a switch the user turned off.
@@ -1022,8 +1109,7 @@ private fun AgentModeSection(
 
     // One /models request serves both the model picker and the key check.
     LaunchedEffect(agentProviderType, listingBaseUrl, agentApiKey) {
-        val needsKey = agentProviderType == KeyboardSettings.AgentProviderType.Gemini
-        if (listingBaseUrl.isBlank() || (needsKey && agentApiKey.isBlank())) {
+        if (listingBaseUrl.isBlank() || agentApiKey.isBlank()) {
             listing = ModelListing.Idle
             return@LaunchedEffect
         }
@@ -1059,11 +1145,8 @@ private fun AgentModeSection(
             onProviderTypeChange = onAgentProviderTypeChange,
         )
 
-        // DeepSeek is a preset of the OpenAI-compatible provider; only a custom endpoint needs an address.
+        // Only the OpenAI-compatible provider needs an address; the others have theirs built in.
         if (agentProviderType.fixedBaseUrl == null) {
-            ApiPresetSelector(preset = agentApiPreset, onPresetChange = onAgentApiPresetChange)
-        }
-        if (agentProviderType.fixedBaseUrl == null && agentApiPreset == KeyboardSettings.AgentApiPreset.Custom) {
             OutlinedTextField(
                 shape = SettingsCapsuleShape,
                 value = agentApiBaseUrl,
@@ -1113,8 +1196,8 @@ private fun AgentModeSection(
             onValueChange = onAgentTranslateTargetChange,
         )
 
-        // Gemini always runs with reasoning off; only custom endpoints expose it.
-        if (agentProviderType == KeyboardSettings.AgentProviderType.OpenAiCompatible) {
+        // Gemini always runs with reasoning off; the other providers expose it.
+        if (agentProviderType != KeyboardSettings.AgentProviderType.Gemini) {
             ReasoningControls(
                 reasoningMode = agentReasoningMode,
                 reasoningTextEnabled = agentReasoningTextEnabled,
@@ -1127,7 +1210,7 @@ private fun AgentModeSection(
 
 /** The provider's model list for the current endpoint and key; loading it is also the key check. */
 private sealed interface ModelListing {
-    /** Nothing to load yet: no key (Gemini) or no base URL. */
+    /** Nothing to load yet: no key or no base URL. */
     data object Idle : ModelListing
     data object Loading : ModelListing
     data class Loaded(val models: List<ModelOption>) : ModelListing
@@ -1470,36 +1553,6 @@ private fun PickerListRow(
 }
 
 @Composable
-private fun ApiPresetSelector(
-    preset: KeyboardSettings.AgentApiPreset,
-    onPresetChange: (KeyboardSettings.AgentApiPreset) -> Unit,
-) {
-    var expanded by remember { mutableStateOf(false) }
-
-    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-        SettingsPickerLauncherButton(
-            label = stringResource(R.string.api_preset),
-            value = apiPresetLabel(preset),
-            onClick = { expanded = true },
-        )
-
-        FloatingPickerMenu(
-            menuWidth = maxWidth,
-            expanded = expanded,
-            items = KeyboardSettings.AgentApiPreset.entries.map { option ->
-                PickerItem(id = option.id, title = apiPresetLabel(option), subtitle = apiPresetDescription(option))
-            },
-            onDismissRequest = { expanded = false },
-            onItemSelected = { item ->
-                expanded = false
-                KeyboardSettings.AgentApiPreset.entries.firstOrNull { it.id == item.id }?.let(onPresetChange)
-            },
-            maxHeight = PROVIDER_PICKER_MAX_HEIGHT,
-        )
-    }
-}
-
-@Composable
 private fun ProviderTypeSelector(
     providerType: KeyboardSettings.AgentProviderType,
     onProviderTypeChange: (KeyboardSettings.AgentProviderType) -> Unit,
@@ -1520,6 +1573,7 @@ private fun ProviderTypeSelector(
                 PickerItem(
                     id = option.id,
                     title = providerLabel(option),
+                    subtitle = providerDescription(option),
                 )
             },
             onDismissRequest = { expanded = false },

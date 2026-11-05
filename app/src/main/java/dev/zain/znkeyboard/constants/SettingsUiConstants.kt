@@ -14,7 +14,7 @@ object SettingsUiTimings {
 object SettingsUiDimensions {
     val PICKER_MENU_WIDTH = 320.dp
     val PICKER_MAX_HEIGHT = 280.dp
-    val PROVIDER_PICKER_MAX_HEIGHT = 140.dp
+    val PROVIDER_PICKER_MAX_HEIGHT = 220.dp
     val REASONING_PICKER_MAX_HEIGHT = 260.dp
     val SKIN_TONE_PICKER_MAX_HEIGHT = 260.dp
     val SECTION_CORNER_RADIUS = 12.dp

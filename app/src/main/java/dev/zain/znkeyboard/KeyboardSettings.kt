@@ -30,7 +30,6 @@ object KeyboardSettings {
     const val MAX_BOTTOM_PADDING_DP = KeyboardDefaults.MAX_BOTTOM_PADDING_DP
     const val DEFAULT_BOTTOM_PADDING_DP = KeyboardDefaults.DEFAULT_BOTTOM_PADDING_DP
     const val DEFAULT_AGENT_API_BASE_URL = AgentDefaults.DEFAULT_API_BASE_URL
-    const val DEFAULT_AGENT_MODEL = AgentDefaults.DEFAULT_MODEL
     const val MAX_UPPER_ROW_KEYS = KeyboardDefaults.MAX_UPPER_ROW_KEYS
     private const val LEGACY_MAX_AGENT_ROW_KEYS = 5
     const val MAX_SECOND_ROW_BUTTONS = KeyboardDefaults.MAX_SECOND_ROW_BUTTONS
@@ -62,16 +61,26 @@ object KeyboardSettings {
     private const val KEY_PINYIN_LEARNING_ENABLED = "pinyin_learning_enabled"
     private const val KEY_PINYIN_LEARNING_GENERATION = "pinyin_learning_generation"
     private const val KEY_PINYIN_PREDICTIONS_ENABLED = "pinyin_predictions_enabled"
+    private const val KEY_UPDATE_AUTO_CHECK = "update_auto_check"
+    private const val KEY_UPDATE_LAST_CHECKED_AT = "update_last_checked_at"
+    private const val KEY_UPDATE_LATEST_VERSION = "update_latest_version"
+    private const val KEY_UPDATE_LATEST_NOTES = "update_latest_notes"
+    private const val KEY_UPDATE_LATEST_DOWNLOAD_URL = "update_latest_download_url"
+    private const val KEY_UPDATE_LATEST_PAGE_URL = "update_latest_page_url"
+    private const val KEY_UPDATE_LATEST_FALLBACK_URL = "update_latest_fallback_url"
+    private const val KEY_UPDATE_LATEST_SHA256 = "update_latest_sha256"
     private const val KEY_ANONYMOUS_STATS = "anonymous_stats"
+    private const val KEY_UPDATE_DISMISSED_VERSION = "update_dismissed_version"
     private const val KEY_CHINESE_KEYBOARD = "chinese_keyboard"
+    private const val KEY_UPDATE_NOTIFIED_VERSION = "update_notified_version"
     private const val KEY_KEYBOARD_THEME = "keyboard_theme"
     private const val KEY_TYPING_MODEL_GENERATION = "typing_model_generation"
     private const val KEY_AGENT_MODE_ENABLED = "agent_mode_enabled"
     private const val KEY_AGENT_PROVIDER_TYPE = "agent_provider_type"
     private const val KEY_AGENT_API_BASE_URL = "agent_api_base_url"
-    private const val KEY_AGENT_API_PRESET = "agent_api_preset"
     private const val KEY_AGENT_MODEL = "agent_model"
     private const val KEY_GEMINI_MODEL = "gemini_model"
+    private const val KEY_DEEPSEEK_MODEL = "deepseek_model"
     private const val KEY_AGENT_REASONING_MODE = "agent_reasoning_mode"
     private const val KEY_AGENT_REASONING_TEXT_ENABLED = "agent_reasoning_text_enabled"
     private const val KEY_AGENT_TRANSLATE_TARGET = "agent_translate_target"
@@ -84,6 +93,10 @@ object KeyboardSettings {
     // 1.6.0–1.6.1 had a fixed DeepSeek provider instead of the OpenAI-compatible one.
     private const val LEGACY_PROVIDER_DEEPSEEK = "deepseek"
     private const val KEY_DEEPSEEK_PROVIDER_MIGRATED = "deepseek_provider_migrated"
+    // Through 1.9.9 DeepSeek was a preset of the OpenAI-compatible provider, with one shared key.
+    private const val LEGACY_KEY_AGENT_API_PRESET = "agent_api_preset"
+    private const val LEGACY_PRESET_DEEPSEEK = "deepseek"
+    private const val KEY_DEEPSEEK_PRESET_SPLIT = "deepseek_preset_split"
     private const val LEGACY_OPENROUTER_API_BASE_URL = "https://openrouter.ai/api/v1"
     private const val LEGACY_KEY_OPENROUTER_PROVIDER_SLUG = "openrouter_provider_slug"
     private const val LEGACY_KEY_AGENT_PROFILES = "agent_profiles"
@@ -259,10 +272,62 @@ object KeyboardSettings {
 
     /** Off by default: checking contacts GitHub, so the user opts in. */
     /** On by default, as on Mac and Windows: a daily look at the public release list. */
+    fun readUpdateAutoCheck(context: Context) = readFlag(context, KEY_UPDATE_AUTO_CHECK, true)
+    fun saveUpdateAutoCheck(context: Context, enabled: Boolean) = saveFlag(context, KEY_UPDATE_AUTO_CHECK, enabled)
 
     /** The anonymous daily usage ping ([UsageStats]). On by default, as on Mac and Windows. */
     fun readAnonymousStats(context: Context) = readFlag(context, KEY_ANONYMOUS_STATS, true)
     fun saveAnonymousStats(context: Context, enabled: Boolean) = saveFlag(context, KEY_ANONYMOUS_STATS, enabled)
+
+    /** When GitHub last answered a check, or 0 if never. */
+    fun readUpdateLastCheckedAt(context: Context): Long =
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).getLong(KEY_UPDATE_LAST_CHECKED_AT, 0L)
+
+    /** The latest release from the last successful check, kept so the banner shows without checking again. */
+    fun readLatestRelease(context: Context): UpdateChecker.Release? {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val version = prefs.getString(KEY_UPDATE_LATEST_VERSION, null) ?: return null
+        return UpdateChecker.Release(
+            version = version,
+            notes = prefs.getString(KEY_UPDATE_LATEST_NOTES, null).orEmpty(),
+            downloadUrl = prefs.getString(KEY_UPDATE_LATEST_DOWNLOAD_URL, null) ?: return null,
+            pageUrl = prefs.getString(KEY_UPDATE_LATEST_PAGE_URL, null) ?: return null,
+            fallbackUrl = prefs.getString(KEY_UPDATE_LATEST_FALLBACK_URL, null),
+            sha256 = prefs.getString(KEY_UPDATE_LATEST_SHA256, null),
+        )
+    }
+
+    fun saveLatestRelease(context: Context, release: UpdateChecker.Release, checkedAt: Long) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
+            .putLong(KEY_UPDATE_LAST_CHECKED_AT, checkedAt)
+            .putString(KEY_UPDATE_LATEST_VERSION, release.version)
+            .putString(KEY_UPDATE_LATEST_NOTES, release.notes)
+            .putString(KEY_UPDATE_LATEST_DOWNLOAD_URL, release.downloadUrl)
+            .putString(KEY_UPDATE_LATEST_PAGE_URL, release.pageUrl)
+            .putString(KEY_UPDATE_LATEST_FALLBACK_URL, release.fallbackUrl)
+            .putString(KEY_UPDATE_LATEST_SHA256, release.sha256)
+            .apply()
+    }
+
+    /** The version whose banner the user closed; a newer release shows the banner again. */
+    /** The newest version already announced in a notification, so each is announced once. */
+    fun readNotifiedUpdateVersion(context: Context): String? =
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).getString(KEY_UPDATE_NOTIFIED_VERSION, null)
+
+    fun saveNotifiedUpdateVersion(context: Context, version: String) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
+            .putString(KEY_UPDATE_NOTIFIED_VERSION, version)
+            .apply()
+    }
+
+    fun readDismissedUpdateVersion(context: Context): String? =
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).getString(KEY_UPDATE_DISMISSED_VERSION, null)
+
+    fun saveDismissedUpdateVersion(context: Context, version: String) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
+            .putString(KEY_UPDATE_DISMISSED_VERSION, version)
+            .apply()
+    }
 
     /** Bumped when settings clear or restore learned pinyin, so the keyboard reloads it. */
     fun readPinyinLearningGeneration(context: Context): Int =
@@ -491,29 +556,7 @@ object KeyboardSettings {
             .apply()
     }
 
-    /**
-     * The OpenAI-compatible provider's endpoint choice. Before presets the address was typed, so
-     * DeepSeek's address (or none yet) reads as the DeepSeek preset and anything else as custom.
-     */
-    fun readAgentApiPreset(context: Context): AgentApiPreset {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        AgentApiPreset.entries.firstOrNull { it.id == prefs.getString(KEY_AGENT_API_PRESET, null) }?.let { return it }
-        val typed = prefs.getString(KEY_AGENT_API_BASE_URL, null)?.trim().orEmpty()
-        return if (typed.isEmpty() || DEEPSEEK_HOST in typed) AgentApiPreset.DeepSeek else AgentApiPreset.Custom
-    }
-
-    fun saveAgentApiPreset(context: Context, preset: AgentApiPreset) {
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .edit()
-            .putString(KEY_AGENT_API_PRESET, preset.id)
-            .apply()
-    }
-
-    /** The address the OpenAI-compatible provider calls: the preset's, or the typed one. */
-    fun readAgentCompatibleBaseUrl(context: Context): String =
-        readAgentApiPreset(context).baseUrl ?: readAgentApiBaseUrl(context)
-
-    /** The typed address, used by the custom preset. */
+    /** The address the OpenAI-compatible provider calls; the other providers have theirs built in. */
     fun readAgentApiBaseUrl(context: Context): String {
         return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .getString(KEY_AGENT_API_BASE_URL, DEFAULT_AGENT_API_BASE_URL)
@@ -568,7 +611,16 @@ object KeyboardSettings {
 
     private fun modelKeyAndDefault(providerType: AgentProviderType): Pair<String, String> = when (providerType) {
         AgentProviderType.Gemini -> KEY_GEMINI_MODEL to AgentDefaults.DEFAULT_GEMINI_MODEL
-        AgentProviderType.OpenAiCompatible -> KEY_AGENT_MODEL to DEFAULT_AGENT_MODEL
+        AgentProviderType.DeepSeek -> KEY_DEEPSEEK_MODEL to AgentDefaults.DEFAULT_DEEPSEEK_MODEL
+        // No default: a model ID only means something on the endpoint the user typed.
+        AgentProviderType.OpenAiCompatible -> KEY_AGENT_MODEL to ""
+    }
+
+    /** Runs every saved setup forward to the current provider list, oldest step first. */
+    fun migrateAgentProviders(context: Context) {
+        migrateDeepSeekProvider(context)
+        migrateToProviderList(context)
+        splitDeepSeekPreset(context)
     }
 
     /**
@@ -576,8 +628,7 @@ object KeyboardSettings {
      * pointed at Gemini becomes the Gemini provider; OpenRouter and Nanbeige setups become
      * OpenAI-compatible ones. Keys move with them; profiles are dropped.
      */
-    fun migrateAgentProviders(context: Context) {
-        migrateDeepSeekProvider(context)
+    private fun migrateToProviderList(context: Context) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         if (prefs.getBoolean(KEY_AGENT_PROVIDERS_MIGRATED, false)) return
         val secrets = context.getSharedPreferences(SECRET_PREFS_NAME, Context.MODE_PRIVATE)
@@ -653,13 +704,47 @@ object KeyboardSettings {
             saveAgentApiKeyLocked(context, compatible, secrets.getBoolean("${LEGACY_PROVIDER_DEEPSEEK}_$KEY_AGENT_API_KEY_LOCKED", false))
         }
         if (prefs.getString(KEY_AGENT_PROVIDER_TYPE, null) == LEGACY_PROVIDER_DEEPSEEK) {
-            saveAgentApiPreset(context, AgentApiPreset.DeepSeek)
-            saveAgentModel(context, AgentDefaults.DEFAULT_MODEL, compatible)
+            prefs.edit().putString(LEGACY_KEY_AGENT_API_PRESET, LEGACY_PRESET_DEEPSEEK).apply()
+            saveAgentModel(context, AgentDefaults.DEFAULT_DEEPSEEK_MODEL, compatible)
             saveAgentProviderType(context, compatible)
         }
         val stale = secrets.all.keys.filter { it.startsWith("${LEGACY_PROVIDER_DEEPSEEK}_") }
         secrets.edit().apply { stale.forEach(::remove) }.apply()
         prefs.edit().remove("deepseek_model").putBoolean(KEY_DEEPSEEK_PROVIDER_MIGRATED, true).apply()
+    }
+
+    /**
+     * One-time move of the DeepSeek preset to its own provider. Before presets the address was
+     * typed, so with no stored preset DeepSeek's address (or none yet) counts as that preset.
+     * The old key is cleared only once the new one reads back, so a failure can't lose it.
+     */
+    private fun splitDeepSeekPreset(context: Context) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        if (prefs.getBoolean(KEY_DEEPSEEK_PRESET_SPLIT, false)) return
+        val preset = prefs.getString(LEGACY_KEY_AGENT_API_PRESET, null)
+        val typed = prefs.getString(KEY_AGENT_API_BASE_URL, null)?.trim().orEmpty()
+        val onDeepSeek = preset?.let { it == LEGACY_PRESET_DEEPSEEK } ?: (typed.isEmpty() || DEEPSEEK_HOST in typed)
+        if (onDeepSeek) {
+            val compatible = AgentProviderType.OpenAiCompatible
+            val deepSeek = AgentProviderType.DeepSeek
+            val apiKey = readAgentApiKey(context, compatible)
+            if (apiKey.isNotBlank()) {
+                val locked = readAgentApiKeyLocked(context, compatible)
+                saveAgentApiKey(context, deepSeek, apiKey)
+                if (readAgentApiKey(context, deepSeek) == apiKey) {
+                    saveAgentApiKeyLocked(context, deepSeek, locked)
+                    saveAgentApiKey(context, compatible, "")
+                }
+            }
+            val model = prefs.getString(KEY_AGENT_MODEL, null)?.trim().orEmpty()
+            if (model.startsWith(LEGACY_PRESET_DEEPSEEK)) saveAgentModel(context, model, deepSeek)
+            if (prefs.getString(KEY_AGENT_PROVIDER_TYPE, null) == compatible.id) saveAgentProviderType(context, deepSeek)
+            prefs.edit().apply {
+                remove(KEY_AGENT_MODEL)
+                if (DEEPSEEK_HOST in typed) remove(KEY_AGENT_API_BASE_URL)
+            }.apply()
+        }
+        prefs.edit().remove(LEGACY_KEY_AGENT_API_PRESET).putBoolean(KEY_DEEPSEEK_PRESET_SPLIT, true).apply()
     }
 
     /** Language Rewrite translates into while typing Chinese (pinyin mode). Stored as its code. */
@@ -800,10 +885,10 @@ object KeyboardSettings {
     ): AgentProviderSettings {
         return AgentProviderSettings(
             providerType = providerType,
-            baseUrl = providerType.fixedBaseUrl ?: readAgentCompatibleBaseUrl(context),
+            baseUrl = providerType.fixedBaseUrl ?: readAgentApiBaseUrl(context),
             model = readAgentModel(context, providerType),
             apiKey = readAgentApiKey(context, providerType),
-            // Gemini rewrites stay fast; reasoning is only adjustable for custom endpoints.
+            // Gemini rewrites stay fast; reasoning is adjustable for the other providers.
             reasoningMode = if (providerType == AgentProviderType.Gemini) {
                 AgentReasoningMode.Off
             } else {
@@ -847,10 +932,10 @@ object KeyboardSettings {
                         JSONObject()
                             .put("enabled", readAgentModeEnabled(context))
                             .put("providerType", readAgentProviderType(context).id)
-                            .put("apiPreset", readAgentApiPreset(context).id)
                             .put("apiBaseUrl", readAgentApiBaseUrl(context))
                             .put("model", readAgentModel(context, AgentProviderType.OpenAiCompatible))
                             .put("geminiModel", readAgentModel(context, AgentProviderType.Gemini))
+                            .put("deepseekModel", readAgentModel(context, AgentProviderType.DeepSeek))
                             .put("reasoningMode", readAgentReasoningMode(context).id)
                             .put("reasoningTextEnabled", readAgentReasoningTextEnabled(context)),
                     )
@@ -977,7 +1062,6 @@ object KeyboardSettings {
         saveAgentModeEnabled(context, rewrite.optBoolean("enabled", readAgentModeEnabled(context)))
         saveAgentProviderType(context, providerType)
         saveAgentApiBaseUrl(context, rewrite.optString("apiBaseUrl", readAgentApiBaseUrl(context)))
-        AgentApiPreset.entries.firstOrNull { it.id == rewrite.optString("apiPreset") }?.let { saveAgentApiPreset(context, it) }
         saveAgentModel(
             context,
             rewrite.optString("model", readAgentModel(context, AgentProviderType.OpenAiCompatible)),
@@ -988,6 +1072,21 @@ object KeyboardSettings {
             rewrite.optString("geminiModel", readAgentModel(context, AgentProviderType.Gemini)),
             AgentProviderType.Gemini,
         )
+        // Backups through 1.9.9 hold DeepSeek under the OpenAI-compatible provider.
+        val heldDeepSeekPreset = !rewrite.has("deepseekModel")
+        if (heldDeepSeekPreset) {
+            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            prefs.edit().apply {
+                if (rewrite.has("apiPreset")) {
+                    putString(LEGACY_KEY_AGENT_API_PRESET, rewrite.optString("apiPreset"))
+                } else {
+                    remove(LEGACY_KEY_AGENT_API_PRESET)
+                }
+                remove(KEY_DEEPSEEK_PRESET_SPLIT)
+            }.apply()
+        } else {
+            saveAgentModel(context, rewrite.optString("deepseekModel"), AgentProviderType.DeepSeek)
+        }
         saveAgentReasoningMode(context, reasoningMode)
         saveAgentReasoningTextEnabled(
             context,
@@ -1006,6 +1105,7 @@ object KeyboardSettings {
             saveAgentApiKey(context, secret.providerType, secret.value)
             saveAgentApiKeyLocked(context, secret.providerType, secret.locked)
         }
+        if (heldDeepSeekPreset) splitDeepSeekPreset(context)
 
         return BackupRestoreResult(
             schemaVersion = schemaVersion,
@@ -1247,17 +1347,9 @@ object KeyboardSettings {
         val label: String,
         val fixedBaseUrl: String?,
     ) {
+        DeepSeek("deepseek", "DeepSeek", AgentDefaults.DEEPSEEK_API_BASE_URL),
         Gemini("gemini", "Google Gemini", AgentDefaults.GEMINI_API_BASE_URL),
         OpenAiCompatible("openai_compatible", "OpenAI compatible", null),
-    }
-
-    /** Endpoints the OpenAI-compatible provider offers without typing an address; [baseUrl] null is custom. */
-    enum class AgentApiPreset(
-        val id: String,
-        val baseUrl: String?,
-    ) {
-        DeepSeek("deepseek", AgentDefaults.DEEPSEEK_API_BASE_URL),
-        Custom("custom", null),
     }
 
     enum class AgentReasoningMode(

@@ -13,23 +13,16 @@ import dev.zain.znkeyboard.constants.TranslateLanguage
 
 @Composable
 internal fun providerLabel(type: KeyboardSettings.AgentProviderType): String = when (type) {
-    KeyboardSettings.AgentProviderType.Gemini -> type.label
+    KeyboardSettings.AgentProviderType.DeepSeek, KeyboardSettings.AgentProviderType.Gemini -> type.label
     KeyboardSettings.AgentProviderType.OpenAiCompatible -> stringResource(R.string.provider_openai_compatible)
 }
 
 @Composable
-internal fun apiPresetLabel(preset: KeyboardSettings.AgentApiPreset): String = when (preset) {
-    KeyboardSettings.AgentApiPreset.DeepSeek -> "DeepSeek"
-    KeyboardSettings.AgentApiPreset.Custom -> stringResource(R.string.api_preset_custom)
+internal fun providerDescription(type: KeyboardSettings.AgentProviderType): String? = when (type) {
+    KeyboardSettings.AgentProviderType.DeepSeek -> stringResource(R.string.provider_deepseek_desc)
+    KeyboardSettings.AgentProviderType.Gemini -> null
+    KeyboardSettings.AgentProviderType.OpenAiCompatible -> stringResource(R.string.provider_openai_compatible_desc)
 }
-
-@Composable
-internal fun apiPresetDescription(preset: KeyboardSettings.AgentApiPreset): String = stringResource(
-    when (preset) {
-        KeyboardSettings.AgentApiPreset.DeepSeek -> R.string.api_preset_deepseek_desc
-        KeyboardSettings.AgentApiPreset.Custom -> R.string.api_preset_custom_desc
-    },
-)
 
 @Composable
 internal fun reasoningLabel(mode: KeyboardSettings.AgentReasoningMode): String = stringResource(
