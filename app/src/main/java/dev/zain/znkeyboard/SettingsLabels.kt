@@ -18,9 +18,9 @@ internal fun providerLabel(type: KeyboardSettings.AgentProviderType): String = w
 }
 
 @Composable
-internal fun providerDescription(type: KeyboardSettings.AgentProviderType): String? = when (type) {
+internal fun providerDescription(type: KeyboardSettings.AgentProviderType): String = when (type) {
     KeyboardSettings.AgentProviderType.DeepSeek -> stringResource(R.string.provider_deepseek_desc)
-    KeyboardSettings.AgentProviderType.Gemini -> null
+    KeyboardSettings.AgentProviderType.Gemini -> stringResource(R.string.provider_gemini_desc)
     KeyboardSettings.AgentProviderType.OpenAiCompatible -> stringResource(R.string.provider_openai_compatible_desc)
 }
 

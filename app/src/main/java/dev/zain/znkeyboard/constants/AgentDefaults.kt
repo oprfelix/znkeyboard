@@ -71,7 +71,7 @@ object AgentDefaults {
         "Couldn't read the full field." to "无法读取完整的输入内容。",
         "Text is too long to rewrite." to "文字太长，无法润色或翻译。",
         "No text to rewrite." to "没有可润色或翻译的文字。",
-        "Add API settings first." to "请先在 设置 → AI 与语音 里填好 API Key。",
+        "Add API settings first." to "请先在 设置 → AI 与语音 里填写 API Key。",
         "Couldn't select the current text." to "无法选中当前文字。",
         "LLM request failed." to "AI 请求失败。",
         "No rewrite returned." to "AI 没有返回结果。",

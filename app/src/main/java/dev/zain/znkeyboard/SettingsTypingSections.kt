@@ -277,6 +277,7 @@ internal fun PinyinSection() {
                     confirmingReset = false
                     scope.launch {
                         withContext(Dispatchers.IO) {
+                            KeyboardSettings.saveEnglishWordUses(context, "")
                             KeyboardSettings.bumpPinyinLearningGeneration(context)
                             PinyinLearningStore.delete(context)
                         }

@@ -61,6 +61,7 @@ object KeyboardSettings {
     private const val KEY_PINYIN_LEARNING_ENABLED = "pinyin_learning_enabled"
     private const val KEY_PINYIN_LEARNING_GENERATION = "pinyin_learning_generation"
     private const val KEY_PINYIN_PREDICTIONS_ENABLED = "pinyin_predictions_enabled"
+    private const val KEY_ENGLISH_WORD_USES = "english_word_uses"
     private const val KEY_UPDATE_AUTO_CHECK = "update_auto_check"
     private const val KEY_UPDATE_LAST_CHECKED_AT = "update_last_checked_at"
     private const val KEY_UPDATE_LATEST_VERSION = "update_latest_version"
@@ -327,6 +328,14 @@ object KeyboardSettings {
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
             .putString(KEY_UPDATE_DISMISSED_VERSION, version)
             .apply()
+    }
+
+    /** English words picked in pinyin mode, as written by [dev.zain.znkeyboard.pinyin.EnglishWords.saved]. */
+    fun readEnglishWordUses(context: Context): String =
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).getString(KEY_ENGLISH_WORD_USES, "").orEmpty()
+
+    fun saveEnglishWordUses(context: Context, uses: String) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit().putString(KEY_ENGLISH_WORD_USES, uses).apply()
     }
 
     /** Bumped when settings clear or restore learned pinyin, so the keyboard reloads it. */

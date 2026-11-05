@@ -1,4 +1,5 @@
 import dev.zain.znkeyboard.pinyin.PinyinDictionary
+import dev.zain.znkeyboard.pinyin.EnglishWords
 import dev.zain.znkeyboard.pinyin.PinyinEngine
 import dev.zain.znkeyboard.pinyin.PinyinFuzzyRule
 import dev.zain.znkeyboard.pinyin.PinyinLanguageModel
@@ -212,6 +213,26 @@ fun main(args: Array<String>) {
         check("a learned pair reads on from the word before", first("shi", pairs.context) == "诗" && plain != "诗", "$plain -> ${first("shi", pairs.context)}")
         withModel.forgetLearned()
         check("forgetting drops pairs too", withModel.pairTotal("历史") == 0 && withModel.learnedUses == 0, "")
+    }
+
+    // English words: first when the letters can't be whole pinyin, after the best Chinese otherwise.
+    run {
+        val english = EnglishWords(listOf("hello", "time", "iPhone", "the"))
+        val chinese = listOf(PinyinEngine.Candidate("时么", 4, listOf("shi", "me")))
+        fun texts(input: String) = english.merge(input, chinese, fuzzy).map { it.text }
+        check("not pinyin comes first", texts("hello") == listOf("hello", "时么"), texts("hello").toString())
+        check("also pinyin comes second", texts("time") == listOf("时么", "time"), texts("time").toString())
+        check("shown as written", texts("iphone").first() == "iPhone", texts("iphone").toString())
+        check("short words stay out", texts("the") == listOf("时么"), texts("the").toString())
+        check("unknown letters add nothing", texts("zzzz") == listOf("时么"), texts("zzzz").toString())
+        check("nothing to go after", english.merge("time", emptyList(), fuzzy).map { it.text } == listOf("time"), "")
+        english.picked("time")
+        check("one pick isn't enough", texts("time").first() == "时么", texts("time").toString())
+        english.picked("time")
+        check("two picks move it first", texts("time").first() == "time", texts("time").toString())
+        val copy = EnglishWords(listOf("time")).also { it.restore(english.saved()) }
+        check("picks survive saving", copy.merge("time", chinese, fuzzy).first().text == "time", english.saved())
+        check("forgetting moves it back", copy.forget("time") && copy.merge("time", chinese, fuzzy).first().text == "时么", "")
     }
 
     if (failures > 0) {

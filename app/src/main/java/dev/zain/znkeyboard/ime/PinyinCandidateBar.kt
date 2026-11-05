@@ -171,7 +171,7 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
         choosingLanguage = true
         highlightedIndex = selectedIndex
         showTools(null)
-        show("翻译成", codes)
+        show("翻译为", codes)
     }
 
     private fun show(label: String, items: List<String>) {

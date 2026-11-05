@@ -38,6 +38,7 @@ import org.json.JSONException
 import org.json.JSONObject
 import dev.zain.znkeyboard.pinyin.NineKeyEngine
 import dev.zain.znkeyboard.pinyin.PinyinDictionary
+import dev.zain.znkeyboard.pinyin.EnglishWords
 import dev.zain.znkeyboard.pinyin.PinyinEngine
 import dev.zain.znkeyboard.pinyin.PinyinLanguageModel
 import dev.zain.znkeyboard.pinyin.PinyinLearner
@@ -78,6 +79,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     @Volatile private var strokeIndex: StrokeIndex? = null
     private var strokeIndexLoading = false
     private var pinyinCandidates: List<PinyinEngine.Candidate> = emptyList()
+    private var englishWords: EnglishWords? = null
     // Shown in the candidate bar after a commit, while nothing is composing.
     private var pinyinPredictions: List<PinyinLearner.Prediction> = emptyList()
     private var pinyinPredictionsEnabled = true
@@ -787,6 +789,18 @@ class ZnKeyboardInputMethodService : InputMethodService(),
      */
     override fun onPinyinCandidateLongPressed(index: Int) {
         val dictionary = pinyinDictionary ?: return
+        val english = pinyinCandidates.getOrNull(index)?.takeIf { it.id == EnglishWords.CANDIDATE_ID }
+        if (pinyinComposing.isNotEmpty() && english != null) {
+            val words = englishWords
+            if (words == null || !words.forget(english.text)) {
+                Toast.makeText(this, t("这个词没有学习记录，不用删除。", "Nothing learned about this one."), Toast.LENGTH_SHORT).show()
+                return
+            }
+            KeyboardSettings.saveEnglishWordUses(this, words.saved())
+            Toast.makeText(this, t("已删除学习记录：${english.text}", "Forgot: ${english.text}"), Toast.LENGTH_SHORT).show()
+            updatePinyinComposition(pinyinComposing)
+            return
+        }
         val texts = if (pinyinComposing.isEmpty()) {
             listOfNotNull(pinyinPredictions.getOrNull(index)?.text)
         } else {
@@ -829,7 +843,9 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         val inMemory = pinyinLearner.data.takeIf { pinyinLearningGeneration == generation }
         val snapshot = inMemory?.words()?.map { PinyinUserData.Word(it.text, it.syllables, it.uses, it.lastUsed) }
         val snapshotClock = inMemory?.clock ?: 0L
+        val english = englishWords
         Thread {
+            val loadedEnglish = english ?: loadEnglishWords(appContext)
             val saved = if (inMemory == null) PinyinLearningStore.read(appContext) ?: PinyinUserData() else null
             val loaded = runCatching {
                 val dictionary = current?.withFuzzy(rules) ?: appContext.assets.open(PINYIN_DICTIONARY_ASSET)
@@ -845,6 +861,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
             }.getOrNull()
             mainHandler.post {
                 pinyinDictionaryLoading = false
+                englishWords = loadedEnglish
                 if (saved != null) {
                     pinyinLearner.data = saved
                     pinyinLearningGeneration = generation
@@ -873,11 +890,19 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     }.onFailure { Log.w(TAG, "pinyin language model unavailable", it) }.getOrNull()
 
     /** Settings cleared or restored learned pinyin while the keyboard was away: drop ours and reread. */
+    private fun loadEnglishWords(context: Context): EnglishWords? = runCatching {
+        val words = context.assets.open(ENGLISH_WORDS_ASSET).bufferedReader(Charsets.UTF_8).useLines { lines ->
+            lines.filter(String::isNotBlank).toList()
+        }
+        EnglishWords(words).also { it.restore(KeyboardSettings.readEnglishWordUses(context)) }
+    }.getOrNull()
+
     private fun reloadPinyinLearningIfReset() {
         val generation = KeyboardSettings.readPinyinLearningGeneration(this)
         if (pinyinLearningGeneration == -1 || generation == pinyinLearningGeneration) return
         pinyinLearningGeneration = generation
         pinyinDictionary?.forgetLearned()
+        englishWords?.restore(KeyboardSettings.readEnglishWordUses(this))
         pinyinLearner.data = PinyinUserData()
         pinyinLearner.breakChain()
         pinyinSavedClock = 0L
@@ -1034,7 +1059,9 @@ class ZnKeyboardInputMethodService : InputMethodService(),
             composing.isEmpty() -> emptyList()
             chineseKeyboard == KeyboardSettings.ChineseKeyboard.NineKeyPinyin -> NineKeyEngine.candidates(composing, dictionary)
             chineseKeyboard == KeyboardSettings.ChineseKeyboard.NineKeyStroke -> strokeIndex?.candidates(composing, dictionary).orEmpty()
-            else -> PinyinEngine.candidates(composing, dictionary, pinyinTaps, pinyinLearner.context)
+            else -> PinyinEngine.candidates(composing, dictionary, pinyinTaps, pinyinLearner.context).let { found ->
+                englishWords?.merge(composing, found, dictionary) ?: found
+            }
         }
         pinyinPredictions = emptyList()
         noteOwnEdit()
@@ -1118,9 +1145,19 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         noteOwnEdit()
         inputConnection.beginBatchEdit()
         inputConnection.commitText(candidate.text, 1)
-        // A whole sentence teaches its words one by one (and which follows which), not itself.
-        candidate.parts?.forEach { part -> pinyinLearner.onPick(part.text, part.syllables, byHand, part.id) }
-            ?: pinyinLearner.onPick(candidate.text, candidate.syllables, byHand, candidate.id)
+        if (candidate.id == EnglishWords.CANDIDATE_ID) {
+            pinyinLearner.breakChain()
+            if (byHand && isPersonalizationAllowed(currentEditorInfo)) {
+                englishWords?.let { words ->
+                    words.picked(candidate.text)
+                    KeyboardSettings.saveEnglishWordUses(this, words.saved())
+                }
+            }
+        } else {
+            // A whole sentence teaches its words one by one (and which follows which), not itself.
+            candidate.parts?.forEach { part -> pinyinLearner.onPick(part.text, part.syllables, byHand, part.id) }
+                ?: pinyinLearner.onPick(candidate.text, candidate.syllables, byHand, candidate.id)
+        }
         if (remaining.isEmpty()) {
             pinyinLearner.onCompositionDone()
             pinyinComposing = ""
@@ -1761,7 +1798,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
             checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED ->
                 if (chinese) "请先在 设置 → AI 与语音 里开启 AI 语音输入。" else "Turn on AI voice input in Settings → AI & voice."
             !gemini.isConfigured ->
-                if (chinese) "请先在设置里填好 Gemini API Key。" else "Add your Gemini API key in Settings first."
+                if (chinese) "请先在设置里填写 Gemini API Key。" else "Add your Gemini API key in Settings first."
             else -> null
         }
     }
@@ -2084,7 +2121,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         if (!isRewriteAvailable()) return
         val providerSettings = KeyboardSettings.readAgentProviderSettings(this)
         if (!providerSettings.isConfigured) {
-            showAgentError(t("请先在设置里填好 API Key。", "Add your API key in Settings first."))
+            showAgentError(t("请先在设置里填写 API Key 和模型。", "Add your API key and model in Settings first."))
             return
         }
         if (selectTargetForRequest && !selectTargetText(target)) {
@@ -2478,7 +2515,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
 
     /** What went wrong, in words, with the HTTP status for reference; never the server's raw reply. */
     private fun friendlyError(error: Throwable): String = when (error) {
-        is TooLongException -> t("文字太长，请分段处理。", "Too long; do it in parts.")
+        is TooLongException -> t("文字太长，请分段处理（最多 5000 字）。", "The text is too long; do it in parts (5,000 characters max).")
         is EmptyModelTextException -> t("AI 没有返回结果，请再试一次。", "The AI returned nothing. Try again.")
         is LlmHttpException -> when (error.responseCode) {
             400 -> t("请求被拒绝（HTTP 400），请检查模型名称。", "The request was rejected (HTTP 400). Check the model name.")
@@ -2747,6 +2784,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         const val CURSOR_DRAG_MAX_CHARS = 120
         const val TYPING_CONTEXT_CHARS = 16
         const val PINYIN_DICTIONARY_ASSET = "pinyin/dict.tsv"
+        const val ENGLISH_WORDS_ASSET = "pinyin/english.txt"
         const val PINYIN_LANGUAGE_MODEL_ASSET = "pinyin/lm.bin"
         const val MAX_PINYIN_PREDICTIONS = 16
         val CHINESE_PUNCTUATION = mapOf(
