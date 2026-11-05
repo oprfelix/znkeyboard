@@ -25,6 +25,11 @@
 - Put dimensions, colors, and defaults in `constants/`; persisted settings and secrets go through `KeyboardSettings`.
 - Architecture and design background: [README.md](README.md#architecture), [docs/typing-accuracy.md](docs/typing-accuracy.md).
 
+## New computer
+
+- Setup, what to restore and how to release: [docs/new-computer.md](docs/new-computer.md).
+- One line per repo: work on `main` (the site on `gh-pages`) and open no other branches or worktrees.
+
 ## Signing
 
 - `app/build.gradle.kts` reads release signing from `~/.android/keystores/zn-keyboard-release.properties` (`storeFile`, `storePassword`, `keyAlias`, `keyPassword`; `storeFile` is relative to that file). Each developer uses their own key.
