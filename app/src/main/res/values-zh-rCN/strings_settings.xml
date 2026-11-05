@@ -187,6 +187,9 @@
     <string name="row_b">工具栏</string>
     <string name="key_rewrite">润色 / AI 翻译</string>
     <string name="key_clipboard">剪贴板</string>
+    <string name="key_switch_keyboard">键盘切换</string>
+    <string name="key_settings">键盘设置</string>
+    <string name="pinyin_all_candidates">全部候选</string>
     <string name="language_title">语言</string>
     <string name="language_system">跟随系统</string>
     <string name="language_zh">中文</string>

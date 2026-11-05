@@ -15,6 +15,8 @@ object KeyboardDefaults {
 
     // Esc/Tab/Ctrl/Alt/arrows are opt-in: an empty row is hidden until keys are added to it.
     val DEFAULT_UPPER_ROW_KEY_IDS = emptyList<String>()
-    val DEFAULT_SECOND_ROW_BUTTON_IDS = listOf("rewrite", "clipboard", "at", "ampersand", "percent", "question")
+    val DEFAULT_SECOND_ROW_BUTTON_IDS = listOf("rewrite", "clipboard", "switch_keyboard", "settings")
+    /** The row before 1.9.19: a saved row equal to it was never customized. */
+    val FORMER_SECOND_ROW_BUTTON_IDS = listOf("rewrite", "clipboard", "at", "ampersand", "percent", "question")
     val DEFAULT_KEYBOARD_ROW_ORDER = listOf("second", "upper")
 }

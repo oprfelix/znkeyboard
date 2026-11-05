@@ -8,9 +8,12 @@ import android.text.TextUtils
 import android.view.Gravity
 import android.view.View
 import android.widget.HorizontalScrollView
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
+import dev.zain.znkeyboard.R
 import dev.zain.znkeyboard.constants.ImeColors
+import dev.zain.znkeyboard.constants.ImeDimensions
 
 /**
  * Strip laid over the keyboard's toolbar row showing, while composing, the typed pinyin in small
@@ -33,6 +36,7 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
         fun onReadingOfferAccepted() {}
         fun onReadingOfferDismissed() {}
         fun onTranslateLanguageSelected(index: Int)
+        fun onChineseKeyboardSelected(index: Int) {}
         fun onAgentPolishOnlyRequested()
         fun onAgentRewriteRequested()
         fun onTranslateLanguageMenuRequested()
@@ -52,12 +56,9 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
         isSingleLine = true
         ellipsize = TextUtils.TruncateAt.START
     }
-    // Thin lines between candidates mark where each one's tap area ends, as on Gboard.
     private val candidateRow = LinearLayout(context).apply {
         orientation = HORIZONTAL
         gravity = Gravity.CENTER_VERTICAL
-        showDividers = SHOW_DIVIDER_MIDDLE
-        dividerPadding = context.dp(12)
     }
     private val scroller = HorizontalScrollView(context).apply {
         isHorizontalScrollBarEnabled = false
@@ -70,9 +71,10 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
         visibility = View.GONE
         setOnClickListener { callback?.onPinyinFixRequested() }
     }
-    private val expandButton = TextView(context).apply {
-        gravity = Gravity.CENTER
-        textSize = EXPAND_TEXT_SP
+    private val expandButton = ImageView(context).apply {
+        setImageResource(R.drawable.ic_expand_more_24)
+        scaleType = ImageView.ScaleType.CENTER
+        contentDescription = context.getString(R.string.pinyin_all_candidates)
         visibility = View.GONE
         setOnClickListener { callback?.onPinyinExpandRequested() }
     }
@@ -152,8 +154,8 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
         gravity = Gravity.CENTER_VERTICAL
     }
     private val candidateViews = ArrayList<TextView>()
-    private var choosingLanguage = false
-    // Highlighted item: the first candidate (what space commits) or the current language.
+    private var choosing: Choosing? = null
+    // Highlighted item: the first candidate (what space commits) or the current choice.
     private var highlightedIndex = 0
 
     init {
@@ -180,31 +182,26 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
 
     fun applyColors() {
         setBackgroundColor(ImeColors.BACKGROUND)
-        expandButton.setTextColor(ImeColors.TEXT)
-        expandButton.background = pill()
+        expandButton.setColorFilter(ImeColors.TEXT)
         fixButton.setTextColor(ImeColors.TEXT)
-        fixButton.background = pill()
         offerButton.setTextColor(ImeColors.TEXT)
-        offerButton.background = pill()
+        offerButton.background = toolBackground()
         offerClose.setTextColor(ImeColors.TEXT)
-        offerClose.background = pill()
-        candidateRow.dividerDrawable = GradientDrawable().apply {
-            setColor(ImeColors.DIVIDER)
-            setSize(context.dp(1), 0)
-        }
+        offerClose.background = toolBackground()
         composingLabel.setTextColor(ImeColors.DISABLED_TEXT)
         polishButton.setTextColor(ImeColors.TEXT)
         translateLabel.setTextColor(ImeColors.TEXT)
-        polishButton.background = pill()
-        translateButton.background = pill()
+        polishButton.background = toolBackground()
+        translateButton.background = toolBackground()
         candidateViews.forEachIndexed { index, view -> styleCandidate(view, index == highlightedIndex) }
     }
 
-    val isChoosingLanguage: Boolean get() = choosingLanguage
+    /** Whether the bar lists translation languages or Chinese keyboards rather than candidates. */
+    val isChoosing: Boolean get() = choosing != null
 
     /**
      * [tools] pins 润色 | 翻译 on the right; pass it only while showing predictions. [fixLabel] shows
-     * the 改词 button and [expandLabel] the ▾ one; [highlighted] is the item in bold, -1 for none
+     * the 改词 button and [expanded], when not null, the ▾ one; [highlighted] is the item in bold, -1 for none
      * while choosing what to fix.
      */
     fun render(
@@ -212,22 +209,22 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
         candidates: List<String>,
         tools: Tools? = null,
         fixLabel: String? = null,
-        expandLabel: String? = null,
+        expanded: Boolean? = null,
         highlighted: Int = 0,
     ) {
-        choosingLanguage = false
+        choosing = null
         highlightedIndex = highlighted
         showTools(tools)
         fixButton.text = fixLabel
         fixButton.visibility = if (fixLabel == null) View.GONE else View.VISIBLE
-        expandButton.text = expandLabel
-        expandButton.visibility = if (expandLabel == null) View.GONE else View.VISIBLE
+        expandButton.rotation = if (expanded == true) 180f else 0f
+        expandButton.visibility = if (expanded == null) View.GONE else View.VISIBLE
         show(composing, candidates)
     }
 
     /** Offers to translate the text just copied, in place of candidates, until something else renders. */
     fun renderReadingOffer(label: String) {
-        choosingLanguage = false
+        choosing = null
         showTools(null)
         fixButton.visibility = View.GONE
         expandButton.visibility = View.GONE
@@ -254,19 +251,28 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
         translateButton.alpha = alpha
     }
 
-    private fun pill() = GradientDrawable().apply {
-        cornerRadius = context.dp(17f)
+    private fun toolBackground() = GradientDrawable().apply {
+        cornerRadius = context.dp(ImeDimensions.KEY_RADIUS_DP.toFloat())
         setColor(ImeColors.FUNCTION)
     }
 
     /** Lists the target languages (as codes) in place of candidates until one is picked. */
     fun renderLanguageChoices(codes: List<String>, selectedIndex: Int) {
-        choosingLanguage = true
+        renderChoices(Choosing.Language, "翻译为", codes, selectedIndex)
+    }
+
+    /** Lists the Chinese keyboards in place of candidates until one is picked. */
+    fun renderKeyboardChoices(label: String, names: List<String>, selectedIndex: Int) {
+        renderChoices(Choosing.Keyboard, label, names, selectedIndex)
+    }
+
+    private fun renderChoices(kind: Choosing, label: String, items: List<String>, selectedIndex: Int) {
+        choosing = kind
         highlightedIndex = selectedIndex
         showTools(null)
         fixButton.visibility = View.GONE
         expandButton.visibility = View.GONE
-        show("翻译为", codes)
+        show(label, items)
     }
 
     private fun show(label: String, items: List<String>) {
@@ -284,15 +290,15 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
                 minWidth = context.dp(CANDIDATE_MIN_WIDTH_DP)
                 setPadding(context.dp(14), 0, context.dp(14), 0)
                 setOnClickListener {
-                    if (choosingLanguage) {
-                        callback?.onTranslateLanguageSelected(index)
-                    } else {
-                        callback?.onPinyinCandidateSelected(index)
+                    when (choosing) {
+                        Choosing.Language -> callback?.onTranslateLanguageSelected(index)
+                        Choosing.Keyboard -> callback?.onChineseKeyboardSelected(index)
+                        null -> callback?.onPinyinCandidateSelected(index)
                     }
                 }
                 setOnLongClickListener {
-                    if (!choosingLanguage) callback?.onPinyinCandidateLongPressed(index)
-                    !choosingLanguage
+                    if (choosing == null) callback?.onPinyinCandidateLongPressed(index)
+                    choosing == null
                 }
             }
             candidateViews += view
@@ -311,9 +317,9 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
     }
 
     /**
-     * The first candidate (what space commits) sits on a key-colored pill and is heavier, so it is
-     * clear what space will type; while choosing a translation target, the current language does.
-     * A pill rather than the accent color: in some themes the accent is a quiet grey.
+     * The first candidate (what space commits) is heavier, so it is clear what space will type. The
+     * current choice of a list also sits on a key-colored pill: it is a state, and nothing else in
+     * the list says so. A pill rather than the accent color: in some themes that is a quiet grey.
      */
     private fun styleCandidate(view: TextView, highlighted: Boolean) {
         view.setTextColor(ImeColors.TEXT)
@@ -323,7 +329,7 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
         val top = view.paddingTop
         val right = view.paddingRight
         val bottom = view.paddingBottom
-        view.background = if (highlighted) {
+        view.background = if (highlighted && choosing != null) {
             val pill = GradientDrawable().apply {
                 cornerRadius = context.dp(HIGHLIGHT_RADIUS_DP).toFloat()
                 setColor(ImeColors.KEY)
@@ -335,13 +341,14 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
         view.setPadding(left, top, right, bottom)
     }
 
+    private enum class Choosing { Language, Keyboard }
+
     private companion object {
         const val DISABLED_ALPHA = 0.45f
-        const val CANDIDATE_TEXT_SP = 22f
+        const val CANDIDATE_TEXT_SP = 20f
         const val COMPOSING_TEXT_SP = 12f
         const val EXPAND_WIDTH_DP = 56
         const val OFFER_CLOSE_WIDTH_DP = 44
-        const val EXPAND_TEXT_SP = 18f
         const val CANDIDATE_MIN_WIDTH_DP = 52
         const val HIGHLIGHT_RADIUS_DP = 10
         const val HIGHLIGHT_INSET_DP = 3

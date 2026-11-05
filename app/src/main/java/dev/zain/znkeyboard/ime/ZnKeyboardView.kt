@@ -51,6 +51,8 @@ class ZnKeyboardView @JvmOverloads constructor(
         fun onSpaceCursorDragFinished()
         fun onSpaceCursorDragCancelled()
         fun onClipboardPanelRequested()
+        fun onChineseKeyboardMenuRequested()
+        fun onKeyboardSettingsRequested()
         fun onAgentRewriteRequested()
         fun onPinyinModeToggled()
         /** Long-press on the 中/英 key: the system's list of keyboards. */
@@ -127,6 +129,26 @@ class ZnKeyboardView @JvmOverloads constructor(
     private var secondRowButtonIds = KeyboardSettings.DEFAULT_SECOND_ROW_BUTTON_IDS
     private var keyboardRowOrder = KeyboardSettings.DEFAULT_KEYBOARD_ROW_ORDER
     private var shortcutRowState = ShortcutRowState(secondRowVisible = true)
+    private val keyboardIconKeys = Path().apply {
+        for (x in floatArrayOf(7f, 10.3f, 13.7f, 17f)) {
+            moveTo(x, 10f)
+            lineTo(x + 0.01f, 10f)
+        }
+        moveTo(8f, 14f)
+        lineTo(16f, 14f)
+    }
+    private val settingsIconPath = Path().apply {
+        repeat(SETTINGS_ICON_TEETH) { tooth ->
+            val angle = tooth * 2.0 * Math.PI / SETTINGS_ICON_TEETH
+            for ((offset, radius) in SETTINGS_ICON_TOOTH) {
+                val x = (12.0 + radius * cos(angle + offset)).toFloat()
+                val y = (12.0 + radius * sin(angle + offset)).toFloat()
+                if (tooth == 0 && offset == SETTINGS_ICON_TOOTH.first().first) moveTo(x, y) else lineTo(x, y)
+            }
+        }
+        close()
+        addCircle(12f, 12f, 3f, Path.Direction.CW)
+    }
     private var pinyinModeEnabled = false
     private var chineseKeyboard = dev.zain.znkeyboard.KeyboardSettings.ChineseKeyboard.Qwerty
     /** Off: digits move to the top letter row's corners (long press types them) and letter keys grow. */
@@ -981,7 +1003,7 @@ class ZnKeyboardView @JvmOverloads constructor(
         val selected = key.active && !rewriteLoading
         val toolbar = hit.rowStyle == RowStyle.Toolbar
         val keyAlpha = if (key.enabled || key.emphasizedWhenDisabled) 255 else DISABLED_KEY_ALPHA
-        val radius = keyRadius(bounds, toolbar)
+        val radius = if (key.chip) bounds.height() / 2f else keyRadius(bounds, toolbar)
         val isActionKey = key.role == KeyRole.Action && key.id == "enter"
         // Space is typed as often as letters; it shares their surface rather than looking like a modifier.
         val isSpace = key.id == "space" || key.id == "phone_space"
@@ -1284,7 +1306,7 @@ class ZnKeyboardView @JvmOverloads constructor(
     private fun keyRadius(bounds: RectF, toolbar: Boolean): Float {
         val preferred = dp(ImeLayout.KEY_RADIUS_DP.toFloat())
         val cap = bounds.height() * if (toolbar) 0.5f else 0.3f
-        return min(if (toolbar) bounds.height() / 2f else preferred, cap)
+        return min(preferred, cap)
     }
 
     /**
@@ -1582,6 +1604,8 @@ class ZnKeyboardView @JvmOverloads constructor(
             KeyIcon.Enter -> drawEnterIcon(canvas)
             KeyIcon.Space -> drawSpaceIcon(canvas)
             KeyIcon.Clipboard -> drawClipboardIcon(canvas)
+            KeyIcon.Keyboard -> drawKeyboardIcon(canvas)
+            KeyIcon.Settings -> canvas.drawPath(settingsIconPath, iconPaint)
         }
         canvas.restore()
     }
@@ -1682,6 +1706,11 @@ class ZnKeyboardView @JvmOverloads constructor(
             lineTo(13f, 16f)
         }
         canvas.drawPath(lines, iconPaint)
+    }
+
+    private fun drawKeyboardIcon(canvas: Canvas) {
+        canvas.drawRoundRect(3f, 6f, 21f, 18f, 2f, 2f, iconPaint)
+        canvas.drawPath(keyboardIconKeys, iconPaint)
     }
 
     private fun drawSearchIcon(canvas: Canvas) {
@@ -1809,6 +1838,8 @@ class ZnKeyboardView @JvmOverloads constructor(
             KeyIntent.ChooseTranslateLanguage -> callback?.onTranslateLanguageMenuRequested()
             KeyIntent.AgentPolishOnly -> callback?.onAgentPolishOnlyRequested()
             KeyIntent.OpenClipboard -> callback?.onClipboardPanelRequested()
+            KeyIntent.ChooseChineseKeyboard -> callback?.onChineseKeyboardMenuRequested()
+            KeyIntent.OpenSettings -> callback?.onKeyboardSettingsRequested()
             KeyIntent.AgentRewrite -> callback?.onAgentRewriteRequested()
             is KeyIntent.Dispatch -> {
                 notifyLearner(intent.action, sample)
@@ -2263,6 +2294,10 @@ class ZnKeyboardView @JvmOverloads constructor(
                 emphasizedWhenDisabled = shortcutRowState.loading,
             )
             "clipboard" -> KeySpec(id, "Clipboard", KeyIntent.OpenClipboard, weight, KeyRole.Function, icon = KeyIcon.Clipboard, enabled = enabled)
+            // Password fields type no Chinese, so there is no keyboard to choose in them.
+            "switch_keyboard" -> KeySpec(id, "Keyboard", KeyIntent.ChooseChineseKeyboard, weight, KeyRole.Function, icon = KeyIcon.Keyboard, enabled = enabled)
+                .takeIf { shortcutRowState.aiVisible }
+            "settings" -> KeySpec(id, "Settings", KeyIntent.OpenSettings, weight, KeyRole.Function, icon = KeyIcon.Settings, enabled = enabled)
             "ctrl" -> KeySpec(id, "Ctrl", KeyIntent.ToggleCtrl, weight, KeyRole.Function, ctrl, enabled = enabled)
             "alt" -> KeySpec(id, "Alt", KeyIntent.ToggleAlt, weight, KeyRole.Function, alt, enabled = enabled)
             "tab" -> KeySpec(id, "Tab", KeyIntent.Dispatch(KeyboardAction.KeyCode(KeyEvent.KEYCODE_TAB)), weight, KeyRole.Function, enabled = enabled)
@@ -2750,6 +2785,8 @@ class ZnKeyboardView @JvmOverloads constructor(
         Enter,
         Space,
         Clipboard,
+        Keyboard,
+        Settings,
     }
 
     private enum class ArrowDirection {
@@ -2858,6 +2895,8 @@ class ZnKeyboardView @JvmOverloads constructor(
         data object AgentPolishOnly : KeyIntent()
         data object AgentRewrite : KeyIntent()
         data object OpenClipboard : KeyIntent()
+        data object ChooseChineseKeyboard : KeyIntent()
+        data object OpenSettings : KeyIntent()
         data class Dispatch(val action: KeyboardAction) : KeyIntent()
     }
 
@@ -2885,6 +2924,10 @@ class ZnKeyboardView @JvmOverloads constructor(
     )
 
     private companion object {
+        const val SETTINGS_ICON_TEETH = 8
+        // One tooth of the gear, as (angle from its middle, distance from the center).
+        val SETTINGS_ICON_TOOTH = listOf(-0.3 to 7.0, -0.17 to 9.5, 0.17 to 9.5, 0.3 to 7.0)
+
         const val TAP_COST_POOL = 12
         const val LETTER_LIFT_FRACTION = 0.04f
         const val PINYIN_MODE_KEY_ID = "pinyin_mode"

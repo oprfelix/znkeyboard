@@ -4,6 +4,9 @@ package dev.zain.znkeyboard.constants
 data class TranslateLanguage(val code: String, val name: String)
 
 object AgentDefaults {
+    /** On until the user turns it off: nothing is sent without an API key and a tap. */
+    const val AGENT_MODE_ENABLED = true
+
     /** Waits before each further try when the provider answers busy (429, 5xx); two more tries in all. */
     val BUSY_RETRY_DELAYS_MS = longArrayOf(1_000, 3_000)
 

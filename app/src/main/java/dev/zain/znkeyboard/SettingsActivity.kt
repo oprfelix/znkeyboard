@@ -157,11 +157,16 @@ import kotlinx.coroutines.withContext
 class SettingsActivity : ComponentActivity() {
     /** Set by the update notification: open the update dialog. */
     private val showUpdateRequest = mutableStateOf(false)
+    /** Set by the keyboard when polish or translate needs an API key: open the AI page. */
+    private val openAiRequest = mutableStateOf(false)
 
     override fun onCreate(savedInstanceState: android.os.Bundle?) {
         super.onCreate(savedInstanceState)
         KeyboardSettings.migrateAgentProviders(this)
+        KeyboardSettings.migrateSecondRowClipboard(this)
+        KeyboardSettings.migrateSecondRowTools(this)
         showUpdateRequest.value = intent?.getBooleanExtra(EXTRA_SHOW_UPDATE, false) == true
+        openAiRequest.value = intent?.getBooleanExtra(EXTRA_OPEN_AI, false) == true
         UpdateCheckJob.sync(this)
         UsageStats.markUsed(this)
         val appContext = applicationContext
@@ -197,6 +202,8 @@ class SettingsActivity : ComponentActivity() {
                                 onOpenShortcuts = { shortcutsOpen = true },
                                 showUpdateRequested = showUpdateRequest.value,
                                 onShowUpdateHandled = { showUpdateRequest.value = false },
+                                openAiRequested = openAiRequest.value,
+                                onOpenAiHandled = { openAiRequest.value = false },
                             )
                         }
                     }
@@ -209,6 +216,7 @@ class SettingsActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         if (intent.getBooleanExtra(EXTRA_SHOW_UPDATE, false)) showUpdateRequest.value = true
+        if (intent.getBooleanExtra(EXTRA_OPEN_AI, false)) openAiRequest.value = true
     }
 
     /** The daily update check tells about new versions in a notification; ask once whether that's OK. */
@@ -223,6 +231,7 @@ class SettingsActivity : ComponentActivity() {
 
     companion object {
         const val EXTRA_SHOW_UPDATE = "dev.zain.znkeyboard.SHOW_UPDATE"
+        const val EXTRA_OPEN_AI = "dev.zain.znkeyboard.OPEN_AI"
     }
 }
 
@@ -232,6 +241,8 @@ private fun SettingsScreen(
     onOpenShortcuts: () -> Unit,
     showUpdateRequested: Boolean = false,
     onShowUpdateHandled: () -> Unit = {},
+    openAiRequested: Boolean = false,
+    onOpenAiHandled: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val focusManager = LocalFocusManager.current
@@ -301,6 +312,13 @@ private fun SettingsScreen(
     }
 
     // From the update notification.
+    LaunchedEffect(openAiRequested) {
+        if (openAiRequested) {
+            selectedDestinationId = SettingsDestination.Tools.id
+            onOpenAiHandled()
+        }
+    }
+
     LaunchedEffect(showUpdateRequested) {
         if (showUpdateRequested) {
             availableRelease?.let { shownRelease = it }

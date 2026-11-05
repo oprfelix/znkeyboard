@@ -88,6 +88,7 @@ object KeyboardSettings {
     private const val KEY_READING_TARGET = "reading_target"
     private const val KEY_AGENT_PROVIDERS_MIGRATED = "agent_providers_migrated_v3"
     private const val KEY_SECOND_ROW_CLIPBOARD_MIGRATED = "second_row_clipboard_migrated"
+    private const val KEY_SECOND_ROW_TOOLS_MIGRATED = "second_row_tools_migrated"
     private const val KEY_VOICE_INPUT_ENABLED = "voice_input_enabled"
     // Removed providers and profiles; kept only so the migration can read and clear them.
     private const val LEGACY_PROVIDER_OPENROUTER = "openrouter"
@@ -119,6 +120,8 @@ object KeyboardSettings {
     val ACTION_KEY_OPTIONS = listOf(
         UpperRowKeyOption("rewrite", "Rewrite"),
         UpperRowKeyOption("clipboard", "Clipboard"),
+        UpperRowKeyOption("switch_keyboard", "Keyboard"),
+        UpperRowKeyOption("settings", "Settings"),
     )
 
     val CONTROL_KEY_OPTIONS = listOf(
@@ -470,6 +473,24 @@ object KeyboardSettings {
         prefs.edit().putBoolean(KEY_SECOND_ROW_CLIPBOARD_MIGRATED, true).apply()
     }
 
+    /**
+     * From 1.9.19 the row ends in the keyboard switch and settings instead of @ & % ?. A row the
+     * user chose keeps its keys and gets the new ones after them, where there is room.
+     */
+    fun migrateSecondRowTools(context: Context) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        if (prefs.getBoolean(KEY_SECOND_ROW_TOOLS_MIGRATED, false)) return
+        if (prefs.contains(KEY_SECOND_ROW_BUTTONS) || prefs.contains(KEY_AGENT_ROW_KEYS)) {
+            val buttons = readSecondRowButtonIds(context)
+            if (buttons == KeyboardDefaults.FORMER_SECOND_ROW_BUTTON_IDS) {
+                saveSecondRowButtonIds(context, DEFAULT_SECOND_ROW_BUTTON_IDS)
+            } else {
+                saveSecondRowButtonIds(context, buttons + listOf("switch_keyboard", "settings"))
+            }
+        }
+        prefs.edit().putBoolean(KEY_SECOND_ROW_TOOLS_MIGRATED, true).apply()
+    }
+
     fun readVoiceInputEnabled(context: Context): Boolean {
         return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .getBoolean(KEY_VOICE_INPUT_ENABLED, true)
@@ -543,7 +564,7 @@ object KeyboardSettings {
 
     fun readAgentModeEnabled(context: Context): Boolean {
         return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .getBoolean(KEY_AGENT_MODE_ENABLED, false)
+            .getBoolean(KEY_AGENT_MODE_ENABLED, AgentDefaults.AGENT_MODE_ENABLED)
     }
 
     fun saveAgentModeEnabled(context: Context, enabled: Boolean) {

@@ -30,6 +30,7 @@ import android.widget.Toast
 import dev.zain.znkeyboard.KeyboardSettings
 import dev.zain.znkeyboard.R
 import dev.zain.znkeyboard.ReadingTranslateActivity
+import dev.zain.znkeyboard.SettingsActivity
 import dev.zain.znkeyboard.isWorthReading
 import dev.zain.znkeyboard.constants.AgentDefaults
 import dev.zain.znkeyboard.constants.ImeColors
@@ -176,6 +177,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         KeyboardSettings.deleteLegacyMacroData(this)
         KeyboardSettings.migrateAgentProviders(this)
         KeyboardSettings.migrateSecondRowClipboard(this)
+        KeyboardSettings.migrateSecondRowTools(this)
         ClipboardLinkPreviewRepository.loadPersistedPreviews(this)
         registerClipboardListener()
         capturePrimaryClipboardText()
@@ -309,7 +311,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         capturePrimaryClipboardText()
         readingOfferAllowed = isRewriteAvailable() && !shouldUsePhonePadMode(info) &&
             KeyboardSettings.readAgentProviderSettings(this).isConfigured
-        renderReadingOffer()
+        if (activeSurface == KeyboardSurface.Keyboard) renderPinyinBar()
         updateAutoShift()
     }
 
@@ -367,6 +369,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     }
 
     override fun onKeyboardAction(action: KeyboardAction, modifiers: ModifierState) {
+        if (pinyinBar?.isChoosing == true) renderPinyinBar()
         if (readingOffer != null) dismissReadingOffer()
         if (activeSurface == KeyboardSurface.ClipboardSearch && handleClipboardSearchKeyboardAction(action, modifiers)) {
             return
@@ -452,6 +455,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     }
 
     override fun onAgentRewriteRequested() {
+        if (openAiSettingsIfUnset()) return
         rewriteTranslates = true
         // Rewrite reads the field, so turn pending pinyin into characters first.
         commitPinyinWholeTop()
@@ -459,9 +463,43 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     }
 
     override fun onAgentPolishOnlyRequested() {
+        if (openAiSettingsIfUnset()) return
         rewriteTranslates = false
         commitPinyinWholeTop()
         startRewriteFromCurrentEditor()
+    }
+
+    private fun openAiSettingsIfUnset(): Boolean {
+        if (KeyboardSettings.readAgentProviderSettings(this).isConfigured) return false
+        openSettings(ai = true)
+        return true
+    }
+
+    private fun openSettings(ai: Boolean) {
+        startActivity(
+            Intent(this, SettingsActivity::class.java)
+                .putExtra(SettingsActivity.EXTRA_OPEN_AI, ai)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),
+        )
+    }
+
+    override fun onKeyboardSettingsRequested() = openSettings(ai = false)
+
+    override fun onChineseKeyboardMenuRequested() {
+        val current = KeyboardSettings.ChineseKeyboard.entries.indexOf(chineseKeyboard)
+        pinyinBar?.renderKeyboardChoices(
+            t("键盘", "Keyboard"),
+            listOf(t("全键", "26-key"), t("九键", "9-key"), t("笔画", "Stroke")),
+            current,
+        )
+    }
+
+    override fun onChineseKeyboardSelected(index: Int) {
+        val keyboard = KeyboardSettings.ChineseKeyboard.entries.getOrNull(index) ?: return
+        setChineseKeyboard(keyboard, save = true)
+        // These are Chinese keyboards, so picking one from English goes to Chinese.
+        if (!pinyinWanted()) onPinyinModeToggled()
+        renderPinyinBar()
     }
 
     override fun onVoiceInputStarted(): Boolean {
@@ -819,7 +857,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
 
     override fun onTranslateLanguageMenuRequested() {
         val bar = pinyinBar ?: return
-        if (bar.isChoosingLanguage) {
+        if (bar.isChoosing) {
             renderPinyinBar()
             return
         }
@@ -1372,13 +1410,13 @@ class ZnKeyboardInputMethodService : InputMethodService(),
                 composingDisplay(),
                 pinyinCandidates.map { it.text },
                 fixLabel = t("改词", "Fix").takeIf { parts.size >= 2 && !chineseKeyboard.isNineKey },
-                expandLabel = (if (pinyinExpanded) "▴" else "▾").takeIf { pinyinCandidates.size > 1 },
+                expanded = pinyinExpanded.takeIf { pinyinCandidates.size > 1 },
             )
         }
     }
 
     private fun renderReadingOffer() {
-        if (activeSurface == KeyboardSurface.Keyboard && pinyinBar?.isChoosingLanguage == false) renderPinyinBar()
+        if (activeSurface == KeyboardSurface.Keyboard && pinyinBar?.isChoosing == false) renderPinyinBar()
     }
 
     private fun dismissReadingOffer() {
@@ -2469,14 +2507,14 @@ class ZnKeyboardInputMethodService : InputMethodService(),
 
     private fun renderSecondRow() {
         val visible = activeSurface == KeyboardSurface.Keyboard
-        val providerConfigured = KeyboardSettings.readAgentProviderSettings(this).isConfigured
 
         keyboardView?.renderShortcutRows(
             ZnKeyboardView.ShortcutRowState(
                 // Numbers and phone numbers have nothing to polish or translate, nor use for @ & % ?.
                 secondRowVisible = visible && !shouldUsePhonePadMode(currentEditorInfo),
                 loading = agentLoading,
-                rewriteEnabled = visible && isRewriteAvailable() && providerConfigured,
+                // Without an API key these stay tappable: a tap opens the page to add one.
+                rewriteEnabled = visible && isRewriteAvailable(),
                 // A password field keeps the clipboard (pasting is common) but never offers AI.
                 aiVisible = !isSensitiveEditor(currentEditorInfo),
             ),

@@ -187,6 +187,9 @@
     <string name="row_b">Tools row</string>
     <string name="key_rewrite">Polish / Translate</string>
     <string name="key_clipboard">Clipboard</string>
+    <string name="key_switch_keyboard">Keyboard switch</string>
+    <string name="key_settings">Keyboard settings</string>
+    <string name="pinyin_all_candidates">All candidates</string>
     <string name="language_title">Language</string>
     <string name="language_system">System default</string>
     <string name="language_zh">中文</string>
