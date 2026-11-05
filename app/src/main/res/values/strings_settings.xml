@@ -187,8 +187,10 @@
     <string name="row_b">Tools row</string>
     <string name="key_rewrite">Polish / Translate</string>
     <string name="key_clipboard">Clipboard</string>
+    <string name="key_keyboard_tools">Keyboard tools</string>
     <string name="key_switch_keyboard">Keyboard switch</string>
-    <string name="key_settings">Keyboard settings</string>
+    <string name="key_share">Share</string>
+    <string name="action_undo">Undo</string>
     <string name="pinyin_all_candidates">All candidates</string>
     <string name="language_title">Language</string>
     <string name="language_system">System default</string>

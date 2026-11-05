@@ -120,8 +120,6 @@ object KeyboardSettings {
     val ACTION_KEY_OPTIONS = listOf(
         UpperRowKeyOption("rewrite", "Rewrite"),
         UpperRowKeyOption("clipboard", "Clipboard"),
-        UpperRowKeyOption("switch_keyboard", "Keyboard"),
-        UpperRowKeyOption("settings", "Settings"),
     )
 
     val CONTROL_KEY_OPTIONS = listOf(
@@ -473,20 +471,12 @@ object KeyboardSettings {
         prefs.edit().putBoolean(KEY_SECOND_ROW_CLIPBOARD_MIGRATED, true).apply()
     }
 
-    /**
-     * From 1.9.19 the row ends in the keyboard switch and settings instead of @ & % ?. A row the
-     * user chose keeps its keys and gets the new ones after them, where there is room.
-     */
+    /** A saved row equal to the former default was never customized: it follows the new default. */
     fun migrateSecondRowTools(context: Context) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         if (prefs.getBoolean(KEY_SECOND_ROW_TOOLS_MIGRATED, false)) return
-        if (prefs.contains(KEY_SECOND_ROW_BUTTONS) || prefs.contains(KEY_AGENT_ROW_KEYS)) {
-            val buttons = readSecondRowButtonIds(context)
-            if (buttons == KeyboardDefaults.FORMER_SECOND_ROW_BUTTON_IDS) {
-                saveSecondRowButtonIds(context, DEFAULT_SECOND_ROW_BUTTON_IDS)
-            } else {
-                saveSecondRowButtonIds(context, buttons + listOf("switch_keyboard", "settings"))
-            }
+        if (readSecondRowButtonIds(context) == KeyboardDefaults.FORMER_SECOND_ROW_BUTTON_IDS) {
+            prefs.edit().remove(KEY_SECOND_ROW_BUTTONS).apply()
         }
         prefs.edit().putBoolean(KEY_SECOND_ROW_TOOLS_MIGRATED, true).apply()
     }

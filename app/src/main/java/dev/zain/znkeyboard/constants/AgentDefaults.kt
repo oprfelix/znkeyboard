@@ -1,7 +1,7 @@
 package dev.zain.znkeyboard.constants
 
-/** [code] is shown on the keyboard; [name] goes into the translation prompt. */
-data class TranslateLanguage(val code: String, val name: String)
+/** [code] is shown on the English keyboard and [chineseName] on the Chinese one; [name] goes into the translation prompt. */
+data class TranslateLanguage(val code: String, val name: String, val chineseName: String)
 
 object AgentDefaults {
     /** On until the user turns it off: nothing is sent without an API key and a tap. */
@@ -44,24 +44,24 @@ object AgentDefaults {
     // Ordered by how widely each is used internationally. Codes are two letters so the
     // keyboard chip keeps its width; TW is Traditional Chinese. Names go into the prompt.
     val TRANSLATE_LANGUAGES = listOf(
-        TranslateLanguage("EN", "English"),
-        TranslateLanguage("ZH", "Simplified Chinese"),
-        TranslateLanguage("TW", "Traditional Chinese"),
-        TranslateLanguage("ES", "Spanish"),
-        TranslateLanguage("FR", "French"),
-        TranslateLanguage("AR", "Arabic"),
-        TranslateLanguage("RU", "Russian"),
-        TranslateLanguage("PT", "Portuguese"),
-        TranslateLanguage("DE", "German"),
-        TranslateLanguage("JA", "Japanese"),
-        TranslateLanguage("KO", "Korean"),
-        TranslateLanguage("ID", "Indonesian"),
-        TranslateLanguage("VI", "Vietnamese"),
-        TranslateLanguage("TH", "Thai"),
+        TranslateLanguage("EN", "English", "英文"),
+        TranslateLanguage("ZH", "Simplified Chinese", "简体中文"),
+        TranslateLanguage("TW", "Traditional Chinese", "繁体中文"),
+        TranslateLanguage("ES", "Spanish", "西班牙文"),
+        TranslateLanguage("FR", "French", "法文"),
+        TranslateLanguage("AR", "Arabic", "阿拉伯文"),
+        TranslateLanguage("RU", "Russian", "俄文"),
+        TranslateLanguage("PT", "Portuguese", "葡萄牙文"),
+        TranslateLanguage("DE", "German", "德文"),
+        TranslateLanguage("JA", "Japanese", "日文"),
+        TranslateLanguage("KO", "Korean", "韩文"),
+        TranslateLanguage("ID", "Indonesian", "印尼文"),
+        TranslateLanguage("VI", "Vietnamese", "越南文"),
+        TranslateLanguage("TH", "Thai", "泰文"),
     )
     val DEFAULT_TRANSLATE_LANGUAGE = TRANSLATE_LANGUAGES.first()
     // Shortcut-row labels follow the input mode: Chinese in 中, English in EN.
-    const val TRANSLATE_REWRITE_LABEL = "AI 翻译为"
+    const val TRANSLATE_REWRITE_LABEL = "翻译为"
     const val TRANSLATE_REWRITE_LABEL_EN = "Translate"
     const val TRANSLATE_REWRITE_LOADING_LABEL = "处理中…"
     const val TRANSLATE_REWRITE_LOADING_LABEL_EN = "Working…"

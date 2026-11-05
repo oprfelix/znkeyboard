@@ -37,13 +37,18 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
         fun onReadingOfferDismissed() {}
         fun onTranslateLanguageSelected(index: Int)
         fun onChineseKeyboardSelected(index: Int) {}
+        fun onReadingLanguageSelected(index: Int) {}
+        /** The leaf's menu: its keys, and the leaf again to close it. */
+        fun onChineseKeyboardMenuRequested() {}
+        fun onShareRequested() {}
+        fun onToolsMenuClosed() {}
         fun onAgentPolishOnlyRequested()
         fun onAgentRewriteRequested()
         fun onTranslateLanguageMenuRequested()
     }
 
     /** The pinned 润色 | 翻译 (code) buttons. */
-    class Tools(val polishLabel: String, val translateLabel: String, val languageCode: String, val enabled: Boolean)
+    class Tools(val polishLabel: String, val translateLabel: String, val languageLabel: String, val enabled: Boolean)
 
     var callback: Callback? = null
 
@@ -102,6 +107,20 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
             offerClose,
             LayoutParams(context.dp(OFFER_CLOSE_WIDTH_DP), context.dp(34)).apply { marginStart = context.dp(6) },
         )
+    }
+    private val toolsLeaf = toolIcon(R.drawable.ic_leaf_24, R.string.key_keyboard_tools) { callback?.onToolsMenuClosed() }
+    private val toolsKeyboard = toolIcon(R.drawable.ic_keyboard_24, R.string.key_switch_keyboard) {
+        callback?.onChineseKeyboardMenuRequested()
+    }
+    private val toolsShare = toolIcon(R.drawable.ic_share_24, R.string.key_share) { callback?.onShareRequested() }
+    private val toolsMenu = LinearLayout(context).apply {
+        orientation = HORIZONTAL
+        gravity = Gravity.CENTER_VERTICAL
+        visibility = View.GONE
+        setPadding(context.dp(6), 0, context.dp(6), 0)
+        addView(toolsLeaf, LayoutParams(context.dp(TOOLS_LEAF_WIDTH_DP), context.dp(34)))
+        addView(toolsKeyboard, LayoutParams(0, context.dp(34), 1f))
+        addView(toolsShare, LayoutParams(0, context.dp(34), 1f))
     }
     private val polishButton = TextView(context).apply {
         gravity = Gravity.CENTER
@@ -164,6 +183,7 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
         addView(mainRow, LayoutParams(LayoutParams.MATCH_PARENT, 0, 1f))
         mainRow.addView(scroller, LayoutParams(0, LayoutParams.MATCH_PARENT, 1f))
         mainRow.addView(offerRow, LayoutParams(0, LayoutParams.MATCH_PARENT, 1f))
+        mainRow.addView(toolsMenu, LayoutParams(0, LayoutParams.MATCH_PARENT, 1f))
         mainRow.addView(
             fixButton,
             LayoutParams(LayoutParams.WRAP_CONTENT, context.dp(34)).apply { marginStart = context.dp(4) },
@@ -183,6 +203,10 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
     fun applyColors() {
         setBackgroundColor(ImeColors.BACKGROUND)
         expandButton.setColorFilter(ImeColors.TEXT)
+        toolsLeaf.setColorFilter(ImeColors.TEXT)
+        toolsKeyboard.setColorFilter(ImeColors.TEXT)
+        toolsShare.setColorFilter(ImeColors.TEXT)
+        toolsLeaf.background = toolBackground()
         fixButton.setTextColor(ImeColors.TEXT)
         offerButton.setTextColor(ImeColors.TEXT)
         offerButton.background = toolBackground()
@@ -235,6 +259,25 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
         offerButton.text = label
     }
 
+    /** The leaf's menu, in place of the toolbar it covers, until something else renders. */
+    fun renderToolsMenu() {
+        choosing = Choosing.Tools
+        showTools(null)
+        fixButton.visibility = View.GONE
+        expandButton.visibility = View.GONE
+        show("", emptyList())
+        visibility = View.VISIBLE
+        scroller.visibility = View.GONE
+        toolsMenu.visibility = View.VISIBLE
+    }
+
+    private fun toolIcon(icon: Int, description: Int, onClick: () -> Unit) = ImageView(context).apply {
+        setImageResource(icon)
+        scaleType = ImageView.ScaleType.CENTER
+        contentDescription = context.getString(description)
+        setOnClickListener { onClick() }
+    }
+
     private fun showTools(tools: Tools?) {
         if (tools == null) {
             toolsRow.visibility = View.GONE
@@ -243,7 +286,7 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
         toolsRow.visibility = View.VISIBLE
         polishButton.text = tools.polishLabel
         translateLabel.text = tools.translateLabel
-        languageBadge.text = "${tools.languageCode} ▾"
+        languageBadge.text = "${tools.languageLabel} ▾"
         val alpha = if (tools.enabled) 1f else DISABLED_ALPHA
         polishButton.isEnabled = tools.enabled
         translateButton.isEnabled = tools.enabled
@@ -256,9 +299,14 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
         setColor(ImeColors.FUNCTION)
     }
 
-    /** Lists the target languages (as codes) in place of candidates until one is picked. */
-    fun renderLanguageChoices(codes: List<String>, selectedIndex: Int) {
-        renderChoices(Choosing.Language, "翻译为", codes, selectedIndex)
+    /** Lists the target languages in place of candidates until one is picked. */
+    fun renderLanguageChoices(label: String, languages: List<String>, selectedIndex: Int) {
+        renderChoices(Choosing.Language, label, languages, selectedIndex)
+    }
+
+    /** Lists the languages to read a translation in, for the card above the keys. */
+    fun renderReadingLanguageChoices(label: String, languages: List<String>, selectedIndex: Int) {
+        renderChoices(Choosing.ReadingLanguage, label, languages, selectedIndex)
     }
 
     /** Lists the Chinese keyboards in place of candidates until one is picked. */
@@ -278,6 +326,7 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
     private fun show(label: String, items: List<String>) {
         visibility = if (label.isEmpty() && items.isEmpty()) View.GONE else View.VISIBLE
         offerRow.visibility = View.GONE
+        toolsMenu.visibility = View.GONE
         scroller.visibility = View.VISIBLE
         composingLabel.text = label
         composingLabel.visibility = if (label.isEmpty()) View.GONE else View.VISIBLE
@@ -293,7 +342,8 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
                     when (choosing) {
                         Choosing.Language -> callback?.onTranslateLanguageSelected(index)
                         Choosing.Keyboard -> callback?.onChineseKeyboardSelected(index)
-                        null -> callback?.onPinyinCandidateSelected(index)
+                        Choosing.ReadingLanguage -> callback?.onReadingLanguageSelected(index)
+                        Choosing.Tools, null -> callback?.onPinyinCandidateSelected(index)
                     }
                 }
                 setOnLongClickListener {
@@ -341,7 +391,7 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
         view.setPadding(left, top, right, bottom)
     }
 
-    private enum class Choosing { Language, Keyboard }
+    private enum class Choosing { Language, Keyboard, ReadingLanguage, Tools }
 
     private companion object {
         const val DISABLED_ALPHA = 0.45f
@@ -349,6 +399,7 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
         const val COMPOSING_TEXT_SP = 12f
         const val EXPAND_WIDTH_DP = 56
         const val OFFER_CLOSE_WIDTH_DP = 44
+        const val TOOLS_LEAF_WIDTH_DP = 44
         const val CANDIDATE_MIN_WIDTH_DP = 52
         const val HIGHLIGHT_RADIUS_DP = 10
         const val HIGHLIGHT_INSET_DP = 3

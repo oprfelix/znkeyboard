@@ -51,7 +51,7 @@ class ZnKeyboardView @JvmOverloads constructor(
         fun onSpaceCursorDragFinished()
         fun onSpaceCursorDragCancelled()
         fun onClipboardPanelRequested()
-        fun onChineseKeyboardMenuRequested()
+        fun onToolsMenuRequested()
         fun onKeyboardSettingsRequested()
         fun onAgentRewriteRequested()
         fun onPinyinModeToggled()
@@ -129,13 +129,21 @@ class ZnKeyboardView @JvmOverloads constructor(
     private var secondRowButtonIds = KeyboardSettings.DEFAULT_SECOND_ROW_BUTTON_IDS
     private var keyboardRowOrder = KeyboardSettings.DEFAULT_KEYBOARD_ROW_ORDER
     private var shortcutRowState = ShortcutRowState(secondRowVisible = true)
-    private val keyboardIconKeys = Path().apply {
-        for (x in floatArrayOf(7f, 10.3f, 13.7f, 17f)) {
-            moveTo(x, 10f)
-            lineTo(x + 0.01f, 10f)
+    private val leafIconPath = Path().apply {
+        val leaf = Path().apply {
+            moveTo(3.5f, 3.5f)
+            lineTo(7f, 3.5f)
+            quadTo(10.8f, 3.5f, 10.8f, 7.3f)
+            lineTo(10.8f, 10.8f)
+            lineTo(7.3f, 10.8f)
+            quadTo(3.5f, 10.8f, 3.5f, 7f)
+            close()
         }
-        moveTo(8f, 14f)
-        lineTo(16f, 14f)
+        val turn = Matrix()
+        repeat(4) { quarter ->
+            turn.setRotate(quarter * 90f, 12f, 12f)
+            addPath(leaf, turn)
+        }
     }
     private val settingsIconPath = Path().apply {
         repeat(SETTINGS_ICON_TEETH) { tooth ->
@@ -1604,7 +1612,7 @@ class ZnKeyboardView @JvmOverloads constructor(
             KeyIcon.Enter -> drawEnterIcon(canvas)
             KeyIcon.Space -> drawSpaceIcon(canvas)
             KeyIcon.Clipboard -> drawClipboardIcon(canvas)
-            KeyIcon.Keyboard -> drawKeyboardIcon(canvas)
+            KeyIcon.Leaf -> canvas.drawPath(leafIconPath, iconPaint)
             KeyIcon.Settings -> canvas.drawPath(settingsIconPath, iconPaint)
         }
         canvas.restore()
@@ -1706,11 +1714,6 @@ class ZnKeyboardView @JvmOverloads constructor(
             lineTo(13f, 16f)
         }
         canvas.drawPath(lines, iconPaint)
-    }
-
-    private fun drawKeyboardIcon(canvas: Canvas) {
-        canvas.drawRoundRect(3f, 6f, 21f, 18f, 2f, 2f, iconPaint)
-        canvas.drawPath(keyboardIconKeys, iconPaint)
     }
 
     private fun drawSearchIcon(canvas: Canvas) {
@@ -1838,7 +1841,7 @@ class ZnKeyboardView @JvmOverloads constructor(
             KeyIntent.ChooseTranslateLanguage -> callback?.onTranslateLanguageMenuRequested()
             KeyIntent.AgentPolishOnly -> callback?.onAgentPolishOnlyRequested()
             KeyIntent.OpenClipboard -> callback?.onClipboardPanelRequested()
-            KeyIntent.ChooseChineseKeyboard -> callback?.onChineseKeyboardMenuRequested()
+            KeyIntent.OpenTools -> callback?.onToolsMenuRequested()
             KeyIntent.OpenSettings -> callback?.onKeyboardSettingsRequested()
             KeyIntent.AgentRewrite -> callback?.onAgentRewriteRequested()
             is KeyIntent.Dispatch -> {
@@ -2219,7 +2222,7 @@ class ZnKeyboardView @JvmOverloads constructor(
             upperRowKeySpec(
                 keyId = buttonId,
                 index = index,
-                weight = upperRowKeyWeight(index, secondRowButtonIds.lastIndex),
+                weight = ImeDimensions.DEFAULT_KEY_WEIGHT,
                 rowPrefix = "second",
                 enabled = true,
             )
@@ -2229,7 +2232,7 @@ class ZnKeyboardView @JvmOverloads constructor(
         val rewriteIndex = keys.indexOfFirst { it.intent == KeyIntent.AgentRewrite }
         if (languageCode != null && rewriteIndex >= 0) {
             // 润色 | 翻译 (EN): the first only polishes, the second also translates. The language
-            // badge keeps its own tap target but sits inside the translate key's pill.
+            // badge keeps its own tap target but sits inside the translate key.
             keys.add(
                 rewriteIndex,
                 KeySpec(
@@ -2247,13 +2250,31 @@ class ZnKeyboardView @JvmOverloads constructor(
                     id = "second_translate_language",
                     label = languageCode,
                     intent = KeyIntent.ChooseTranslateLanguage,
-                    weight = ImeDimensions.TRANSLATE_LANGUAGE_KEY_WEIGHT,
+                    weight = translateLanguageKeyWeight(languageCode),
                     role = KeyRole.Function,
                     chip = true,
                 ),
             )
         }
-        return keys.takeIf { it.isNotEmpty() }?.let { RowSpec(it, heightWeight = ImeLayout.COMPACT_ROW_WEIGHT, style = RowStyle.Toolbar) }
+        if (shortcutRowState.aiVisible) {
+            keys.add(0, KeySpec("second_tools", "Tools", KeyIntent.OpenTools, ImeDimensions.DEFAULT_KEY_WEIGHT, KeyRole.Function, icon = KeyIcon.Leaf))
+        }
+        keys.add(KeySpec("second_settings", "Settings", KeyIntent.OpenSettings, ImeDimensions.DEFAULT_KEY_WEIGHT, KeyRole.Function, icon = KeyIcon.Settings))
+        // The other keys keep their width however many there are: translate takes up the difference.
+        val translate = keys.indexOfFirst { it.intent == KeyIntent.AgentRewrite }
+        if (translate >= 0 && languageCode != null) {
+            val others = keys.filterIndexed { index, _ -> index != translate }.sumOf { it.weight.toDouble() }.toFloat()
+            keys[translate] = keys[translate].copy(
+                weight = maxOf(ImeDimensions.REWRITE_TRANSLATE_KEY_WEIGHT, ImeDimensions.TOOLBAR_TOTAL_WEIGHT - others),
+            )
+        }
+        return RowSpec(keys, heightWeight = ImeLayout.COMPACT_ROW_WEIGHT, style = RowStyle.Toolbar)
+    }
+
+    private fun translateLanguageKeyWeight(label: String): Float = when {
+        label.all { it.code < 128 } -> ImeDimensions.TRANSLATE_LANGUAGE_KEY_WEIGHT
+        label.length >= 4 -> ImeDimensions.TRANSLATE_LANGUAGE_LONG_NAME_KEY_WEIGHT
+        else -> ImeDimensions.TRANSLATE_LANGUAGE_NAME_KEY_WEIGHT
     }
 
     private fun hasVisibleSecondRow(): Boolean {
@@ -2294,10 +2315,6 @@ class ZnKeyboardView @JvmOverloads constructor(
                 emphasizedWhenDisabled = shortcutRowState.loading,
             )
             "clipboard" -> KeySpec(id, "Clipboard", KeyIntent.OpenClipboard, weight, KeyRole.Function, icon = KeyIcon.Clipboard, enabled = enabled)
-            // Password fields type no Chinese, so there is no keyboard to choose in them.
-            "switch_keyboard" -> KeySpec(id, "Keyboard", KeyIntent.ChooseChineseKeyboard, weight, KeyRole.Function, icon = KeyIcon.Keyboard, enabled = enabled)
-                .takeIf { shortcutRowState.aiVisible }
-            "settings" -> KeySpec(id, "Settings", KeyIntent.OpenSettings, weight, KeyRole.Function, icon = KeyIcon.Settings, enabled = enabled)
             "ctrl" -> KeySpec(id, "Ctrl", KeyIntent.ToggleCtrl, weight, KeyRole.Function, ctrl, enabled = enabled)
             "alt" -> KeySpec(id, "Alt", KeyIntent.ToggleAlt, weight, KeyRole.Function, alt, enabled = enabled)
             "tab" -> KeySpec(id, "Tab", KeyIntent.Dispatch(KeyboardAction.KeyCode(KeyEvent.KEYCODE_TAB)), weight, KeyRole.Function, enabled = enabled)
@@ -2785,7 +2802,7 @@ class ZnKeyboardView @JvmOverloads constructor(
         Enter,
         Space,
         Clipboard,
-        Keyboard,
+        Leaf,
         Settings,
     }
 
@@ -2895,7 +2912,7 @@ class ZnKeyboardView @JvmOverloads constructor(
         data object AgentPolishOnly : KeyIntent()
         data object AgentRewrite : KeyIntent()
         data object OpenClipboard : KeyIntent()
-        data object ChooseChineseKeyboard : KeyIntent()
+        data object OpenTools : KeyIntent()
         data object OpenSettings : KeyIntent()
         data class Dispatch(val action: KeyboardAction) : KeyIntent()
     }

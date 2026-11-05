@@ -42,6 +42,10 @@ object ImeDimensions {
     const val EDGE_UPPER_ROW_KEY_WEIGHT = 1.4f
     // The row starts 润色 | AI 翻译为 [EN ▾]; the language chip's slot is inside the translate pill.
     const val POLISH_ONLY_KEY_WEIGHT = 1.4f
+    /** The toolbar's keys keep these widths; translate takes what is left of the total. */
+    const val TOOLBAR_TOTAL_WEIGHT = 10f
+    const val TRANSLATE_LANGUAGE_NAME_KEY_WEIGHT = 1.9f
+    const val TRANSLATE_LANGUAGE_LONG_NAME_KEY_WEIGHT = 2.6f
     const val REWRITE_TRANSLATE_KEY_WEIGHT = 1.5f
     const val TRANSLATE_LANGUAGE_KEY_WEIGHT = 1.0f
     const val TRANSLATE_CHIP_INSET_DP = 5f

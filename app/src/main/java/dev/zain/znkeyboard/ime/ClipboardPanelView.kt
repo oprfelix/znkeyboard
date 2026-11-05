@@ -1,6 +1,10 @@
 package dev.zain.znkeyboard.ime
 
 import android.content.Context
+import dev.zain.znkeyboard.R
+import android.widget.ImageView
+import android.graphics.drawable.GradientDrawable
+import android.graphics.Typeface
 import android.util.AttributeSet
 import android.util.TypedValue
 import android.view.Gravity
@@ -21,6 +25,8 @@ class ClipboardPanelView @JvmOverloads constructor(
         fun onClipboardPanelClosed()
         fun onClipboardHistoryItemSelected(text: String)
         fun onClipboardHistoryItemDeleted(text: String)
+        fun onClipboardClearRequested()
+        fun onClipboardClearUndone()
     }
 
     var callback: Callback? = null
@@ -36,6 +42,41 @@ class ClipboardPanelView @JvmOverloads constructor(
         includeFontPadding = false
         visibility = GONE
     }
+    private val clearButton = ImageView(context).apply {
+        setImageResource(R.drawable.ic_delete_24)
+        scaleType = ImageView.ScaleType.CENTER
+        setColorFilter(PALETTE.mutedText)
+        contentDescription = context.getString(R.string.clipboard_clear)
+        setOnClickListener { callback?.onClipboardClearRequested() }
+    }
+    private val undoMessage = TextView(context).apply {
+        setTextColor(ImeColors.TEXT)
+        setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+        gravity = Gravity.CENTER_VERTICAL
+    }
+    private val undoRow = LinearLayout(context).apply {
+        orientation = HORIZONTAL
+        gravity = Gravity.CENTER_VERTICAL
+        visibility = GONE
+        setPadding(dp(14), 0, dp(6), 0)
+        background = GradientDrawable().apply {
+            cornerRadius = dp(10).toFloat()
+            setColor(PALETTE.function)
+        }
+        addView(undoMessage, LayoutParams(0, LayoutParams.MATCH_PARENT, 1f))
+        addView(
+            TextView(context).apply {
+                text = context.getString(R.string.action_undo)
+                setTextColor(ImeColors.TEXT)
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+                typeface = Typeface.create(Typeface.DEFAULT, 500, false)
+                gravity = Gravity.CENTER
+                setPadding(dp(14), 0, dp(14), 0)
+                setOnClickListener { callback?.onClipboardClearUndone() }
+            },
+            LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.MATCH_PARENT),
+        )
+    }
     private val contentFrame = FrameLayout(context).apply {
         addView(
             clipboardList,
@@ -44,6 +85,13 @@ class ClipboardPanelView @JvmOverloads constructor(
         addView(
             clipboardEmptyText,
             FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT),
+        )
+        addView(
+            undoRow,
+            FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, dp(44), Gravity.BOTTOM).apply {
+                val margin = dp(6)
+                setMargins(margin, 0, margin, margin)
+            },
         )
     }
     private val searchBar = SavedTextPanelChrome.searchKey(
@@ -84,6 +132,16 @@ class ClipboardPanelView @JvmOverloads constructor(
         updateClipboardContent()
     }
 
+    /** A moment to take the clearing back; [hideClearUndo] ends it. */
+    fun showClearUndo(message: String) {
+        undoMessage.text = message
+        undoRow.visibility = VISIBLE
+    }
+
+    fun hideClearUndo() {
+        undoRow.visibility = GONE
+    }
+
     fun setHeightScale(scale: Float) {
         if (heightScale != scale) {
             heightScale = scale
@@ -122,6 +180,7 @@ class ClipboardPanelView @JvmOverloads constructor(
         val empty = clipboardEntries.isEmpty()
         clipboardEmptyText.visibility = if (empty) VISIBLE else GONE
         clipboardList.visibility = if (empty) GONE else VISIBLE
+        clearButton.visibility = if (empty) GONE else VISIBLE
     }
 
     private fun buildHeaderRow(): LinearLayout {
@@ -142,6 +201,7 @@ class ClipboardPanelView @JvmOverloads constructor(
                 searchBar,
                 LayoutParams(0, LayoutParams.MATCH_PARENT, 1f).withMargins(start = 2),
             )
+            addView(clearButton, LayoutParams(dp(44), LayoutParams.MATCH_PARENT))
         }
     }
 

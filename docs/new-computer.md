@@ -105,7 +105,7 @@ cd znkeyboard-site/cloudflare && npx wrangler deploy --dry-run
 | macOS | `scripts/build_app.sh` 的 `VERSION` 和 `BUILD` |
 | Windows | `src/ZnKeyboard.csproj` 的 `Version` |
 
-`versionCode` 目前是 54，Play 版是 44。每次发布都要比上一次大。
+`versionCode` 目前是 55，Play 版是 44。每次发布都要比上一次大。
 
 构建安装包：
 

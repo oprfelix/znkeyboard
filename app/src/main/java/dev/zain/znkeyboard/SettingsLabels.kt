@@ -89,8 +89,6 @@ internal fun keyboardRowLabel(rowId: String): String = when (rowId) {
 internal fun shortcutOptionLabel(keyId: String, label: String): String = when (keyId) {
     "rewrite" -> stringResource(R.string.key_rewrite)
     "clipboard" -> stringResource(R.string.key_clipboard)
-    "switch_keyboard" -> stringResource(R.string.key_switch_keyboard)
-    "settings" -> stringResource(R.string.key_settings)
     else -> label
 }
 

@@ -29,10 +29,13 @@ import android.widget.LinearLayout
 import android.widget.Toast
 import dev.zain.znkeyboard.KeyboardSettings
 import dev.zain.znkeyboard.R
-import dev.zain.znkeyboard.ReadingTranslateActivity
+import dev.zain.znkeyboard.ReadingState
 import dev.zain.znkeyboard.SettingsActivity
 import dev.zain.znkeyboard.isWorthReading
+import dev.zain.znkeyboard.translateForReading
 import dev.zain.znkeyboard.constants.AgentDefaults
+import dev.zain.znkeyboard.constants.TranslateLanguage
+import dev.zain.znkeyboard.constants.KeyboardDefaults
 import dev.zain.znkeyboard.constants.ImeColors
 import dev.zain.znkeyboard.typing.AdaptiveTypingEngine
 import dev.zain.znkeyboard.typing.TypingLearner
@@ -61,7 +64,8 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     ClipboardPanelView.Callback,
     ClipboardSearchView.Callback,
     AgentReviewView.Callback,
-    PinyinCandidateBar.Callback {
+    PinyinCandidateBar.Callback,
+    ReadingCardView.Callback {
     private var keyboardView: ZnKeyboardView? = null
     private var pinyinBar: PinyinCandidateBar? = null
     private var pinyinModeEnabled = false
@@ -161,6 +165,13 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     private var readingOffer: String? = null
     private var readingOfferAllowed = false
     private val readingOfferExpiry = Runnable { dismissReadingOffer() }
+    private var readingCard: ReadingCardView? = null
+    private var readingSource: String? = null
+    private var readingNeedsSettings = false
+    private var readingGeneration = 0
+    // What the clipboard's clear button removed, for its moment of undo.
+    private var clearedClipboardEntries: List<ClipboardHistoryStore.Entry>? = null
+    private val clipboardUndoExpiry = Runnable { endClipboardUndo() }
     private var clipboardListenerRegistered = false
     private val clipboardManager: ClipboardManager by lazy(LazyThreadSafetyMode.NONE) {
         getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
@@ -258,6 +269,16 @@ class ZnKeyboardInputMethodService : InputMethodService(),
                 ),
             )
             addView(
+                ReadingCardView(this@ZnKeyboardInputMethodService).also { card ->
+                    readingCard = card
+                    card.callback = this@ZnKeyboardInputMethodService
+                },
+                LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                ),
+            )
+            addView(
                 keyboardStack,
                 LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT,
@@ -316,6 +337,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     }
 
     override fun onFinishInputView(finishingInput: Boolean) {
+        closeReadingCard()
         cancelVoiceInput()
         commitPinyinRaw()
         dismissPinyinPredictions()
@@ -331,6 +353,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         cancelVoiceInput()
         requestGeneration++
         mainHandler.removeCallbacks(readingOfferExpiry)
+        mainHandler.removeCallbacks(clipboardUndoExpiry)
         unregisterClipboardListener()
         typingEngine.shutdown()
         savePinyinLearning()
@@ -485,6 +508,20 @@ class ZnKeyboardInputMethodService : InputMethodService(),
 
     override fun onKeyboardSettingsRequested() = openSettings(ai = false)
 
+    override fun onToolsMenuRequested() {
+        pinyinBar?.renderToolsMenu()
+    }
+
+    override fun onToolsMenuClosed() = renderPinyinBar()
+
+    override fun onShareRequested() {
+        currentInputConnection?.let { inputConnection ->
+            noteOwnEdit()
+            inputConnection.commitText(t(KeyboardDefaults.SHARE_TEXT, KeyboardDefaults.SHARE_TEXT_EN), 1)
+        }
+        renderPinyinBar()
+    }
+
     override fun onChineseKeyboardMenuRequested() {
         val current = KeyboardSettings.ChineseKeyboard.entries.indexOf(chineseKeyboard)
         pinyinBar?.renderKeyboardChoices(
@@ -550,6 +587,31 @@ class ZnKeyboardInputMethodService : InputMethodService(),
 
     override fun onClipboardHistoryItemDeleted(text: String) {
         deleteClipboardHistoryText(text)
+    }
+
+    /** One tap clears the history and what is on the clipboard; the history can come back for a moment. */
+    override fun onClipboardClearRequested() {
+        val entries = ClipboardHistoryStore.read(this)
+        ClipboardHistoryStore.clear(this)
+        runCatching { clipboardManager.clearPrimaryClip() }
+        clearedClipboardEntries = entries
+        readingOffer = null
+        refreshClipboardHistoryViews()
+        clipboardPanelView?.showClearUndo(t("已清空 ${entries.size} 条", "Cleared ${entries.size}"))
+        mainHandler.removeCallbacks(clipboardUndoExpiry)
+        mainHandler.postDelayed(clipboardUndoExpiry, CLIPBOARD_UNDO_DURATION_MS)
+    }
+
+    override fun onClipboardClearUndone() {
+        clearedClipboardEntries?.let { ClipboardHistoryStore.replace(this, it) }
+        endClipboardUndo()
+        refreshClipboardHistoryViews()
+    }
+
+    private fun endClipboardUndo() {
+        mainHandler.removeCallbacks(clipboardUndoExpiry)
+        clearedClipboardEntries = null
+        clipboardPanelView?.hideClearUndo()
     }
 
     private fun applyKeyboardSettings() {
@@ -851,9 +913,13 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     private fun refreshRewriteLabel() {
         keyboardView?.setRewriteMode(
             if (pinyinWanted()) AgentDefaults.TRANSLATE_REWRITE_LABEL else AgentDefaults.TRANSLATE_REWRITE_LABEL_EN,
-            KeyboardSettings.readAgentTranslateTarget(this).code,
+            languageLabel(KeyboardSettings.readAgentTranslateTarget(this)),
         )
     }
+
+    /** Chinese names on the Chinese keyboard, codes on the English one. */
+    private fun languageLabel(language: TranslateLanguage): String =
+        if (pinyinWanted()) language.chineseName else language.code
 
     override fun onTranslateLanguageMenuRequested() {
         val bar = pinyinBar ?: return
@@ -863,7 +929,8 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         }
         val current = KeyboardSettings.readAgentTranslateTarget(this)
         bar.renderLanguageChoices(
-            AgentDefaults.TRANSLATE_LANGUAGES.map { it.code },
+            t("翻译为", "Translate to"),
+            AgentDefaults.TRANSLATE_LANGUAGES.map(::languageLabel),
             AgentDefaults.TRANSLATE_LANGUAGES.indexOf(current),
         )
     }
@@ -1430,12 +1497,71 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     override fun onReadingOfferAccepted() {
         val text = readingOffer ?: return
         dismissReadingOffer()
-        startActivity(
-            Intent(this, ReadingTranslateActivity::class.java)
-                .putExtra(Intent.EXTRA_PROCESS_TEXT, text)
-                .putExtra(Intent.EXTRA_PROCESS_TEXT_READONLY, true)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+        readingSource = text
+        startReading()
+    }
+
+    private fun readingHeader(): String =
+        t("译文 · ${languageLabel(KeyboardSettings.readReadingTarget(this))} ▾", "Translation · ${KeyboardSettings.readReadingTarget(this).code} ▾")
+
+    private fun startReading() {
+        val text = readingSource ?: return
+        val target = KeyboardSettings.readReadingTarget(this)
+        val generation = ++readingGeneration
+        readingCard?.showWorking(readingHeader())
+        Thread({
+            val state = translateForReading(this, text, target)
+            mainHandler.post {
+                if (generation == readingGeneration) showReadingResult(state)
+            }
+        }, "ZnKeyboardReading").start()
+    }
+
+    private fun showReadingResult(state: ReadingState) {
+        readingNeedsSettings = state is ReadingState.Failed && state.needsSettings
+        when (state) {
+            ReadingState.Working -> Unit
+            is ReadingState.Done -> readingCard?.showResult(readingHeader(), state.translation)
+            is ReadingState.Failed -> readingCard?.showResult(
+                readingHeader(),
+                state.message,
+                actionLabel = if (state.needsSettings) t("打开设置", "Open settings") else t("重试", "Retry"),
+                failed = true,
+            )
+        }
+    }
+
+    private fun closeReadingCard() {
+        readingGeneration++
+        readingSource = null
+        readingCard?.hide()
+    }
+
+    override fun onReadingCardClosed() = closeReadingCard()
+
+    override fun onReadingCardActionRequested() {
+        if (readingNeedsSettings) openSettings(ai = true) else startReading()
+    }
+
+    override fun onReadingLanguageRequested() {
+        val bar = pinyinBar ?: return
+        if (bar.isChoosing) {
+            renderPinyinBar()
+            return
+        }
+        val languages = AgentDefaults.TRANSLATE_LANGUAGES
+        bar.renderReadingLanguageChoices(
+            t("译文语言", "Translate to"),
+            languages.map(::languageLabel),
+            languages.indexOf(KeyboardSettings.readReadingTarget(this)),
         )
+    }
+
+    override fun onReadingLanguageSelected(index: Int) {
+        val language = AgentDefaults.TRANSLATE_LANGUAGES.getOrNull(index) ?: return
+        KeyboardSettings.saveReadingTarget(this, language.code)
+        renderPinyinBar()
+        startReading()
     }
 
     /** 润色 | 翻译 for the prediction bar when it hides the toolbar's own; predictions only follow pinyin. */
@@ -1445,7 +1571,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         return PinyinCandidateBar.Tools(
             polishLabel = AgentDefaults.POLISH_ONLY_LABEL,
             translateLabel = AgentDefaults.TRANSLATE_REWRITE_LABEL,
-            languageCode = KeyboardSettings.readAgentTranslateTarget(this).code,
+            languageLabel = languageLabel(KeyboardSettings.readAgentTranslateTarget(this)),
             enabled = keyboard.rewriteAvailable,
         )
     }
@@ -2701,6 +2827,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     private companion object {
         const val TAG = "ZnKeyboardAgent"
         const val READING_OFFER_DURATION_MS = 120_000L
+        const val CLIPBOARD_UNDO_DURATION_MS = 5_000L
         const val READING_OFFER_PREVIEW_CHARS = 60
         const val MAX_REWRITE_SOURCE_CHARS = AgentDefaults.MAX_REWRITE_SOURCE_CHARS
         const val GESTURE_DELETE_CONTEXT_CHARS = 4_096
