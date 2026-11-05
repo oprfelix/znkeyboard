@@ -85,6 +85,19 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     /** The field's text before the caret, until the keyboard edits it itself. */
     private var fieldTextBeforeCaret: CharSequence? = null
 
+    private var pinyinPanel: PinyinCandidatePanel? = null
+    private var pinyinExpanded = false
+    private var candidateStripBottom = 0
+
+    /** The last commit was an English word, so another one right after it needs a space. */
+    private var englishWordJustCommitted = false
+
+    /** English words in a row; from two on it is an English phrase, which takes English marks. */
+    private var englishWordsInARow = 0
+
+    /** This composition follows Latin text, so an English word picked from it starts with a space. */
+    private var composingAfterLatin = false
+
     /** Swapping a word of the sentence: which one is being chosen ([part] -1), and its options. */
     private class PinyinFix(val part: Int, val options: List<PinyinDictionary.Word> = emptyList())
 
@@ -186,6 +199,13 @@ class ZnKeyboardInputMethodService : InputMethodService(),
             bar.callback = this
             renderPinyinBar()
         }
+        val candidatePanel = PinyinCandidatePanel(this).also { panel ->
+            pinyinPanel = panel
+            panel.callback = object : PinyinCandidatePanel.Callback {
+                override fun onPinyinCandidateSelected(index: Int) = this@ZnKeyboardInputMethodService.onPinyinCandidateSelected(index)
+                override fun onPinyinCandidateLongPressed(index: Int) = this@ZnKeyboardInputMethodService.onPinyinCandidateLongPressed(index)
+            }
+        }
         val keyboardSlot = FrameLayout(this).also { container ->
             keyboardContainer = container
             container.addView(
@@ -206,6 +226,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
                 ),
             )
             addView(candidateBar, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, 0))
+            addView(candidatePanel, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, 0))
         }
         keyboard.onCandidateStripChanged = { top, bottom ->
             val params = candidateBar.layoutParams as FrameLayout.LayoutParams
@@ -215,6 +236,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
                 // Reported from the keyboard's own layout pass; apply on the next frame.
                 candidateBar.post { candidateBar.layoutParams = params }
             }
+            candidateStripBottom = bottom
         }
         return LinearLayout(this).apply {
             inputRoot = this
@@ -589,7 +611,12 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     private fun swapKeyboardSurface(surface: View) {
         val container = keyboardContainer ?: return
         if (surface !== keyboardView) commitPinyinRaw()
-        if (surface === keyboardView) renderPinyinBar() else pinyinBar?.visibility = View.GONE
+        if (surface === keyboardView) {
+            renderPinyinBar()
+        } else {
+            pinyinBar?.visibility = View.GONE
+            closePinyinPanel()
+        }
         (surface.parent as? ViewGroup)?.removeView(surface)
         container.removeAllViews()
         container.addView(
@@ -836,6 +863,16 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     override fun onPinyinFixRequested() {
         pinyinFix = if (pinyinFix == null) PinyinFix(part = -1) else null
         renderPinyinBar()
+    }
+
+    override fun onPinyinExpandRequested() {
+        pinyinExpanded = !pinyinExpanded
+        renderPinyinBar()
+    }
+
+    private fun closePinyinPanel() {
+        pinyinExpanded = false
+        pinyinPanel?.hide()
     }
 
     /** Going through the sentence's words, then the options for the one picked. */
@@ -1088,8 +1125,16 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         }
     }
 
-    /** Full-width marks for Chinese text; a period right after a digit stays a decimal point. */
+    /**
+     * Full-width marks for Chinese text; a period right after a digit stays a decimal point, and
+     * an English phrase keeps English marks. A single English word sits in a Chinese sentence.
+     */
     private fun chinesePunctuationFor(char: Char): String? {
+        englishWordJustCommitted = false
+        if (char == ' ') return null
+        val inEnglishPhrase = englishWordsInARow >= 2
+        englishWordsInARow = 0
+        if (inEnglishPhrase) return null
         if (char == '.') {
             val before = currentInputConnection?.getTextBeforeCursor(1, 0)
             if (!before.isNullOrEmpty() && before.last().isDigit()) return null
@@ -1107,8 +1152,11 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         pinyinTaps.follow(pinyinComposing, composing, tap, sample)
         pinyinFix = null
         pinyinFixedSentence = null
+        pinyinExpanded = false
         if (pinyinComposing.isEmpty()) {
             pinyinFieldContext = fieldTextBeforeCaret?.let(dictionary::contextBefore)
+            composingAfterLatin = englishWordJustCommitted ||
+                fieldTextBeforeCaret?.lastOrNull()?.let { it in 'a'..'z' || it in 'A'..'Z' || it in '0'..'9' } == true
         }
         pinyinComposing = composing
         pinyinCandidates = when {
@@ -1191,6 +1239,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         val candidate = pinyinCandidates.getOrNull(index) ?: return
         val learnedByHand = byHand || candidate === pinyinFixedSentence
         pinyinFix = null
+        pinyinExpanded = false
         val inputConnection = currentInputConnection ?: return
         val remaining = pinyinComposing.substring(candidate.consumed.coerceAtMost(pinyinComposing.length))
             .trimStart(PinyinEngine.SEPARATOR)
@@ -1202,8 +1251,11 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         }
         noteOwnEdit()
         inputConnection.beginBatchEdit()
-        inputConnection.commitText(candidate.text, 1)
-        if (candidate.id == EnglishWords.CANDIDATE_ID) {
+        val english = candidate.id == EnglishWords.CANDIDATE_ID
+        inputConnection.commitText(if (english && composingAfterLatin) " ${candidate.text}" else candidate.text, 1)
+        englishWordJustCommitted = english
+        englishWordsInARow = if (english) englishWordsInARow + 1 else 0
+        if (english) {
             pinyinLearner.breakChain()
             if (learnedByHand && isPersonalizationAllowed(currentEditorInfo)) {
                 englishWords?.let { words ->
@@ -1269,11 +1321,29 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         showPinyinPredictions()
     }
 
+    private fun renderPinyinPanel(allowed: Boolean) {
+        val panel = pinyinPanel ?: return
+        val height = (keyboardView?.height ?: 0) - candidateStripBottom
+        if (!allowed || !pinyinExpanded || pinyinComposing.isEmpty() || height <= 0) {
+            pinyinExpanded = false
+            panel.hide()
+            return
+        }
+        val params = panel.layoutParams as FrameLayout.LayoutParams
+        if (params.topMargin != candidateStripBottom || params.height != height) {
+            params.topMargin = candidateStripBottom
+            params.height = height
+            panel.layoutParams = params
+        }
+        panel.show(pinyinCandidates.map { it.text })
+    }
+
     private fun renderPinyinBar() {
         // Every change to the composition ends here, so the spelling list follows it too.
         refreshNineKeySpellings()
         val bar = pinyinBar ?: return
         val fix = pinyinFix?.takeIf { pinyinComposing.isNotEmpty() }
+        renderPinyinPanel(fix == null)
         val parts = pinyinCandidates.firstOrNull()?.parts.orEmpty()
         when {
             pinyinComposing.isEmpty() && pinyinPredictions.isNotEmpty() ->
@@ -1286,6 +1356,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
                 composingDisplay(),
                 pinyinCandidates.map { it.text },
                 fixLabel = t("改词", "Fix").takeIf { parts.size >= 2 && !chineseKeyboard.isNineKey },
+                expandLabel = (if (pinyinExpanded) "▴" else "▾").takeIf { pinyinCandidates.size > 1 },
             )
         }
     }
@@ -1334,6 +1405,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
 
     /** Forgets the composition without touching the editor, which already let it go. */
     private fun clearPinyinComposition() {
+        pinyinExpanded = false
         pinyinLearner.onCompositionAbandoned()
         pinyinComposing = ""
         pinyinCandidates = emptyList()
@@ -1345,6 +1417,8 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     private fun noteTextBeforeCaret(text: CharSequence?) {
         typingEngine.learner.onContextChanged(text)
         fieldTextBeforeCaret = text
+        englishWordJustCommitted = false
+        englishWordsInARow = 0
     }
 
     private fun noteOwnEdit() {

@@ -27,6 +27,8 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
         fun onPinyinCandidateLongPressed(index: Int) {}
         /** The 改词 button: pick a word of the sentence to swap, or leave that. */
         fun onPinyinFixRequested() {}
+        /** The ▾ button: show every candidate over the keys, or close that. */
+        fun onPinyinExpandRequested() {}
         fun onTranslateLanguageSelected(index: Int)
         fun onAgentPolishOnlyRequested()
         fun onAgentRewriteRequested()
@@ -64,6 +66,12 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
         setPadding(context.dp(14), 0, context.dp(14), 0)
         visibility = View.GONE
         setOnClickListener { callback?.onPinyinFixRequested() }
+    }
+    private val expandButton = TextView(context).apply {
+        gravity = Gravity.CENTER
+        textSize = 16f
+        visibility = View.GONE
+        setOnClickListener { callback?.onPinyinExpandRequested() }
     }
     private val polishButton = TextView(context).apply {
         gravity = Gravity.CENTER
@@ -127,8 +135,9 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
         mainRow.addView(scroller, LayoutParams(0, LayoutParams.MATCH_PARENT, 1f))
         mainRow.addView(
             fixButton,
-            LayoutParams(LayoutParams.WRAP_CONTENT, context.dp(34)).apply { marginEnd = context.dp(8) },
+            LayoutParams(LayoutParams.WRAP_CONTENT, context.dp(34)).apply { marginStart = context.dp(4) },
         )
+        mainRow.addView(expandButton, LayoutParams(context.dp(EXPAND_WIDTH_DP), LayoutParams.MATCH_PARENT))
         mainRow.addView(toolsRow, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.MATCH_PARENT))
         toolsRow.visibility = View.GONE
         applyColors()
@@ -136,6 +145,7 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
 
     fun applyColors() {
         setBackgroundColor(ImeColors.BACKGROUND)
+        expandButton.setTextColor(ImeColors.TEXT)
         fixButton.setTextColor(ImeColors.TEXT)
         fixButton.background = pill()
         candidateRow.dividerDrawable = GradientDrawable().apply {
@@ -154,13 +164,15 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
 
     /**
      * [tools] pins 润色 | 翻译 on the right; pass it only while showing predictions. [fixLabel] shows
-     * the 改词 button; [highlighted] is the item in bold, -1 for none while choosing what to fix.
+     * the 改词 button and [expandLabel] the ▾ one; [highlighted] is the item in bold, -1 for none
+     * while choosing what to fix.
      */
     fun render(
         composing: String,
         candidates: List<String>,
         tools: Tools? = null,
         fixLabel: String? = null,
+        expandLabel: String? = null,
         highlighted: Int = 0,
     ) {
         choosingLanguage = false
@@ -168,6 +180,8 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
         showTools(tools)
         fixButton.text = fixLabel
         fixButton.visibility = if (fixLabel == null) View.GONE else View.VISIBLE
+        expandButton.text = expandLabel
+        expandButton.visibility = if (expandLabel == null) View.GONE else View.VISIBLE
         show(composing, candidates)
     }
 
@@ -198,6 +212,7 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
         highlightedIndex = selectedIndex
         showTools(null)
         fixButton.visibility = View.GONE
+        expandButton.visibility = View.GONE
         show("翻译为", codes)
     }
 
@@ -269,6 +284,7 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
         const val DISABLED_ALPHA = 0.45f
         const val CANDIDATE_TEXT_SP = 22f
         const val COMPOSING_TEXT_SP = 12f
+        const val EXPAND_WIDTH_DP = 40
         const val CANDIDATE_MIN_WIDTH_DP = 52
         const val HIGHLIGHT_RADIUS_DP = 10
         const val HIGHLIGHT_INSET_DP = 3
