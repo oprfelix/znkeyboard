@@ -69,7 +69,7 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
     }
     private val expandButton = TextView(context).apply {
         gravity = Gravity.CENTER
-        textSize = 16f
+        textSize = EXPAND_TEXT_SP
         visibility = View.GONE
         setOnClickListener { callback?.onPinyinExpandRequested() }
     }
@@ -146,6 +146,9 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
     fun applyColors() {
         setBackgroundColor(ImeColors.BACKGROUND)
         expandButton.setTextColor(ImeColors.TEXT)
+        // The tap area fills the strip; the pill inside it shows it is a button.
+        val inset = context.dp(EXPAND_INSET_DP)
+        expandButton.background = InsetDrawable(pill(), inset, inset, inset, inset)
         fixButton.setTextColor(ImeColors.TEXT)
         fixButton.background = pill()
         candidateRow.dividerDrawable = GradientDrawable().apply {
@@ -284,7 +287,9 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
         const val DISABLED_ALPHA = 0.45f
         const val CANDIDATE_TEXT_SP = 22f
         const val COMPOSING_TEXT_SP = 12f
-        const val EXPAND_WIDTH_DP = 40
+        const val EXPAND_WIDTH_DP = 56
+        const val EXPAND_TEXT_SP = 22f
+        const val EXPAND_INSET_DP = 4
         const val CANDIDATE_MIN_WIDTH_DP = 52
         const val HIGHLIGHT_RADIUS_DP = 10
         const val HIGHLIGHT_INSET_DP = 3
