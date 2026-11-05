@@ -1,11 +1,8 @@
 package dev.zain.znkeyboard
 
-import android.content.ClipData
-import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
-import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
@@ -26,14 +23,15 @@ import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -158,19 +156,15 @@ private fun ReadingSheet(text: String, onClose: () -> Unit) {
                 .padding(horizontal = 20.dp, vertical = 14.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            LanguagePicker(target) { language ->
-                target = language
-                KeyboardSettings.saveReadingTarget(context, language.code)
+            // No Surface here to set it, and the default content color is black in every theme.
+            CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.onSurface) {
+                LanguagePicker(target) { language ->
+                    target = language
+                    KeyboardSettings.saveReadingTarget(context, language.code)
+                }
+                ReadingResult(state)
+                ReadingButtons(state, onClose, onRetry = { attempt++ })
             }
-            Text(
-                text = stringResource(R.string.reading_original),
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            ScrollingText(text, MaterialTheme.colorScheme.onSurfaceVariant, ORIGINAL_MAX_HEIGHT_DP)
-            HorizontalDivider()
-            ReadingResult(state)
-            ReadingButtons(state, onClose, onRetry = { attempt++ })
         }
     }
 }
@@ -240,9 +234,6 @@ private fun ReadingButtons(state: ReadingState, onClose: () -> Unit, onRetry: ()
     ) {
         OutlinedButton(onClick = onClose) { Text(stringResource(R.string.reading_close)) }
         when {
-            state is ReadingState.Done -> Button(onClick = { copy(context, state.translation) }) {
-                Text(stringResource(R.string.reading_copy))
-            }
             state is ReadingState.Failed && state.needsSettings -> Button(
                 onClick = {
                     context.startActivity(Intent(context, SettingsActivity::class.java))
@@ -254,13 +245,6 @@ private fun ReadingButtons(state: ReadingState, onClose: () -> Unit, onRetry: ()
     }
 }
 
-private fun copy(context: Context, text: String) {
-    val clipboard = context.getSystemService(ClipboardManager::class.java)
-    clipboard.setPrimaryClip(ClipData.newPlainText("ZnKeyboard", text))
-    Toast.makeText(context, R.string.reading_copied, Toast.LENGTH_SHORT).show()
-}
-
 private val CHINESE_CODES = setOf("ZH", "TW")
 private const val MIN_READING_LETTERS = 2
-private const val ORIGINAL_MAX_HEIGHT_DP = 110
 private const val RESULT_MAX_HEIGHT_DP = 260

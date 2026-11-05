@@ -258,9 +258,6 @@
     <string name="feel_number_row_desc">在字母上方显示一排数字。关闭后数字显示在第一排字母的右上角，长按输入，字母键会变高。</string>
     <string name="reading_menu_label">ZnKeyboard 翻译</string>
     <string name="reading_translate_to">翻译为</string>
-    <string name="reading_original">原文</string>
-    <string name="reading_copy">复制译文</string>
-    <string name="reading_copied">已复制</string>
     <string name="reading_close">关闭</string>
     <string name="reading_translating">正在翻译…</string>
     <string name="reading_retry">重试</string>

@@ -260,9 +260,6 @@
     <string name="feel_number_row_desc">A row of digits above the letters. Off, the digits sit in the top row\'s corners (long press to type them) and the letter keys get taller.</string>
     <string name="reading_menu_label">ZnKeyboard Translate</string>
     <string name="reading_translate_to">Translate to</string>
-    <string name="reading_original">Original</string>
-    <string name="reading_copy">Copy translation</string>
-    <string name="reading_copied">Copied</string>
     <string name="reading_close">Close</string>
     <string name="reading_translating">Translating…</string>
     <string name="reading_retry">Try again</string>
