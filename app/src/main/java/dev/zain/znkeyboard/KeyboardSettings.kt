@@ -714,8 +714,8 @@ object KeyboardSettings {
     }
 
     /**
-     * One-time move of the DeepSeek preset to its own provider. Before presets the address was
-     * typed, so with no stored preset DeepSeek's address (or none yet) counts as that preset.
+     * One-time move of the DeepSeek preset to its own provider. DeepSeek's address counts too,
+     * typed before presets or under Custom, and so does no address with no stored preset.
      * The old key is cleared only once the new one reads back, so a failure can't lose it.
      */
     private fun splitDeepSeekPreset(context: Context) {
@@ -723,7 +723,7 @@ object KeyboardSettings {
         if (prefs.getBoolean(KEY_DEEPSEEK_PRESET_SPLIT, false)) return
         val preset = prefs.getString(LEGACY_KEY_AGENT_API_PRESET, null)
         val typed = prefs.getString(KEY_AGENT_API_BASE_URL, null)?.trim().orEmpty()
-        val onDeepSeek = preset?.let { it == LEGACY_PRESET_DEEPSEEK } ?: (typed.isEmpty() || DEEPSEEK_HOST in typed)
+        val onDeepSeek = DEEPSEEK_HOST in typed || preset?.let { it == LEGACY_PRESET_DEEPSEEK } ?: typed.isEmpty()
         if (onDeepSeek) {
             val compatible = AgentProviderType.OpenAiCompatible
             val deepSeek = AgentProviderType.DeepSeek
