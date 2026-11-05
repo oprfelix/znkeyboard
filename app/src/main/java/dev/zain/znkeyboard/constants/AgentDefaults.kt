@@ -30,6 +30,9 @@ object AgentDefaults {
     const val WHATSAPP_PROMPT_ASSET = "prompts/apps/whatsapp.md"
     const val TRANSLATE_PROMPT_ASSET = "prompts/translate.md"
     const val VOICE_PROMPT_ASSET = "prompts/voice.md"
+    const val READ_PROMPT_ASSET = "prompts/read.md"
+    const val DEFAULT_READING_LANGUAGE_CODE = "ZH"
+    const val READING_FALLBACK_LANGUAGE_CODE = "EN"
     const val MAX_VOICE_CLIP_MS = 90_000L
     // Shorter holds are taken as a lingering space tap, not speech, and are never sent.
     const val MIN_VOICE_CLIP_MS = 600L

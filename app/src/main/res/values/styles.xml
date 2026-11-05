@@ -10,4 +10,10 @@
         <item name="android:navigationBarColor">@android:color/transparent</item>
         <item name="android:colorAccent">#30ACE2</item>
     </style>
+    <style name="Theme.ZnKeyboard.Sheet">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:backgroundDimEnabled">true</item>
+        <item name="android:windowAnimationStyle">@android:style/Animation.InputMethod</item>
+    </style>
 </resources>

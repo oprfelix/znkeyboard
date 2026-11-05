@@ -85,6 +85,7 @@ object KeyboardSettings {
     private const val KEY_AGENT_REASONING_MODE = "agent_reasoning_mode"
     private const val KEY_AGENT_REASONING_TEXT_ENABLED = "agent_reasoning_text_enabled"
     private const val KEY_AGENT_TRANSLATE_TARGET = "agent_translate_target"
+    private const val KEY_READING_TARGET = "reading_target"
     private const val KEY_AGENT_PROVIDERS_MIGRATED = "agent_providers_migrated_v3"
     private const val KEY_SECOND_ROW_CLIPBOARD_MIGRATED = "second_row_clipboard_migrated"
     private const val KEY_VOICE_INPUT_ENABLED = "voice_input_enabled"
@@ -769,6 +770,21 @@ object KeyboardSettings {
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .edit()
             .putString(KEY_AGENT_TRANSLATE_TARGET, code)
+            .apply()
+    }
+
+    /** Language selected text is translated into to read it. Stored as its code. */
+    fun readReadingTarget(context: Context): TranslateLanguage {
+        val stored = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .getString(KEY_READING_TARGET, null)
+        return AgentDefaults.TRANSLATE_LANGUAGES.firstOrNull { it.code == stored }
+            ?: AgentDefaults.TRANSLATE_LANGUAGES.first { it.code == AgentDefaults.DEFAULT_READING_LANGUAGE_CODE }
+    }
+
+    fun saveReadingTarget(context: Context, code: String) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .putString(KEY_READING_TARGET, code)
             .apply()
     }
 

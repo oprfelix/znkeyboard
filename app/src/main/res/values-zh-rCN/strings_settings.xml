@@ -256,4 +256,16 @@
     <string name="chinese_keyboard_desc">九宫格：按数字键打拼音，左边一列可以选拼音，上滑数字键输入数字。笔画：按横竖撇点折，不确定的笔画用＊代替。九宫格右侧的「笔画/拼音」键可以随时切换。英文始终用全键盘。</string>
     <string name="feel_number_row">数字行</string>
     <string name="feel_number_row_desc">在字母上方显示一排数字。关闭后数字显示在第一排字母的右上角，长按输入，字母键会变高。</string>
+    <string name="reading_menu_label">ZnKeyboard 翻译</string>
+    <string name="reading_translate_to">翻译为</string>
+    <string name="reading_original">原文</string>
+    <string name="reading_copy">复制译文</string>
+    <string name="reading_copied">已复制</string>
+    <string name="reading_close">关闭</string>
+    <string name="reading_translating">正在翻译…</string>
+    <string name="reading_retry">重试</string>
+    <string name="reading_need_key">请先在 ZnKeyboard 里填写 API Key 和模型。</string>
+    <string name="reading_open_settings">打开设置</string>
+    <string name="reading_too_long">文字太长（最多 5000 字）。</string>
+    <string name="reading_no_text">没有选中文字。</string>
 </resources>

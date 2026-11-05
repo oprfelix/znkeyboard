@@ -35,6 +35,21 @@
             </intent-filter>
         </activity>
 
+        <!-- "ZnKeyboard 翻译" in the menu of text selected in other apps. -->
+        <activity
+            android:name=".ReadingTranslateActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:label="@string/reading_menu_label"
+            android:taskAffinity=""
+            android:theme="@style/Theme.ZnKeyboard.Sheet">
+            <intent-filter>
+                <action android:name="android.intent.action.PROCESS_TEXT" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+        </activity>
+
         <receiver
             android:name=".UpdateInstallReceiver"
             android:exported="false" />
