@@ -100,6 +100,14 @@ On a Pixel 9 Pro XL, run through `app_process` (no ahead-of-time compilation, so
 the installed keyboard and only useful for comparing): mean 34.7 ms, p95 171 ms with the model,
 against 38.0 ms, p95 185 ms for 1.9.2 without it.
 
+## With trade words (`--lm … --taps --trade`, as the keyboard ships)
+
+`assets/pinyin/trade.tsv` holds foreign-trade terms, and the decoder gives them a bonus of 2.5 in
+ln P. Against the table in the next section: full 67.2% (±0), initials 6.0% (−0.2), mixed 24.9%
+(−0.1), typo 39.3% (−0.1), all **34.3%** (−0.1). This set is everyday chat, so it can only show the
+cost. The gain is on `tools/pinyin/trade/verify_trade.sh`, 60 trade messages: 32 right before the
+terms, 45 with them, 47 with the bonus.
+
 ## With taps (`--lm … --taps`, as the keyboard ships)
 
 | set | top1 | top1~ | top3 | CER |

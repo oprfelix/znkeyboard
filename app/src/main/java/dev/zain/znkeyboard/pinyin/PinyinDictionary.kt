@@ -13,11 +13,13 @@ import kotlin.math.ln
  * index, so after construction the dictionary is main-thread only.
  *
  * Each distinct text has an id, its order of first appearance in dict.tsv, which is how
- * [languageModel] names words. Words the user built have none (-1).
+ * [languageModel] names words. Words the user built have none (-1), nor do words from [addWords],
+ * which stay out of dict.tsv so the model keeps fitting it.
  */
 class PinyinDictionary private constructor(
     val fuzzy: PinyinFuzzy,
     private val rows: List<Row>,
+    private val extraRows: MutableList<Row> = ArrayList(),
 ) {
     class Row(val text: String, val syllables: List<String>, val weight: Long, val id: Int)
 
@@ -25,7 +27,7 @@ class PinyinDictionary private constructor(
     data class Piece(val text: String, val isPrefix: Boolean)
 
     /** A dictionary word: its text and raw pinyin, one syllable per character; [id] is -1 for built words. */
-    class Word(val text: String, val syllables: List<String>, val id: Int = -1)
+    class Word(val text: String, val syllables: List<String>, val id: Int = -1, val trade: Boolean = false)
 
     /**
      * A word found for typed pieces: [score] is what it ranks by (log weight plus learning),
@@ -47,6 +49,9 @@ class PinyinDictionary private constructor(
         val id: Int,
     ) {
         var score = base
+
+        /** On the trade word list, which the sentence decoder favours a little. */
+        var trade = false
 
         /** Picks that count: all of them for a dictionary word, from the second on for a built one. */
         var uses = 0
@@ -80,6 +85,9 @@ class PinyinDictionary private constructor(
 
     private val normalizedBySyllable = HashMap<String, String>()
 
+    /** Keeps [addWords] rows after every dict.tsv row when scores tie. */
+    private var extraRank = 0
+
     /** Changes whenever scores or words change, so cached lookups know to start over. */
     var version = 0
         private set
@@ -111,6 +119,39 @@ class PinyinDictionary private constructor(
             for (end in 1..raw.length) syllablePrefixes += raw.substring(0, end)
             for (end in 1..normalized.length) syllablePrefixes += normalized.substring(0, end)
         }
+        indexExtras(extraRows)
+    }
+
+    /** Reads the trade word list: words already here are marked as trade words, others added. */
+    fun addWords(reader: BufferedReader) {
+        val rows = ArrayList<Row>()
+        reader.forEachLine { line ->
+            val columns = line.split('\t')
+            if (columns.size == 3) rows += Row(columns[0], columns[1].split(' '), columns[2].toLongOrNull() ?: 1L, -1)
+        }
+        extraRows += rows
+        indexExtras(rows)
+        version++
+    }
+
+    private fun indexExtras(extras: List<Row>) {
+        for (row in extras) {
+            if (row.syllables.any { it !in rawSyllables }) continue
+            val known = exactMatch(row.text, row.syllables)
+            if (known != null) {
+                known.trade = true
+                continue
+            }
+            val entry = newEntry(row.text, row.syllables, rows.size + extraRank++, ln(row.weight.coerceAtLeast(1L).toFloat()), -1)
+            entry.trade = true
+            index(entry)
+            reposition(entry)
+        }
+    }
+
+    private fun exactMatch(text: String, raw: List<String>): Entry? {
+        val key = raw.joinToString(" ") { normalizedBySyllable.getOrPut(it) { fuzzy.normalize(it) } }
+        return exact[key]?.firstOrNull { it.text == text && it.raw == raw }
     }
 
     // Only a few hundred distinct syllables exist; share one normalized string for each.
@@ -512,7 +553,7 @@ class PinyinDictionary private constructor(
         bucket.add(low, entry)
     }
 
-    private fun word(entry: Entry) = Word(entry.text, entry.raw, entry.id)
+    private fun word(entry: Entry) = Word(entry.text, entry.raw, entry.id, entry.trade)
 
     /** Raw initials each piece may start with; only n = l can change a first letter. */
     private fun initialsKeys(pieces: List<Piece>): List<String> {
@@ -531,7 +572,7 @@ class PinyinDictionary private constructor(
 
     /** A fresh index under [rules], without anything learned; the caller re-applies its words. */
     fun withFuzzy(rules: Set<PinyinFuzzyRule>): PinyinDictionary =
-        PinyinDictionary(PinyinFuzzy(rules), rows).also { it.languageModel = languageModel }
+        PinyinDictionary(PinyinFuzzy(rules), rows, extraRows).also { it.languageModel = languageModel }
 
     companion object {
         /** About the weight of an ordinary two-character word. */

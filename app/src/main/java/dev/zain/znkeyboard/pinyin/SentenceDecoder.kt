@@ -244,6 +244,8 @@ object SentenceDecoder {
             }
             logP = ln(keep * exp(logP) + personal)
         }
+        // Trade words are rarer on the web than in this keyboard's users' messages.
+        if (match.word.trade) logP = minOf(logP + TRADE_BONUS, 0f)
         return LM_WORD_COST - LM_WEIGHT * logP
     }
 
@@ -382,6 +384,7 @@ object SentenceDecoder {
         return result.sortedBy { it.second }.distinctBy { it.first }
     }
 
+    private const val TRADE_BONUS = 2.5f
     private const val MAX_INPUT = 60
     private const val MAX_NINE_KEY_WORD_DIGITS = 24
     private const val MAX_CACHE = 20_000

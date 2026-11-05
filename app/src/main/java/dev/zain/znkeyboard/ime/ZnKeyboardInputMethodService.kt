@@ -851,7 +851,12 @@ class ZnKeyboardInputMethodService : InputMethodService(),
                 val dictionary = current?.withFuzzy(rules) ?: appContext.assets.open(PINYIN_DICTIONARY_ASSET)
                     .bufferedReader(Charsets.UTF_8)
                     .use { PinyinDictionary.load(it, rules) }
-                        .also { it.languageModel = loadPinyinLanguageModel(appContext) }
+                        .also { dictionary ->
+                            dictionary.languageModel = loadPinyinLanguageModel(appContext)
+                            runCatching {
+                                appContext.assets.open(TRADE_WORDS_ASSET).bufferedReader(Charsets.UTF_8).use(dictionary::addWords)
+                            }
+                        }
                 for (word in saved?.words() ?: snapshot.orEmpty()) dictionary.learn(word.text, word.syllables, word.uses)
                 // Pairs from data in memory are applied on the main thread below, with the newest words.
                 saved?.pairs()?.forEach { (previous, next, uses) -> dictionary.learnPair(previous, next, uses) }
@@ -2785,6 +2790,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         const val TYPING_CONTEXT_CHARS = 16
         const val PINYIN_DICTIONARY_ASSET = "pinyin/dict.tsv"
         const val ENGLISH_WORDS_ASSET = "pinyin/english.txt"
+        const val TRADE_WORDS_ASSET = "pinyin/trade.tsv"
         const val PINYIN_LANGUAGE_MODEL_ASSET = "pinyin/lm.bin"
         const val MAX_PINYIN_PREDICTIONS = 16
         val CHINESE_PUNCTUATION = mapOf(

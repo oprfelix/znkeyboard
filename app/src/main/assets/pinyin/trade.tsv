@@ -1,0 +1,639 @@
+询盘	xun pan	20000
+询价	xun jia	20000
+询价单	xun jia dan	20000
+报价单	bao jia dan	20000
+还盘	huan pan	20000
+发盘	fa pan	20000
+实盘	shi pan	20000
+虚盘	xu pan	20000
+比价	bi jia	20000
+底价	di jia	20000
+含税价	han shui jia	20000
+不含税	bu han shui	20000
+出厂价	chu chang jia	20000
+到岸价	dao an jia	20000
+离岸价	li an jia	20000
+工厂价	gong chang jia	20000
+批发价	pi fa jia	20000
+零售价	ling shou jia	20000
+阶梯价	jie ti jia	20000
+含运费	han yun fei	20000
+不含运费	bu han yun fei	20000
+打包价	da bao jia	20000
+优惠价	you hui jia	20000
+成交价	cheng jiao jia	20000
+目标价	mu biao jia	20000
+议价	yi jia	20000
+压价	ya jia	20000
+改价	gai jia	20000
+涨价函	zhang jia han	20000
+起订量	qi ding liang	20000
+起批量	qi pi liang	20000
+最小起订量	zui xiao qi ding liang	20000
+试单	shi dan	20000
+返单	fan dan	20000
+大货	da huo	20000
+大货期	da huo qi	20000
+打样费	da yang fei	20000
+样品费	yang pin fei	20000
+寄样	ji yang	20000
+免费样品	mian fei yang pin	20000
+样品单	yang pin dan	20000
+付费样品	fu fei yang pin	20000
+确认样	que ren yang	20000
+产前样	chan qian yang	20000
+大货样	da huo yang	20000
+交期	jiao qi	20000
+货期	huo qi	20000
+工期	gong qi	20000
+排产	pai chan	20000
+排单	pai dan	20000
+下单量	xia dan liang	20000
+订单量	ding dan liang	20000
+采购量	cai gou liang	20000
+年采购量	nian cai gou liang	20000
+采购需求	cai gou xu qiu	20000
+采购清单	cai gou qing dan	20000
+采购合同	cai gou he tong	20000
+合同条款	he tong tiao kuan	20000
+形式发票	xing shi fa piao	20000
+商业发票	shang ye fa piao	20000
+装箱单	zhuang xiang dan	20000
+报价有效期	bao jia you xiao qi	20000
+有效期内	you xiao qi nei	20000
+贸易术语	mao yi shu yu	20000
+贸易条款	mao yi tiao kuan	20000
+贸易公司	mao yi gong si	20000
+外贸公司	wai mao gong si	20000
+外贸业务	wai mao ye wu	20000
+外贸业务员	wai mao ye wu yuan	20000
+外贸跟单	wai mao gen dan	20000
+跟单员	gen dan yuan	20000
+外贸人	wai mao ren	20000
+外贸客户	wai mao ke hu	20000
+老客户	lao ke hu	20000
+新客户	xin ke hu	20000
+潜在客户	qian zai ke hu	20000
+意向客户	yi xiang ke hu	20000
+大客户	da ke hu	20000
+客户跟进	ke hu gen jin	20000
+跟进客户	gen jin ke hu	20000
+开发信	kai fa xin	20000
+开发客户	kai fa ke hu	20000
+客户开发	ke hu kai fa	20000
+客户画像	ke hu hua xiang	20000
+客户需求	ke hu xu qiu	20000
+客户反馈	ke hu fan kui	20000
+客户资料	ke hu zi liao	20000
+客户投诉	ke hu tou su	20000
+回盘	hui pan	20000
+成单	cheng dan	20000
+丢单	diu dan	20000
+签单	qian dan	20000
+拿单	na dan	20000
+接单	jie dan	20000
+跟单	gen dan	20000
+爆单	bao dan	20000
+定金	ding jin	20000
+预付款	yu fu kuan	20000
+预付定金	yu fu ding jin	20000
+尾款	wei kuan	20000
+余款	yu kuan	20000
+全款	quan kuan	20000
+款到发货	kuan dao fa huo	20000
+货到付款	huo dao fu kuan	20000
+见单付款	jian dan fu kuan	20000
+见提单付款	jian ti dan fu kuan	20000
+电汇	dian hui	20000
+信用证	xin yong zheng	20000
+即期信用证	ji qi xin yong zheng	20000
+远期信用证	yuan qi xin yong zheng	20000
+托收	tuo shou	20000
+付款方式	fu kuan fang shi	20000
+付款条件	fu kuan tiao jian	20000
+付款条款	fu kuan tiao kuan	20000
+付款凭证	fu kuan ping zheng	20000
+付款水单	fu kuan shui dan	20000
+水单	shui dan	20000
+汇款	hui kuan	20000
+汇款凭证	hui kuan ping zheng	20000
+到账	dao zhang	20000
+收汇	shou hui	20000
+结汇	jie hui	20000
+换汇	huan hui	20000
+汇率	hui lv	20000
+汇损	hui sun	20000
+手续费	shou xu fei	20000
+银行手续费	yin hang shou xu fei	20000
+中间行	zhong jian hang	20000
+收款账户	shou kuan zhang hu	20000
+收款人	shou kuan ren	20000
+收款账号	shou kuan zhang hao	20000
+收款方式	shou kuan fang shi	20000
+外币账户	wai bi zhang hu	20000
+美元账户	mei yuan zhang hu	20000
+境外账户	jing wai zhang hu	20000
+退税	tui shui	20000
+出口退税	chu kou tui shui	20000
+退税率	tui shui lv	20000
+增值税	zeng zhi shui	20000
+关税	guan shui	20000
+进口税	jin kou shui	20000
+进口关税	jin kou guan shui	20000
+消费税	xiao fei shui	20000
+税费	shui fei	20000
+税号	shui hao	20000
+账期	zhang qi	20000
+月结	yue jie	20000
+对账	dui zhang	20000
+对账单	dui zhang dan	20000
+账单	zhang dan	20000
+回款	hui kuan	20000
+坏账	huai zhang	20000
+垫资	dian zi	20000
+汇款路径	hui kuan lu jing	20000
+国际支付	guo ji zhi fu	20000
+跨境支付	kua jing zhi fu	20000
+跨境收款	kua jing shou kuan	20000
+提现	ti xian	20000
+放款	fang kuan	20000
+冻结资金	dong jie zi jin	20000
+清关	qing guan	20000
+报关	bao guan	20000
+报关单	bao guan dan	20000
+报关行	bao guan hang	20000
+报关费	bao guan fei	20000
+通关	tong guan	20000
+海关	hai guan	20000
+海关编码	hai guan bian ma	20000
+海关查验	hai guan cha yan	20000
+查验	cha yan	20000
+商检	shang jian	20000
+商检费	shang jian fei	20000
+原产地证	yuan chan di zheng	20000
+产地证	chan di zheng	20000
+提单	ti dan	20000
+海运提单	hai yun ti dan	20000
+空运提单	kong yun ti dan	20000
+电放	dian fang	20000
+电放提单	dian fang ti dan	20000
+正本提单	zheng ben ti dan	20000
+海运	hai yun	20000
+空运	kong yun	20000
+陆运	lu yun	20000
+铁运	tie yun	20000
+中欧班列	zhong ou ban lie	20000
+海运费	hai yun fei	20000
+空运费	kong yun fei	20000
+运费	yun fei	20000
+运费到付	yun fei dao fu	20000
+运费预付	yun fei yu fu	20000
+货代	huo dai	20000
+货运代理	huo yun dai li	20000
+船公司	chuan gong si	20000
+船期	chuan qi	20000
+开船	kai chuan	20000
+截关	jie guan	20000
+截单	jie dan	20000
+截港	jie gang	20000
+进港	jin gang	20000
+到港	dao gang	20000
+到港时间	dao gang shi jian	20000
+目的港	mu di gang	20000
+起运港	qi yun gang	20000
+装运港	zhuang yun gang	20000
+卸货港	xie huo gang	20000
+中转港	zhong zhuan gang	20000
+集装箱	ji zhuang xiang	20000
+整柜	zheng gui	20000
+拼柜	pin gui	20000
+散货	san huo	20000
+高柜	gao gui	20000
+平柜	ping gui	20000
+小柜	xiao gui	20000
+大柜	da gui	20000
+订舱	ding cang	20000
+舱单	cang dan	20000
+舱位	cang wei	20000
+爆舱	bao cang	20000
+甩柜	shuai gui	20000
+装柜	zhuang gui	20000
+拖柜	tuo gui	20000
+还柜	huan gui	20000
+滞港费	zhi gang fei	20000
+滞箱费	zhi xiang fei	20000
+仓储费	cang chu fei	20000
+操作费	cao zuo fei	20000
+燃油附加费	ran you fu jia fei	20000
+附加费	fu jia fei	20000
+偏远费	pian yuan fei	20000
+查验费	cha yan fei	20000
+派送	pai song	20000
+派送费	pai song fei	20000
+送仓	song cang	20000
+尾程	wei cheng	20000
+头程	tou cheng	20000
+头程物流	tou cheng wu liu	20000
+尾程派送	wei cheng pai song	20000
+海外仓	hai wai cang	20000
+保税仓	bao shui cang	20000
+前置仓	qian zhi cang	20000
+退货仓	tui huo cang	20000
+分仓	fen cang	20000
+一件代发	yi jian dai fa	20000
+代发货	dai fa huo	20000
+专线	zhuan xian	20000
+专线物流	zhuan xian wu liu	20000
+快递单号	kuai di dan hao	20000
+物流单号	wu liu dan hao	20000
+运单号	yun dan hao	20000
+跟踪单号	gen zong dan hao	20000
+物流轨迹	wu liu gui ji	20000
+物流信息	wu liu xin xi	20000
+物流时效	wu liu shi xiao	20000
+物流费用	wu liu fei yong	20000
+物流商	wu liu shang	20000
+时效	shi xiao	20000
+妥投	tuo tou	20000
+签收	qian shou	20000
+拒收	ju shou	20000
+丢件	diu jian	20000
+破损	po sun	20000
+包裹	bao guo	20000
+重量	zhong liang	20000
+体积重	ti ji zhong	20000
+实重	shi zhong	20000
+计费重	ji fei zhong	20000
+泡货	pao huo	20000
+重货	zhong huo	20000
+敏感货	min gan huo	20000
+带电产品	dai dian chan pin	20000
+纯电池	chun dian chi	20000
+内置电池	nei zhi dian chi	20000
+危险品	wei xian pin	20000
+木托	mu tuo	20000
+托盘	tuo pan	20000
+打托	da tuo	20000
+纸箱	zhi xiang	20000
+外箱	wai xiang	20000
+内盒	nei he	20000
+彩盒	cai he	20000
+中性包装	zhong xing bao zhuang	20000
+唛头	mai tou	20000
+箱唛	xiang mai	20000
+侧唛	ce mai	20000
+贴标	tie biao	20000
+贴标签	tie biao qian	20000
+换标	huan biao	20000
+外箱尺寸	wai xiang chi cun	20000
+装箱量	zhuang xiang liang	20000
+装箱数	zhuang xiang shu	20000
+毛重	mao zhong	20000
+净重	jing zhong	20000
+立方数	li fang shu	20000
+发货时间	fa huo shi jian	20000
+预计发货	yu ji fa huo	20000
+已发货	yi fa huo	20000
+待发货	dai fa huo	20000
+延迟发货	yan chi fa huo	20000
+分批发货	fen pi fa huo	20000
+分批装运	fen pi zhuang yun	20000
+转运	zhuan yun	20000
+目的国	mu di guo	20000
+收货人	shou huo ren	20000
+发货人	fa huo ren	20000
+通知人	tong zhi ren	20000
+跨境	kua jing	20000
+跨境电商	kua jing dian shang	20000
+跨境卖家	kua jing mai jia	20000
+跨境物流	kua jing wu liu	20000
+跨境运营	kua jing yun ying	20000
+独立站	du li zhan	20000
+亚马逊运营	ya ma xun yun ying	20000
+速卖通	su mai tong	20000
+敦煌网	dun huang wang	20000
+阿里国际站	a li guo ji zhan	20000
+国际站	guo ji zhan	20000
+虾皮	xia pi	20000
+希音	xi yin	20000
+拼多多跨境	pin duo duo kua jing	20000
+东南亚市场	dong nan ya shi chang	20000
+欧美市场	ou mei shi chang	20000
+中东市场	zhong dong shi chang	20000
+拉美市场	la mei shi chang	20000
+卖家中心	mai jia zhong xin	20000
+店铺	dian pu	20000
+店铺运营	dian pu yun ying	20000
+店铺评分	dian pu ping fen	20000
+店铺绩效	dian pu ji xiao	20000
+账号绩效	zhang hao ji xiao	20000
+账户绩效	zhang hu ji xiao	20000
+账号关联	zhang hao guan lian	20000
+账户审核	zhang hu shen he	20000
+二审	er shen	20000
+封店	feng dian	20000
+封号	feng hao	20000
+申诉	shen su	20000
+申诉信	shen su xin	20000
+侵权	qin quan	20000
+商标侵权	shang biao qin quan	20000
+专利侵权	zhuan li qin quan	20000
+品牌备案	pin pai bei an	20000
+品牌旗舰店	pin pai qi jian dian	20000
+类目	lei mu	20000
+类目审核	lei mu shen he	20000
+类目节点	lei mu jie dian	20000
+大类排名	da lei pai ming	20000
+小类排名	xiao lei pai ming	20000
+关键词	guan jian ci	20000
+长尾词	chang wei ci	20000
+核心词	he xin ci	20000
+流量词	liu liang ci	20000
+搜索词	sou suo ci	20000
+搜索排名	sou suo pai ming	20000
+自然排名	zi ran pai ming	20000
+自然流量	zi ran liu liang	20000
+站内广告	zhan nei guang gao	20000
+站外广告	zhan wai guang gao	20000
+站外推广	zhan wai tui guang	20000
+广告活动	guang gao huo dong	20000
+广告预算	guang gao yu suan	20000
+广告位	guang gao wei	20000
+竞价	jing jia	20000
+点击率	dian ji lv	20000
+转化率	zhuan hua lv	20000
+曝光量	bao guang liang	20000
+加购率	jia gou lv	20000
+退货率	tui huo lv	20000
+退款率	tui kuan lv	20000
+差评率	cha ping lv	20000
+好评率	hao ping lv	20000
+动销率	dong xiao lv	20000
+客单价	ke dan jia	20000
+复购率	fu gou lv	20000
+毛利率	mao li lv	20000
+净利润	jing li run	20000
+利润率	li run lv	20000
+广告费	guang gao fei	20000
+佣金	yong jin	20000
+平台佣金	ping tai yong jin	20000
+平台费用	ping tai fei yong	20000
+上架	shang jia	20000
+下架	xia jia	20000
+新品上架	xin pin shang jia	20000
+新品期	xin pin qi	20000
+爆款	bao kuan	20000
+爆品	bao pin	20000
+选品	xuan pin	20000
+选品工具	xuan pin gong ju	20000
+铺货	pu huo	20000
+精铺	jing pu	20000
+刷单	shua dan	20000
+测评	ce ping	20000
+测评人	ce ping ren	20000
+留评	liu ping	20000
+留评率	liu ping lv	20000
+索评	suo ping	20000
+跟卖	gen mai	20000
+变体	bian ti	20000
+子体	zi ti	20000
+父体	fu ti	20000
+主图	zhu tu	20000
+副图	fu tu	20000
+详情页	xiang qing ye	20000
+产品详情	chan pin xiang qing	20000
+产品标题	chan pin biao ti	20000
+五点描述	wu dian miao shu	20000
+五点	wu dian	20000
+卖点	mai dian	20000
+库存	ku cun	20000
+库容	ku rong	20000
+断货	duan huo	20000
+补货	bu huo	20000
+备货	bei huo	20000
+备货周期	bei huo zhou qi	20000
+滞销	zhi xiao	20000
+清仓	qing cang	20000
+秒杀	miao sha	20000
+限时折扣	xian shi zhe kou	20000
+优惠券	you hui quan	20000
+满减	man jian	20000
+促销活动	cu xiao huo dong	20000
+黑色星期五	hei se xing qi wu	20000
+网络星期一	wang luo xing qi yi	20000
+会员日	hui yuan ri	20000
+旺季	wang ji	20000
+淡季	dan ji	20000
+大促	da cu	20000
+物流模板	wu liu mu ban	20000
+配送方式	pei song fang shi	20000
+自发货	zi fa huo	20000
+平台发货	ping tai fa huo	20000
+海外买家	hai wai mai jia	20000
+买家秀	mai jia xiu	20000
+买家留言	mai jia liu yan	20000
+买家消息	mai jia xiao xi	20000
+站内信	zhan nei xin	20000
+后台	hou tai	20000
+工单	gong dan	20000
+开工单	kai gong dan	20000
+合规	he gui	20000
+合规认证	he gui ren zheng	20000
+产品认证	chan pin ren zheng	20000
+欧代	ou dai	20000
+英代	ying dai	20000
+环保认证	huan bao ren zheng	20000
+商品编码	shang pin bian ma	20000
+售后	shou hou	20000
+售后服务	shou hou fu wu	20000
+客诉	ke su	20000
+客服	ke fu	20000
+海外客服	hai wai ke fu	20000
+客服话术	ke fu hua shu	20000
+话术	hua shu	20000
+回复模板	hui fu mu ban	20000
+客户满意度	ke hu man yi du	20000
+退货	tui huo	20000
+退款	tui kuan	20000
+退换货	tui huan huo	20000
+换货	huan huo	20000
+补发	bu fa	20000
+重发	chong fa	20000
+部分退款	bu fen tui kuan	20000
+全额退款	quan e tui kuan	20000
+拒付	ju fu	20000
+争议	zheng yi	20000
+纠纷	jiu fen	20000
+平台纠纷	ping tai jiu fen	20000
+仲裁	zhong cai	20000
+索赔	suo pei	20000
+赔付	pei fu	20000
+理赔	li pei	20000
+质量问题	zhi liang wen ti	20000
+质量投诉	zhi liang tou su	20000
+产品瑕疵	chan pin xia ci	20000
+瑕疵	xia ci	20000
+破损件	po sun jian	20000
+少发	shao fa	20000
+错发	cuo fa	20000
+漏发	lou fa	20000
+延误	yan wu	20000
+物流延误	wu liu yan wu	20000
+保修	bao xiu	20000
+保修期	bao xiu qi	20000
+质保	zhi bao	20000
+质保期	zhi bao qi	20000
+使用说明	shi yong shuo ming	20000
+说明书	shuo ming shu	20000
+差评	cha ping	20000
+好评	hao ping	20000
+中评	zhong ping	20000
+删差评	shan cha ping	20000
+售前	shou qian	20000
+售中	shou zhong	20000
+售前咨询	shou qian zi xun	20000
+响应时间	xiang ying shi jian	20000
+工作时间	gong zuo shi jian	20000
+节假日	jie jia ri	20000
+时差	shi cha	20000
+不便之处	bu bian zhi chu	20000
+尽快回复	jin kuai hui fu	20000
+尽快处理	jin kuai chu li	20000
+收到请回复	shou dao qing hui fu	20000
+敬请谅解	jing qing liang jie	20000
+感谢理解	gan xie li jie	20000
+感谢合作	gan xie he zuo	20000
+期待合作	qi dai he zuo	20000
+长期合作	chang qi he zuo	20000
+合作愉快	he zuo yu kuai	20000
+工厂	gong chang	20000
+代工	dai gong	20000
+代工厂	dai gong chang	20000
+贴牌	tie pai	20000
+贴牌生产	tie pai sheng chan	20000
+定制	ding zhi	20000
+来样定制	lai yang ding zhi	20000
+来图定制	lai tu ding zhi	20000
+开模	kai mu	20000
+开模	kai mo	20000
+模具	mu ju	20000
+模具费	mu ju fei	20000
+开模费	kai mu fei	20000
+开模费	kai mo fei	20000
+打样	da yang	20000
+打样周期	da yang zhou qi	20000
+验货	yan huo	20000
+验厂	yan chang	20000
+验货报告	yan huo bao gao	20000
+第三方验货	di san fang yan huo	20000
+质检	zhi jian	20000
+品控	pin kong	20000
+抽检	chou jian	20000
+全检	quan jian	20000
+合格率	he ge lv	20000
+不良率	bu liang lv	20000
+良品率	liang pin lv	20000
+生产进度	sheng chan jin du	20000
+生产周期	sheng chan zhou qi	20000
+产能	chan neng	20000
+交货期	jiao huo qi	20000
+交付	jiao fu	20000
+准时交货	zhun shi jiao huo	20000
+原材料	yuan cai liao	20000
+原料	yuan liao	20000
+辅料	fu liao	20000
+面料	mian liao	20000
+材质	cai zhi	20000
+材质证明	cai zhi zheng ming	20000
+规格	gui ge	20000
+规格书	gui ge shu	20000
+产品规格	chan pin gui ge	20000
+产品目录	chan pin mu lu	20000
+产品手册	chan pin shou ce	20000
+产品图片	chan pin tu pian	20000
+产品视频	chan pin shi pin	20000
+产品型号	chan pin xing hao	20000
+型号	xing hao	20000
+色号	se hao	20000
+尺码	chi ma	20000
+尺码表	chi ma biao	20000
+产品参数	chan pin can shu	20000
+技术参数	ji shu can shu	20000
+公差	gong cha	20000
+环保材料	huan bao cai liao	20000
+食品级	shi pin ji	20000
+工艺	gong yi	20000
+表面处理	biao mian chu li	20000
+包装方式	bao zhuang fang shi	20000
+定制包装	ding zhi bao zhuang	20000
+印刷	yin shua	20000
+丝印	si yin	20000
+烫金	tang jin	20000
+外协	wai xie	20000
+供应商	gong ying shang	20000
+供应链	gong ying lian	20000
+供应商评估	gong ying shang ping gu	20000
+合格供应商	he ge gong ying shang	20000
+一手货源	yi shou huo yuan	20000
+现货	xian huo	20000
+现货供应	xian huo gong ying	20000
+货源	huo yuan	20000
+库存现货	ku cun xian huo	20000
+批发	pi fa	20000
+批量采购	pi liang cai gou	20000
+采购	cai gou	20000
+采购商	cai gou shang	20000
+采购员	cai gou yuan	20000
+买手	mai shou	20000
+分销	fen xiao	20000
+分销商	fen xiao shang	20000
+经销商	jing xiao shang	20000
+代理商	dai li shang	20000
+独家代理	du jia dai li	20000
+总代理	zong dai li	20000
+渠道	qu dao	20000
+展会	zhan hui	20000
+广交会	guang jiao hui	20000
+义乌	yi wu	20000
+商贸城	shang mao cheng	20000
+展位	zhan wei	20000
+参展	can zhan	20000
+看厂	kan chang	20000
+走访客户	zou fang ke hu	20000
+商务签证	shang wu qian zheng	20000
+麻烦确认	ma fan que ren	20000
+请查收	qing cha shou	20000
+已查收	yi cha shou	20000
+请确认	qing que ren	20000
+确认订单	que ren ding dan	20000
+订单确认	ding dan que ren	20000
+订单详情	ding dan xiang qing	20000
+订单号	ding dan hao	20000
+订单状态	ding dan zhuang tai	20000
+取消订单	qu xiao ding dan	20000
+修改订单	xiu gai ding dan	20000
+附件	fu jian	20000
+见附件	jian fu jian	20000
+邮件	you jian	20000
+邮件往来	you jian wang lai	20000
+跟进	gen jin	20000
+跟进进度	gen jin jin du	20000
+反馈	fan kui	20000
+回复客户	hui fu ke hu	20000
+给客户回复	gei ke hu hui fu	20000
+报给客户	bao gei ke hu	20000
+发给客户	fa gei ke hu	20000
+催货	cui huo	20000
+催款	cui kuan	20000
+催单	cui dan	20000
+催付	cui fu	20000
+发票	fa piao	20000
+开票	kai piao	20000
+开发票	kai fa piao	20000
+合同	he tong	20000
+合同金额	he tong jin e	20000
+收货地址	shou huo di zhi	20000
+地址变更	di zhi bian geng	20000
+电话号码	dian hua hao ma	20000
+工作日	gong zuo ri	20000
+交货时间	jiao huo shi jian	20000

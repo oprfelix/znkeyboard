@@ -215,6 +215,19 @@ fun main(args: Array<String>) {
         check("forgetting drops pairs too", withModel.pairTotal("历史") == 0 && withModel.learnedUses == 0, "")
     }
 
+    // Trade terms load on top of dict.tsv and survive a change of fuzzy rules.
+    run {
+        val trade = File(args[0]).bufferedReader().use { PinyinDictionary.load(it, emptySet()) }
+        File(args[0]).resolveSibling("trade.tsv").bufferedReader().use(trade::addWords)
+        fun firstWord(dictionary: PinyinDictionary, input: String) =
+            PinyinEngine.candidates(input, dictionary).firstOrNull { it.parts == null }?.text.toString()
+        check("trade term found", firstWord(trade, "qingguan") == "清关", firstWord(trade, "qingguan"))
+        check("corrected reading", firstWord(trade, "changweici") == "长尾词", firstWord(trade, "changweici"))
+        check("common words keep their place", firstWord(trade, "shijian") == "时间", firstWord(trade, "shijian"))
+        val fuzzyCopy = trade.withFuzzy(setOf(PinyinFuzzyRule.entries.first()))
+        check("kept across fuzzy rules", firstWord(fuzzyCopy, "qingguan") == "清关", firstWord(fuzzyCopy, "qingguan"))
+    }
+
     // English words: first when the letters can't be whole pinyin, after the best Chinese otherwise.
     run {
         val english = EnglishWords(listOf("hello", "time", "iPhone", "the"))

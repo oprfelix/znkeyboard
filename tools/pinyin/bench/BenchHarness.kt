@@ -140,6 +140,8 @@ fun main(args: Array<String>) {
     val options = args.drop(2)
     fun option(name: String) = options.indexOf(name).takeIf { it >= 0 }?.let { options.getOrNull(it + 1) }
     val strict = File(args[0]).bufferedReader().use { PinyinDictionary.load(it, emptySet()) }
+    // As the keyboard ships: the trade terms load on top of dict.tsv.
+    if ("--trade" in options) File(args[0]).resolveSibling("trade.tsv").bufferedReader().use(strict::addWords)
     // The keyboard starts with every fuzzy sound on; --strict measures without them.
     val dictionary = if ("--strict" in options) strict else strict.withFuzzy(PinyinFuzzyRule.DEFAULTS)
     option("--lm")?.let { path ->
