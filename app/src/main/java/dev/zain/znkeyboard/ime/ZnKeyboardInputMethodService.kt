@@ -85,6 +85,14 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     /** The field's text before the caret, until the keyboard edits it itself. */
     private var fieldTextBeforeCaret: CharSequence? = null
 
+    /** Swapping a word of the sentence: which one is being chosen ([part] -1), and its options. */
+    private class PinyinFix(val part: Int, val options: List<PinyinDictionary.Word> = emptyList())
+
+    private var pinyinFix: PinyinFix? = null
+
+    /** The sentence a fix produced: picking it counts as picked by hand, so the fix is learned. */
+    private var pinyinFixedSentence: PinyinEngine.Candidate? = null
+
     /** The word in the field before this composition, for when the keyboard has none of its own. */
     private var pinyinFieldContext: SentenceDecoder.Context? = null
     // Shown in the candidate bar after a commit, while nothing is composing.
@@ -795,6 +803,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
      * so a wrong pick stops coming first. Dictionary words stay, at their own rank.
      */
     override fun onPinyinCandidateLongPressed(index: Int) {
+        if (pinyinFix != null) return
         val dictionary = pinyinDictionary ?: return
         val english = pinyinCandidates.getOrNull(index)?.takeIf { it.id == EnglishWords.CANDIDATE_ID }
         if (pinyinComposing.isNotEmpty() && english != null) {
@@ -824,7 +833,37 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         if (pinyinComposing.isNotEmpty()) updatePinyinComposition(pinyinComposing) else showPinyinPredictions()
     }
 
+    override fun onPinyinFixRequested() {
+        pinyinFix = if (pinyinFix == null) PinyinFix(part = -1) else null
+        renderPinyinBar()
+    }
+
+    /** Going through the sentence's words, then the options for the one picked. */
+    private fun pickPinyinFix(fix: PinyinFix, index: Int) {
+        val sentence = pinyinCandidates.firstOrNull() ?: return
+        val parts = sentence.parts.orEmpty()
+        if (fix.part < 0) {
+            val dictionary = pinyinDictionary ?: return
+            val options = parts.getOrNull(index)?.let { PinyinEngine.alternatives(it, dictionary) }.orEmpty()
+            if (options.isEmpty()) {
+                Toast.makeText(this, t("这个词没有其他读法相同的词。", "No other word reads the same."), Toast.LENGTH_SHORT).show()
+                return
+            }
+            pinyinFix = PinyinFix(index, options)
+        } else {
+            val fixed = PinyinEngine.withPart(sentence, fix.part, fix.options.getOrNull(index) ?: return)
+            pinyinCandidates = listOf(fixed) + pinyinCandidates.drop(1).filter { it.text != fixed.text }
+            pinyinFixedSentence = fixed
+            pinyinFix = null
+        }
+        renderPinyinBar()
+    }
+
     override fun onPinyinCandidateSelected(index: Int) {
+        pinyinFix?.let { fix ->
+            pickPinyinFix(fix, index)
+            return
+        }
         if (pinyinComposing.isEmpty()) pickPinyinPrediction(index) else selectPinyinCandidate(index, byHand = true)
     }
 
@@ -1066,6 +1105,8 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         val inputConnection = currentInputConnection ?: return
         val dictionary = pinyinDictionary ?: return
         pinyinTaps.follow(pinyinComposing, composing, tap, sample)
+        pinyinFix = null
+        pinyinFixedSentence = null
         if (pinyinComposing.isEmpty()) {
             pinyinFieldContext = fieldTextBeforeCaret?.let(dictionary::contextBefore)
         }
@@ -1148,6 +1189,8 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     /** [byHand]: tapped or picked by number, as opposed to space taking the first candidate. */
     private fun selectPinyinCandidate(index: Int, byHand: Boolean) {
         val candidate = pinyinCandidates.getOrNull(index) ?: return
+        val learnedByHand = byHand || candidate === pinyinFixedSentence
+        pinyinFix = null
         val inputConnection = currentInputConnection ?: return
         val remaining = pinyinComposing.substring(candidate.consumed.coerceAtMost(pinyinComposing.length))
             .trimStart(PinyinEngine.SEPARATOR)
@@ -1162,7 +1205,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         inputConnection.commitText(candidate.text, 1)
         if (candidate.id == EnglishWords.CANDIDATE_ID) {
             pinyinLearner.breakChain()
-            if (byHand && isPersonalizationAllowed(currentEditorInfo)) {
+            if (learnedByHand && isPersonalizationAllowed(currentEditorInfo)) {
                 englishWords?.let { words ->
                     words.picked(candidate.text)
                     KeyboardSettings.saveEnglishWordUses(this, words.saved())
@@ -1170,8 +1213,8 @@ class ZnKeyboardInputMethodService : InputMethodService(),
             }
         } else {
             // A whole sentence teaches its words one by one (and which follows which), not itself.
-            candidate.parts?.forEach { part -> pinyinLearner.onPick(part.text, part.syllables, byHand, part.id) }
-                ?: pinyinLearner.onPick(candidate.text, candidate.syllables, byHand, candidate.id)
+            candidate.parts?.forEach { part -> pinyinLearner.onPick(part.text, part.syllables, learnedByHand, part.id) }
+                ?: pinyinLearner.onPick(candidate.text, candidate.syllables, learnedByHand, candidate.id)
         }
         if (remaining.isEmpty()) {
             pinyinLearner.onCompositionDone()
@@ -1230,10 +1273,20 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         // Every change to the composition ends here, so the spelling list follows it too.
         refreshNineKeySpellings()
         val bar = pinyinBar ?: return
-        if (pinyinComposing.isEmpty() && pinyinPredictions.isNotEmpty()) {
-            bar.render("", pinyinPredictions.map { it.text }, pinyinBarTools())
-        } else {
-            bar.render(composingDisplay(), pinyinCandidates.map { it.text })
+        val fix = pinyinFix?.takeIf { pinyinComposing.isNotEmpty() }
+        val parts = pinyinCandidates.firstOrNull()?.parts.orEmpty()
+        when {
+            pinyinComposing.isEmpty() && pinyinPredictions.isNotEmpty() ->
+                bar.render("", pinyinPredictions.map { it.text }, pinyinBarTools())
+            fix != null && fix.part < 0 ->
+                bar.render(t("点要改的词", "Tap the word to change"), parts.map { it.text }, fixLabel = t("取消", "Cancel"), highlighted = -1)
+            fix != null ->
+                bar.render(t("把「${parts[fix.part].text}」换成", "Change “${parts[fix.part].text}” to"), fix.options.map { it.text }, fixLabel = t("取消", "Cancel"), highlighted = -1)
+            else -> bar.render(
+                composingDisplay(),
+                pinyinCandidates.map { it.text },
+                fixLabel = t("改词", "Fix").takeIf { parts.size >= 2 && !chineseKeyboard.isNineKey },
+            )
         }
     }
 

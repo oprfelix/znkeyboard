@@ -27,6 +27,7 @@ object PinyinEngine {
     const val SEPARATOR = '\''
     private const val MAX_SYLLABLE_LENGTH = 6
     private const val MAX_INITIALS_LENGTH = 6
+    private const val ALTERNATIVES_LIMIT = 20
     private const val INITIAL_WORDS_LIMIT = 6
     private const val MIN_BEFORE_INITIALS = 3
     private const val MAX_BEFORE_INITIALS = 5
@@ -168,6 +169,23 @@ object PinyinEngine {
         return words.subList(0, at) +
             found.map { Candidate(it.text, input.length, it.syllables, id = it.id) } +
             words.subList(at, words.size)
+    }
+
+    /** Other words that read like [part] of a sentence, best first, to swap it for. */
+    fun alternatives(part: Candidate, dictionary: PinyinDictionary): List<PinyinDictionary.Word> {
+        val pieces = part.syllables.map { PinyinDictionary.Piece(it, isPrefix = false) }
+        return dictionary.matches(pieces, ALTERNATIVES_LIMIT).filter { it.text != part.text }
+    }
+
+    /** [sentence] with its part at [index] replaced by [word]; picking it learns that word. */
+    fun withPart(sentence: Candidate, index: Int, word: PinyinDictionary.Word): Candidate {
+        val parts = sentence.parts.orEmpty().toMutableList()
+        parts[index] = Candidate(word.text, parts[index].consumed, word.syllables, id = word.id)
+        return sentence.copy(
+            text = parts.joinToString("") { it.text },
+            syllables = parts.flatMap { it.syllables },
+            parts = parts,
+        )
     }
 
     /** Whether all of [input] splits into whole syllables, with no initials or half-typed ones. */
