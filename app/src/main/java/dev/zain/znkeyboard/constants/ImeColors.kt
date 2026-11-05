@@ -3,6 +3,7 @@ package dev.zain.znkeyboard.constants
 import android.content.Context
 import android.content.res.Configuration
 import android.graphics.Color
+import androidx.core.graphics.ColorUtils
 
 /**
  * Runtime keyboard palette. [apply] is called before the input views are (re)created, so every
@@ -57,6 +58,13 @@ object ImeColors {
     // Ink blue for the round target-language key; fixed so it reads the same in every theme.
     val TRANSLATE_BADGE = Color.rgb(35, 64, 128)
     val ON_TRANSLATE_BADGE = Color.WHITE
+    /** A blue wash over the theme's background, so the translation stands apart from the keys. */
+    val READING_CARD: Int
+        get() = ColorUtils.blendARGB(
+            BACKGROUND,
+            TRANSLATE_BADGE,
+            if (ColorUtils.calculateLuminance(BACKGROUND) > 0.5) 0.12f else 0.35f,
+        )
 
     // Space key while it records speech: the familiar recording red, fixed across themes.
     val VOICE_RECORDING = Color.rgb(179, 38, 30)

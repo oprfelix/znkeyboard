@@ -105,11 +105,7 @@ class ReadingCardView(context: Context) : LinearLayout(context) {
     }
 
     private fun render(languageLabel: String) {
-        background = GradientDrawable().apply {
-            val radius = context.dp(CORNER_RADIUS_DP.toFloat())
-            cornerRadii = floatArrayOf(radius, radius, radius, radius, 0f, 0f, 0f, 0f)
-            setColor(ImeColors.BACKGROUND)
-        }
+        setBackgroundColor(ImeColors.READING_CARD)
         language.text = languageLabel
         language.setTextColor(ImeColors.MUTED_TEXT)
         close.setColorFilter(ImeColors.MUTED_TEXT)
@@ -133,7 +129,6 @@ class ReadingCardView(context: Context) : LinearLayout(context) {
         const val BODY_TEXT_SP = 16f
         const val HEADER_HEIGHT_DP = 34
         const val PROGRESS_SIZE_DP = 24
-        const val CORNER_RADIUS_DP = 16
         const val MAX_BODY_SCREEN_FRACTION = 0.3f
     }
 }

@@ -1842,6 +1842,7 @@ class ZnKeyboardView @JvmOverloads constructor(
             KeyIntent.AgentPolishOnly -> callback?.onAgentPolishOnlyRequested()
             KeyIntent.OpenClipboard -> callback?.onClipboardPanelRequested()
             KeyIntent.OpenTools -> callback?.onToolsMenuRequested()
+            KeyIntent.None -> Unit
             KeyIntent.OpenSettings -> callback?.onKeyboardSettingsRequested()
             KeyIntent.AgentRewrite -> callback?.onAgentRewriteRequested()
             is KeyIntent.Dispatch -> {
@@ -2239,7 +2240,7 @@ class ZnKeyboardView @JvmOverloads constructor(
                     id = "second_polish_only",
                     label = if (pinyinModeEnabled) AgentDefaults.POLISH_ONLY_LABEL else AgentDefaults.POLISH_ONLY_LABEL_EN,
                     intent = KeyIntent.AgentPolishOnly,
-                    weight = ImeDimensions.POLISH_ONLY_KEY_WEIGHT,
+                    weight = ImeDimensions.TOOLBAR_POLISH_KEY_DP,
                     role = KeyRole.Function,
                     enabled = shortcutRowState.rewriteEnabled && !shortcutRowState.loading,
                 ),
@@ -2250,31 +2251,47 @@ class ZnKeyboardView @JvmOverloads constructor(
                     id = "second_translate_language",
                     label = languageCode,
                     intent = KeyIntent.ChooseTranslateLanguage,
-                    weight = translateLanguageKeyWeight(languageCode),
+                    weight = ImeDimensions.TOOLBAR_LANGUAGE_CHIP_DP,
                     role = KeyRole.Function,
                     chip = true,
                 ),
             )
         }
-        if (shortcutRowState.aiVisible) {
-            keys.add(0, KeySpec("second_tools", "Tools", KeyIntent.OpenTools, ImeDimensions.DEFAULT_KEY_WEIGHT, KeyRole.Function, icon = KeyIcon.Leaf))
-        }
-        keys.add(KeySpec("second_settings", "Settings", KeyIntent.OpenSettings, ImeDimensions.DEFAULT_KEY_WEIGHT, KeyRole.Function, icon = KeyIcon.Settings))
-        // The other keys keep their width however many there are: translate takes up the difference.
-        val translate = keys.indexOfFirst { it.intent == KeyIntent.AgentRewrite }
-        if (translate >= 0 && languageCode != null) {
-            val others = keys.filterIndexed { index, _ -> index != translate }.sumOf { it.weight.toDouble() }.toFloat()
-            keys[translate] = keys[translate].copy(
-                weight = maxOf(ImeDimensions.REWRITE_TRANSLATE_KEY_WEIGHT, ImeDimensions.TOOLBAR_TOTAL_WEIGHT - others),
-            )
-        }
-        return RowSpec(keys, heightWeight = ImeLayout.COMPACT_ROW_WEIGHT, style = RowStyle.Toolbar)
+        return RowSpec(fixedToolbarKeys(keys), heightWeight = ImeLayout.COMPACT_ROW_WEIGHT, style = RowStyle.Toolbar)
     }
 
-    private fun translateLanguageKeyWeight(label: String): Float = when {
-        label.all { it.code < 128 } -> ImeDimensions.TRANSLATE_LANGUAGE_KEY_WEIGHT
-        label.length >= 4 -> ImeDimensions.TRANSLATE_LANGUAGE_LONG_NAME_KEY_WEIGHT
-        else -> ImeDimensions.TRANSLATE_LANGUAGE_NAME_KEY_WEIGHT
+    /**
+     * Leaf, 润色 and 翻译 start the row and the other keys end it, each at a fixed width, with the
+     * space left over between them. Weights are in dp so that the row adds up to the screen.
+     */
+    private fun fixedToolbarKeys(keys: MutableList<KeySpec>): List<KeySpec> {
+        val latin = !pinyinModeEnabled
+        val fixed = keys.mapTo(mutableListOf()) { key ->
+            key.copy(
+                weight = when {
+                    key.intent == KeyIntent.AgentPolishOnly -> ImeDimensions.TOOLBAR_POLISH_KEY_DP
+                    key.intent == KeyIntent.AgentRewrite && latin -> ImeDimensions.TOOLBAR_TRANSLATE_LABEL_EN_DP
+                    key.intent == KeyIntent.AgentRewrite -> ImeDimensions.TOOLBAR_TRANSLATE_LABEL_DP
+                    key.intent == KeyIntent.ChooseTranslateLanguage && latin -> ImeDimensions.TOOLBAR_LANGUAGE_CHIP_EN_DP
+                    key.intent == KeyIntent.ChooseTranslateLanguage -> ImeDimensions.TOOLBAR_LANGUAGE_CHIP_DP
+                    else -> ImeDimensions.TOOLBAR_ICON_KEY_DP
+                },
+            )
+        }
+        if (shortcutRowState.aiVisible) {
+            fixed.add(0, KeySpec("second_tools", "Tools", KeyIntent.OpenTools, ImeDimensions.TOOLBAR_ICON_KEY_DP, KeyRole.Function, icon = KeyIcon.Leaf))
+        }
+        fixed.add(KeySpec("second_settings", "Settings", KeyIntent.OpenSettings, ImeDimensions.TOOLBAR_ICON_KEY_DP, KeyRole.Function, icon = KeyIcon.Settings))
+        val metrics = resources.displayMetrics
+        val spare = metrics.widthPixels / metrics.density - fixed.sumOf { it.weight.toDouble() }.toFloat()
+        if (spare > 0f) {
+            val leftEnd = fixed.indexOfLast {
+                it.intent == KeyIntent.OpenTools || it.intent == KeyIntent.AgentPolishOnly ||
+                    it.intent == KeyIntent.AgentRewrite || it.intent == KeyIntent.ChooseTranslateLanguage
+            }
+            fixed.add(leftEnd + 1, KeySpec("second_space", "", KeyIntent.None, spare, KeyRole.Function, enabled = false))
+        }
+        return fixed
     }
 
     private fun hasVisibleSecondRow(): Boolean {
@@ -2913,6 +2930,7 @@ class ZnKeyboardView @JvmOverloads constructor(
         data object AgentRewrite : KeyIntent()
         data object OpenClipboard : KeyIntent()
         data object OpenTools : KeyIntent()
+        data object None : KeyIntent()
         data object OpenSettings : KeyIntent()
         data class Dispatch(val action: KeyboardAction) : KeyIntent()
     }
