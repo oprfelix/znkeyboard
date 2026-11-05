@@ -224,6 +224,16 @@ fun main(args: Array<String>) {
         check("trade term found", firstWord(trade, "qingguan") == "清关", firstWord(trade, "qingguan"))
         check("corrected reading", firstWord(trade, "changweici") == "长尾词", firstWord(trade, "changweici"))
         check("common words keep their place", firstWord(trade, "shijian") == "时间", firstWord(trade, "shijian"))
+        fun texts(input: String) = PinyinEngine.candidates(input, trade).map { it.text }
+        check("sh also reads as two initials", "时候" in texts("sh"), texts("sh").take(8).toString())
+        check("a syllable also reads as initials", "解决方案" in texts("jjfa"), texts("jjfa").take(8).toString())
+        check("zh in a longer word", "什么时候" in texts("smsh"), texts("smsh").take(8).toString())
+        check("the first candidates stay put", texts("sh").first() == "是", texts("sh").take(4).toString())
+        check("whole pinyin keeps its words first", texts("fa").take(3).none { it.length > 1 }, texts("fa").take(4).toString())
+        check("field context takes the last word", trade.contextBefore("我们的报价")?.text == "报价", "")
+        check("field context takes a lone character", trade.contextBefore("这批货")?.text == "货", "")
+        check("no context after punctuation", trade.contextBefore("好的，") == null, "")
+        check("no context in an empty field", trade.contextBefore("") == null, "")
         val fuzzyCopy = trade.withFuzzy(setOf(PinyinFuzzyRule.entries.first()))
         check("kept across fuzzy rules", firstWord(fuzzyCopy, "qingguan") == "清关", firstWord(fuzzyCopy, "qingguan"))
     }

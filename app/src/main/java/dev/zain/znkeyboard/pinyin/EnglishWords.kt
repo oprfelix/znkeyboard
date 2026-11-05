@@ -21,7 +21,7 @@ class EnglishWords(words: List<String>) {
     ): List<PinyinEngine.Candidate> {
         if (input.length < MIN_LENGTH) return candidates
         val word = displayed[input] ?: return candidates
-        val first = (uses[input] ?: 0) >= PROMOTE_AT || !isWholePinyin(input, dictionary)
+        val first = (uses[input] ?: 0) >= PROMOTE_AT || !PinyinEngine.isWholePinyin(input, dictionary)
         val at = if (first) 0 else minOf(1, candidates.size)
         return ArrayList<PinyinEngine.Candidate>(candidates.size + 1).apply {
             addAll(candidates)
@@ -58,23 +58,10 @@ class EnglishWords(words: List<String>) {
         }
     }
 
-    private fun isWholePinyin(input: String, dictionary: PinyinDictionary): Boolean {
-        val reachable = BooleanArray(input.length + 1)
-        reachable[0] = true
-        for (start in input.indices) {
-            if (!reachable[start]) continue
-            for (end in start + 1..minOf(start + MAX_SYLLABLE_LENGTH, input.length)) {
-                if (dictionary.isSyllable(input.substring(start, end))) reachable[end] = true
-            }
-        }
-        return reachable[input.length]
-    }
-
     companion object {
         /** [PinyinEngine.Candidate.id] of a word from here; dictionary words use 0 and up, or -1. */
         const val CANDIDATE_ID = -2
         private const val MIN_LENGTH = 4
-        private const val MAX_SYLLABLE_LENGTH = 6
         private const val PROMOTE_AT = 2
         private const val MAX_REMEMBERED = 500
     }

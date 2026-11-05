@@ -23,4 +23,4 @@ P=app/src/main/java/dev/zain/znkeyboard/pinyin
   -no-stdlib -no-reflect -classpath "$STD" -nowarn -d "$OUT" \
   "$P/PinyinFuzzy.kt" "$P/PinyinDictionary.kt" "$P/PinyinLanguageModel.kt" "$P/PinyinEngine.kt" "$P/EnglishWords.kt" "$P/PinyinUserData.kt" "$P/PinyinLearner.kt" "$P/SentenceDecoder.kt" "$P/PinyinTapBuffer.kt" \
   tools/pinyin/trade/TradeHarness.kt
-"$JAVA_HOME/bin/java" -cp "$OUT:$STD" TradeHarnessKt app/src/main/assets/pinyin/dict.tsv app/src/main/assets/pinyin/lm.bin tools/pinyin/trade/cases.tsv
+"$JAVA_HOME/bin/java" -cp "$OUT:$STD" TradeHarnessKt app/src/main/assets/pinyin/dict.tsv app/src/main/assets/pinyin/lm.bin tools/pinyin/trade/cases.tsv tools/pinyin/bench/bench.tsv

@@ -85,6 +85,11 @@ class PinyinDictionary private constructor(
 
     private val normalizedBySyllable = HashMap<String, String>()
 
+    /** Language-model ids of single characters, for [contextBefore]. */
+    private val singleIds by lazy(LazyThreadSafetyMode.NONE) {
+        rows.asSequence().filter { it.text.length == 1 }.associate { it.text[0] to it.id }
+    }
+
     /** Keeps [addWords] rows after every dict.tsv row when scores tie. */
     private var extraRank = 0
 
@@ -120,6 +125,21 @@ class PinyinDictionary private constructor(
             for (end in 1..normalized.length) syllablePrefixes += normalized.substring(0, end)
         }
         indexExtras(extraRows)
+    }
+
+    /**
+     * The last word of [text] already in the field, longest match first, as context for what is
+     * typed next: null when it ends in anything but a dictionary character.
+     */
+    fun contextBefore(text: CharSequence): SentenceDecoder.Context? {
+        for (length in minOf(MAX_CONTEXT_WORD, text.length) downTo 2) {
+            val tail = text.subSequence(text.length - length, text.length).toString()
+            val entry = byFirstChar[tail[0]]?.firstOrNull { it.text == tail } ?: continue
+            return SentenceDecoder.Context(entry.text, entry.id)
+        }
+        val last = text.lastOrNull() ?: return null
+        val id = singleIds[last] ?: return null
+        return SentenceDecoder.Context(last.toString(), id)
     }
 
     /** Reads the trade word list: words already here are marked as trade words, others added. */
@@ -583,6 +603,7 @@ class PinyinDictionary private constructor(
 
         private val BEST_FIRST = compareByDescending<Entry> { it.score }.thenBy { it.rank }
 
+        private const val MAX_CONTEXT_WORD = 6
         private const val FULL_LIMIT = 30
         private const val INITIALS_LIMIT = 10
         private const val SINGLES_BEFORE_INITIALS = 6

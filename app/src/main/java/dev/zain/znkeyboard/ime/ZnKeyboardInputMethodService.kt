@@ -40,6 +40,7 @@ import dev.zain.znkeyboard.pinyin.NineKeyEngine
 import dev.zain.znkeyboard.pinyin.PinyinDictionary
 import dev.zain.znkeyboard.pinyin.EnglishWords
 import dev.zain.znkeyboard.pinyin.PinyinEngine
+import dev.zain.znkeyboard.pinyin.SentenceDecoder
 import dev.zain.znkeyboard.pinyin.PinyinLanguageModel
 import dev.zain.znkeyboard.pinyin.PinyinLearner
 import dev.zain.znkeyboard.pinyin.PinyinTapBuffer
@@ -80,6 +81,12 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     private var strokeIndexLoading = false
     private var pinyinCandidates: List<PinyinEngine.Candidate> = emptyList()
     private var englishWords: EnglishWords? = null
+
+    /** The field's text before the caret, until the keyboard edits it itself. */
+    private var fieldTextBeforeCaret: CharSequence? = null
+
+    /** The word in the field before this composition, for when the keyboard has none of its own. */
+    private var pinyinFieldContext: SentenceDecoder.Context? = null
     // Shown in the candidate bar after a commit, while nothing is composing.
     private var pinyinPredictions: List<PinyinLearner.Prediction> = emptyList()
     private var pinyinPredictionsEnabled = true
@@ -247,7 +254,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         typingEngine.resetIfGenerationChanged(KeyboardSettings.readTypingModelGeneration(this))
         typingEngine.personalizationAllowed = isPersonalizationAllowed(info)
         pendingOwnSelectionUpdates = 0
-        typingEngine.learner.onContextChanged(currentInputConnection?.getTextBeforeCursor(TYPING_CONTEXT_CHARS, 0))
+        noteTextBeforeCaret(currentInputConnection?.getTextBeforeCursor(TYPING_CONTEXT_CHARS, 0))
         pinyinLearner.learningEnabled = KeyboardSettings.readPinyinLearningEnabled(this) && isPersonalizationAllowed(info)
         reloadPinyinLearningIfReset()
         keyboardView?.setPhonePadMode(shouldUsePhonePadMode(info))
@@ -311,7 +318,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
             // The user tapped elsewhere in the text, or the app edited it: accept and resync.
             dismissPinyinPredictions()
             englishRun = false
-            typingEngine.learner.onContextChanged(
+            noteTextBeforeCaret(
                 if (newSelStart == newSelEnd) currentInputConnection?.getTextBeforeCursor(TYPING_CONTEXT_CHARS, 0) else null,
             )
             updateAutoShift()
@@ -538,7 +545,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         keyboard.setEnterLabel(resolveEnterLabel(currentEditorInfo))
         swapKeyboardSurface(keyboard)
         renderSecondRow()
-        typingEngine.learner.onContextChanged(currentInputConnection?.getTextBeforeCursor(TYPING_CONTEXT_CHARS, 0))
+        noteTextBeforeCaret(currentInputConnection?.getTextBeforeCursor(TYPING_CONTEXT_CHARS, 0))
         updateAutoShift()
     }
 
@@ -668,7 +675,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         inputConnection.commitText(". ", 1)
         inputConnection.endBatchEdit()
         lastSpaceCommitAt = 0L
-        typingEngine.learner.onContextChanged(inputConnection.getTextBeforeCursor(TYPING_CONTEXT_CHARS, 0))
+        noteTextBeforeCaret(inputConnection.getTextBeforeCursor(TYPING_CONTEXT_CHARS, 0))
         return true
     }
 
@@ -1059,12 +1066,15 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         val inputConnection = currentInputConnection ?: return
         val dictionary = pinyinDictionary ?: return
         pinyinTaps.follow(pinyinComposing, composing, tap, sample)
+        if (pinyinComposing.isEmpty()) {
+            pinyinFieldContext = fieldTextBeforeCaret?.let(dictionary::contextBefore)
+        }
         pinyinComposing = composing
         pinyinCandidates = when {
             composing.isEmpty() -> emptyList()
             chineseKeyboard == KeyboardSettings.ChineseKeyboard.NineKeyPinyin -> NineKeyEngine.candidates(composing, dictionary)
             chineseKeyboard == KeyboardSettings.ChineseKeyboard.NineKeyStroke -> strokeIndex?.candidates(composing, dictionary).orEmpty()
-            else -> PinyinEngine.candidates(composing, dictionary, pinyinTaps, pinyinLearner.context).let { found ->
+            else -> PinyinEngine.candidates(composing, dictionary, pinyinTaps, pinyinLearner.context ?: pinyinFieldContext).let { found ->
                 englishWords?.merge(composing, found, dictionary) ?: found
             }
         }
@@ -1278,7 +1288,14 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         renderPinyinBar()
     }
 
+    /** Read when the caret moves, not per key: what sits there is the context for the next input. */
+    private fun noteTextBeforeCaret(text: CharSequence?) {
+        typingEngine.learner.onContextChanged(text)
+        fieldTextBeforeCaret = text
+    }
+
     private fun noteOwnEdit() {
+        fieldTextBeforeCaret = null
         if (isRawKeyEventEditor(currentEditorInfo)) return
         pendingOwnSelectionUpdates++
         lastOwnEditAt = SystemClock.uptimeMillis()

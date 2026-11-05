@@ -26,6 +26,10 @@ object PinyinEngine {
 
     const val SEPARATOR = '\''
     private const val MAX_SYLLABLE_LENGTH = 6
+    private const val MAX_INITIALS_LENGTH = 6
+    private const val INITIAL_WORDS_LIMIT = 6
+    private const val MIN_BEFORE_INITIALS = 3
+    private const val MAX_BEFORE_INITIALS = 5
     private const val MAX_CANDIDATES = 80
     private const val FULL_MATCH_LIMIT = 30
     private const val PARTIAL_MATCH_LIMIT = 8
@@ -118,11 +122,13 @@ object PinyinEngine {
         val words = wordCandidates(input, dictionary)
         val limit = if (dictionary.languageModel == null) 1 else MAX_SENTENCES
         val sentences = SentenceDecoder.decodeAll(input, dictionary, taps, before, limit)
-        val sentence = sentences.firstOrNull() ?: return words
+        val sentence = sentences.firstOrNull() ?: return withInitialWords(input, words, dictionary)
         val typed = input.replace(SEPARATOR.toString(), "")
         val corrected = sentence.spelling.replace(" ", "") != typed
-        if (sentence.parts.size < 2 && !corrected && dictionary.languageModel == null) return words
-        return withSentences(sentences.map { wholeInput(it, input.length) }, words, input.length)
+        if (sentence.parts.size < 2 && !corrected && dictionary.languageModel == null) {
+            return withInitialWords(input, words, dictionary)
+        }
+        return withInitialWords(input, withSentences(sentences.map { wholeInput(it, input.length) }, words, input.length), dictionary)
     }
 
     /** [sentence] as a candidate that reads all [length] characters. */
@@ -141,6 +147,40 @@ object PinyinEngine {
         if (others.isEmpty()) return listed
         val at = listed.indexOfFirst { it.consumed < length }.let { if (it < 0) listed.size else it }
         return listed.subList(0, at) + others + listed.subList(at, listed.size)
+    }
+
+    /**
+     * [segment] reads "sh" as the start of 上 and "jjfa" as 经济 + 法; here every letter is the first
+     * of its own character, so 时候 and 解决方案 are found too. Only words not listed yet are added:
+     * after the words that read all of [input], yet on the first screen unless it is whole pinyin.
+     */
+    private fun withInitialWords(input: String, words: List<Candidate>, dictionary: PinyinDictionary): List<Candidate> {
+        if (input.length !in 2..MAX_INITIALS_LENGTH || SEPARATOR in input) return words
+        val pieces = input.map { PinyinDictionary.Piece(it.toString(), isPrefix = true) }
+        val found = dictionary.matches(pieces, INITIAL_WORDS_LIMIT).filter { word -> words.none { it.text == word.text } }
+        if (found.isEmpty()) return words
+        val at = if (isWholePinyin(input, dictionary)) {
+            words.indexOfFirst { it.consumed < input.length }.let { if (it < 0) words.size else it }
+        } else {
+            val lastWord = words.indexOfLast { it.consumed >= input.length && it.text.length > 1 }
+            (lastWord + 1).coerceIn(MIN_BEFORE_INITIALS, MAX_BEFORE_INITIALS).coerceAtMost(words.size)
+        }
+        return words.subList(0, at) +
+            found.map { Candidate(it.text, input.length, it.syllables, id = it.id) } +
+            words.subList(at, words.size)
+    }
+
+    /** Whether all of [input] splits into whole syllables, with no initials or half-typed ones. */
+    fun isWholePinyin(input: String, dictionary: PinyinDictionary): Boolean {
+        val reachable = BooleanArray(input.length + 1)
+        reachable[0] = true
+        for (start in input.indices) {
+            if (!reachable[start]) continue
+            for (end in start + 1..minOf(start + MAX_SYLLABLE_LENGTH, input.length)) {
+                if (dictionary.isSyllable(input.substring(start, end))) reachable[end] = true
+            }
+        }
+        return reachable[input.length]
     }
 
     private fun wordCandidates(input: String, dictionary: PinyinDictionary): List<Candidate> {
