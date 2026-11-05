@@ -137,7 +137,13 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
             fixButton,
             LayoutParams(LayoutParams.WRAP_CONTENT, context.dp(34)).apply { marginStart = context.dp(4) },
         )
-        mainRow.addView(expandButton, LayoutParams(context.dp(EXPAND_WIDTH_DP), LayoutParams.MATCH_PARENT))
+        mainRow.addView(
+            expandButton,
+            LayoutParams(context.dp(EXPAND_WIDTH_DP), context.dp(34)).apply {
+                marginStart = context.dp(6)
+                marginEnd = context.dp(8)
+            },
+        )
         mainRow.addView(toolsRow, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.MATCH_PARENT))
         toolsRow.visibility = View.GONE
         applyColors()
@@ -146,9 +152,7 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
     fun applyColors() {
         setBackgroundColor(ImeColors.BACKGROUND)
         expandButton.setTextColor(ImeColors.TEXT)
-        // The tap area fills the strip; the pill inside it shows it is a button.
-        val inset = context.dp(EXPAND_INSET_DP)
-        expandButton.background = InsetDrawable(pill(), inset, inset, inset, inset)
+        expandButton.background = pill()
         fixButton.setTextColor(ImeColors.TEXT)
         fixButton.background = pill()
         candidateRow.dividerDrawable = GradientDrawable().apply {
@@ -288,8 +292,7 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
         const val CANDIDATE_TEXT_SP = 22f
         const val COMPOSING_TEXT_SP = 12f
         const val EXPAND_WIDTH_DP = 56
-        const val EXPAND_TEXT_SP = 22f
-        const val EXPAND_INSET_DP = 4
+        const val EXPAND_TEXT_SP = 18f
         const val CANDIDATE_MIN_WIDTH_DP = 52
         const val HIGHLIGHT_RADIUS_DP = 10
         const val HIGHLIGHT_INSET_DP = 3
