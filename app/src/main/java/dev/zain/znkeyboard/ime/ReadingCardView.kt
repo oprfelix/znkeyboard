@@ -1,15 +1,14 @@
 package dev.zain.znkeyboard.ime
 
 import android.content.Context
-import android.content.res.ColorStateList
 import android.graphics.drawable.GradientDrawable
 import android.view.Gravity
 import android.view.View
 import android.widget.ImageView
 import android.widget.LinearLayout
-import android.widget.ProgressBar
 import android.widget.ScrollView
 import android.widget.TextView
+import androidx.core.graphics.ColorUtils
 import dev.zain.znkeyboard.R
 import dev.zain.znkeyboard.constants.ImeColors
 
@@ -38,20 +37,8 @@ class ReadingCardView(context: Context) : LinearLayout(context) {
         contentDescription = context.getString(R.string.reading_close)
         setOnClickListener { callback?.onReadingCardClosed() }
     }
-    private val progress = ProgressBar(context).apply { isIndeterminate = true }
-    private val progressLabel = TextView(context).apply {
-        textSize = 14f
-        gravity = Gravity.CENTER_VERTICAL
-        text = context.getString(R.string.reading_translating)
-    }
-    private val working = LinearLayout(context).apply {
-        orientation = HORIZONTAL
-        gravity = Gravity.CENTER_VERTICAL
-        addView(progress, LayoutParams(context.dp(PROGRESS_SIZE_DP), context.dp(PROGRESS_SIZE_DP)))
-        addView(
-            progressLabel,
-            LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT).apply { marginStart = context.dp(10) },
-        )
+    private val working = ShimmerLinesView(context).apply {
+        contentDescription = context.getString(R.string.reading_translating)
     }
     private val body = TextView(context).apply {
         textSize = BODY_TEXT_SP
@@ -83,7 +70,10 @@ class ReadingCardView(context: Context) : LinearLayout(context) {
             addView(close, LayoutParams(context.dp(HEADER_HEIGHT_DP), context.dp(HEADER_HEIGHT_DP)))
         }
         addView(header, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
-        addView(working, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
+        addView(
+            working,
+            LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply { marginEnd = context.dp(8) },
+        )
         addView(
             scroller,
             LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply { marginEnd = context.dp(8) },
@@ -100,8 +90,10 @@ class ReadingCardView(context: Context) : LinearLayout(context) {
 
     fun showWorking(languageLabel: String) {
         render(languageLabel)
-        progress.indeterminateTintList = ColorStateList.valueOf(ImeColors.TEXT)
-        progressLabel.setTextColor(ImeColors.MUTED_TEXT)
+        working.setColors(
+            line = ColorUtils.setAlphaComponent(ImeColors.TEXT, LINE_ALPHA),
+            shine = ColorUtils.setAlphaComponent(ImeColors.TEXT, SHINE_ALPHA),
+        )
         working.visibility = View.VISIBLE
         scroller.visibility = View.GONE
         action.visibility = View.GONE
@@ -146,7 +138,8 @@ class ReadingCardView(context: Context) : LinearLayout(context) {
     private companion object {
         const val BODY_TEXT_SP = 16f
         const val HEADER_HEIGHT_DP = 34
-        const val PROGRESS_SIZE_DP = 24
+        const val LINE_ALPHA = 40
+        const val SHINE_ALPHA = 110
         const val MAX_BODY_HEIGHT_DP = 160
         const val MAX_BODY_SCREEN_FRACTION = 0.25f
         const val FADE_LENGTH_DP = 28
