@@ -190,13 +190,44 @@ nav .wrap { display: flex; align-items: center; gap: 24px; height: 60px; }
 /* The computer behind the phone (wide screens only): the reading side of the story. The phone leans at the
    right; the window sits behind it on the left and the phone covers its right edge, so its content keeps clear. */
 .hero-visual { position: relative; }
+.hero-desk { display: none; }
 @media (min-width: 1100px) {
-  .hero .wrap { grid-template-columns: minmax(0, 1fr) 480px; gap: 36px; }
+  .hero .wrap { grid-template-columns: minmax(0, 1fr) 594px; gap: 36px; }
   .hero h1 { font-size: 52px; }
-  .hero-front { position: relative; z-index: 1; width: 300px; margin: 0 auto; }
+  .hero-front { position: relative; z-index: 1; width: 300px; margin: 0 40px 0 auto; }
   .hero-visual .hero-tag { display: inline-flex; }
+  .hero-visual .hero-fly { display: block; }
+  /* The customer's side of the chat, behind your phone. */
+  .hero-desk {
+    display: block; position: absolute; left: -10px; top: 74px; width: 380px;
+    background: var(--card); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; font-size: 13px;
+    box-shadow: 0 14px 40px rgba(30, 70, 160, .10);
+  }
 }
 @media (min-width: 1100px) and (max-width: 1159px) { .hero h1 { font-size: 46px; } }
+.hero-desk .bar { display: flex; gap: 6px; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+.hero-desk .bar i { width: 9px; height: 9px; border-radius: 50%; background: #ff5f57; }
+.hero-desk .bar i:nth-child(2) { background: #febc2e; }
+.hero-desk .bar i:nth-child(3) { background: #28c840; }
+.hero-desk .main { display: flex; flex-direction: column; min-height: 330px; padding: 12px 130px 14px 14px; }
+.hero-desk .who { display: flex; align-items: center; gap: 8px; font-weight: 650; }
+.hero-desk .who .avatar { width: 30px; height: 30px; font-size: 13px; }
+.hero-desk .who small { display: block; color: var(--muted); font-weight: 400; font-size: 11px; }
+.hero-desk .dchat { flex: 1; display: flex; flex-direction: column; gap: 8px; padding: 12px 0; }
+.hero-desk .dsent, .hero-desk .din { width: fit-content; max-width: 92%; padding: 6px 10px; border-radius: 12px; }
+.hero-desk .dsent { align-self: flex-end; color: #fff; background: var(--blue); }
+.hero-desk .din { border: 1px solid var(--line); background: var(--bg-soft); }
+.hero-desk [hidden] { display: none; }
+.hero-desk .dreply { display: flex; align-items: center; gap: 8px; min-height: 38px; padding: 5px 6px 5px 11px; border: 1px solid var(--line); border-radius: 12px; }
+.hero-desk .dtext { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hero-desk .dsend { flex: none; display: grid; place-items: center; width: 26px; height: 26px; color: #fff; font-size: 14px; font-weight: 700; background: var(--blue); border-radius: 50%; transition: transform .15s; }
+.hero-desk .dsend.press { transform: scale(.82); }
+/* A message on its way between the customer and you. */
+.hero-fly { display: none; position: absolute; z-index: 2; left: 262px; top: 330px; width: 34px; height: 24px; border-radius: 12px 12px 12px 4px; background: var(--blue); opacity: 0; }
+.hero-fly.to-desk { animation: fly-desk .6s ease-in-out; }
+.hero-fly.to-phone { animation: fly-phone .6s ease-in-out; }
+@keyframes fly-desk { 0% { opacity: 0; transform: translateX(50px) scale(.7); } 25%, 75% { opacity: 1; } 100% { opacity: 0; transform: translate(-120px, -70px) scale(.8); } }
+@keyframes fly-phone { 0% { opacity: 0; transform: translate(-120px, 90px) scale(.7); } 25%, 75% { opacity: 1; } 100% { opacity: 0; transform: translate(60px, -60px) scale(.8); } }
 /* What the keyboard shows in the demo: the offer after copying and the translation above the keys. */
 .bubble.copied { background: var(--select); }
 .copy-pop { align-self: flex-start; margin: -4px 0 0 8px; padding: 4px 12px; font-size: 12px; color: #fff; background: #2b2f3a; border-radius: 8px; opacity: 0; transition: opacity .2s, transform .15s; }
@@ -223,9 +254,9 @@ nav .wrap { display: flex; align-items: center; gap: 24px; height: 60px; }
   animation: tag-float 6s ease-in-out infinite;
 }
 .hero-tag b { color: var(--blue); font-size: 11px; }
-.hero-tag.a { left: -14px; top: 70px; }
-.hero-tag.b { right: -34px; top: 200px; animation-delay: -2s; }
-.hero-tag.c { left: -34px; top: 520px; animation-delay: -4s; }
+.hero-tag.a { left: 20px; top: 34px; }
+.hero-tag.b { left: 84px; top: 540px; animation-delay: -2s; }
+.hero-tag.c { left: 8px; top: 596px; animation-delay: -4s; }
 @keyframes tag-float { 50% { transform: translateY(-7px); } }
 @media (prefers-reduced-motion: reduce) { .hero-tag { animation: none; } }
 .demo-caption { text-align: center; margin-top: 18px; color: var(--muted); font-size: 14px; min-height: 1.6em; transition: opacity .3s; }
@@ -326,7 +357,12 @@ kbd { font: inherit; font-size: 13px; background: var(--bg-soft); border: 1px so
 .feat-group { grid-column: 1 / -1; margin: 14px 0 -4px; font-size: 15px; font-weight: 600; color: var(--muted); }
 .feat-group:first-child { margin-top: 0; }
 @media (min-width: 601px) and (max-width: 960px) { .feature.span-tablet { grid-column: 1 / -1; } }
-.feature .top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
+.feature { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; column-gap: 12px; row-gap: 8px; align-items: center; }
+.feature .top { display: contents; }
+.feature h3 { grid-column: 2; grid-row: 1; margin: 0; }
+.feature .plat { grid-column: 3; grid-row: 1; }
+.feature p { grid-column: 1 / -1; margin: 0; }
+.langs-line { text-align: center; margin: 24px 0 0; color: var(--muted); font-size: 14px; }
 .feature .ico { width: 40px; height: 40px; border-radius: 14px; display: grid; place-items: center; background: var(--blue-soft); color: var(--blue); }
 .feature .ico.read { background: color-mix(in srgb, var(--teal) 14%, transparent); color: var(--teal); }
 .feature .ico.keys { background: color-mix(in srgb, var(--green) 14%, transparent); color: var(--green); }
@@ -413,10 +449,6 @@ mark { background: var(--select); color: var(--ink); border-radius: 3px; padding
 }
 
 /* Languages */
-.langs-title { margin-top: 32px; text-align: center; font-size: 18px; }
-.langs { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 14px; }
-.langs > span { background: var(--card); border: 1px solid var(--line); border-radius: 999px; padding: 6px 14px; font-size: 15px; }
-.langs > span b { color: var(--blue); font-size: 12px; margin-right: 6px; }
 
 /* Steps */
 .steps { counter-reset: step; row-gap: 40px; }
@@ -518,9 +550,21 @@ footer .links a { margin-right: 18px; }
     </div>
 
     <div class="hero-visual">
+      <div class="hero-desk" id="hero-desk" aria-hidden="true">
+        <div class="bar"><i></i><i></i><i></i></div>
+        <div class="main">
+          <div class="who"><span class="avatar">L</span><div>Li Wei<small>Proveedor · en línea</small></div></div>
+          <div class="dchat">
+            <div class="dsent" id="desk-out" hidden></div>
+            <div class="din" id="desk-in" hidden></div>
+          </div>
+          <div class="dreply"><span class="dtext" id="desk-text"></span><span class="dsend" id="desk-send">↑</span></div>
+        </div>
+      </div>
       <span class="hero-tag a" aria-hidden="true"><b>ES</b>Hola</span>
       <span class="hero-tag b" aria-hidden="true"><b>DE</b>Guten Tag</span>
       <span class="hero-tag c" aria-hidden="true"><b>JA</b>こんにちは</span>
+      <span class="hero-fly" id="hero-fly" aria-hidden="true"></span>
       <div class="hero-front">
       <div class="phone" aria-label="演示：和西班牙语客户对话，翻译收到的消息，再把中文回复翻译成西班牙语" role="img">
         <div class="screen">
@@ -627,56 +671,40 @@ footer .links a { margin-right: 18px; }
     <h2 data-en="Write better, without switching apps">不用切换 App，就能写得更好</h2>
     <p class="lead" data-en="Right where you type and read: chat, email, web pages, documents.">在你打字和阅读的地方直接完成：聊天、邮件、网页、文档都可以。</p>
     <div class="grid feat">
-      <h3 class="feat-group" data-en="Write better">写得更好</h3>
+      <h3 class="feat-group" data-en="Reply to customers">回复客户</h3>
       <div class="card feature">
-        <div class="top"><div class="ico"><svg><use href="#spark"/></svg></div><span class="plat" data-en="All platforms">全平台</span></div>
+        <div class="top"><div class="ico"><svg><use href="#spark"/></svg></div></div>
         <h3 data-en="AI polish">AI 润色</h3>
-        <p data-en="Fixes wording, typos and punctuation; casual notes come out clear and polite.">改顺语句、错字和标点，保留原意；口语草稿也能变得清楚得体。</p>
+        <p data-en="Turn a quick note into a clear, polite message.">把随手写的话改得通顺得体。</p>
       </div>
       <div class="card feature">
-        <div class="top"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h9M8.5 3v2m2.5 0c-.6 3.6-3 6.6-6.5 8.5M6.5 8.5c1 2 2.6 3.6 4.5 4.6"/><path d="m12 21 4.5-10L21 21m-7.5-3h6"/></svg></div><span class="plat" data-en="All platforms">全平台</span></div>
+        <div class="top"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h9M8.5 3v2m2.5 0c-.6 3.6-3 6.6-6.5 8.5M6.5 8.5c1 2 2.6 3.6 4.5 4.6"/><path d="m12 21 4.5-10L21 21m-7.5-3h6"/></svg></div></div>
         <h3 data-en="Translate to 14 languages">14 种语言翻译</h3>
-        <p data-en="Written the way a native speaker would say it; switch languages from the EN ▾ chip.">按母语者的习惯来写，不是生硬直译；随时在 EN ▾ 上切换语言。</p>
+        <p data-en="Reads like a native wrote it, not word for word.">像母语者写的，不是生硬直译。</p>
       </div>
       <div class="card feature span-tablet">
         <div class="top"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></svg></div><span class="plat">Android</span></div>
         <h3 data-en="AI voice input">AI 语音输入</h3>
-        <p data-en="Hold space and talk: Chinese comes out tidy, and EN mode translates as you speak.">按住空格说话，中文整理成通顺的文字，EN 模式直接翻译。</p>
+        <p data-en="Hold space and talk; it comes out tidy.">按住空格说话，自动整理成文字。</p>
       </div>
       <h3 class="feat-group" data-en="Read foreign text">看懂外文</h3>
       <div class="card feature">
         <div class="top"><div class="ico read"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h10M4 10h7M4 14h5"/><path d="M13 13h7v7h-7z" fill="currentColor" fill-opacity=".15"/><path d="M15 18.5l1.5-4 1.5 4m-2.5-1.2h2"/></svg></div><span class="plat">Mac · Windows</span></div>
         <h3 data-en="Translate selection">划词翻译</h3>
-        <p data-en="Select a passage on a foreign page or document and read it beside its translation.">看外文网页、文档时选中一段，原文和译文一起显示。</p>
+        <p data-en="Select foreign text and read it right away.">选中外文，马上看到译文。</p>
       </div>
       <div class="card feature">
         <div class="top"><div class="ico read"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8V5.5A1.5 1.5 0 0 1 5.5 4H8M16 4h2.5A1.5 1.5 0 0 1 20 5.5V8M20 16v2.5a1.5 1.5 0 0 1-1.5 1.5H16M8 20H5.5A1.5 1.5 0 0 1 4 18.5V16"/><path d="M8 9.5h8M8 12.5h8M8 15.5h5"/></svg></div><span class="plat">Mac · Windows</span></div>
         <h3 data-en="Screenshot translate">截图翻译</h3>
-        <p data-en="Drag over images, PDFs or apps that won't copy; the text is read on your computer.">框选图片、PDF 或不能复制的界面，文字在本机识别后翻译。</p>
+        <p data-en="Images and PDFs translate too.">图片和 PDF 也能翻译。</p>
       </div>
       <div class="card feature span-tablet">
         <div class="top"><div class="ico read"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="3" width="8" height="4" rx="1.2"/><path d="M8 5H6.5A1.5 1.5 0 0 0 5 6.5v13A1.5 1.5 0 0 0 6.5 21h11a1.5 1.5 0 0 0 1.5-1.5v-13A1.5 1.5 0 0 0 17.5 5H16"/><path d="M9 12h6M9 16h4"/></svg></div><span class="plat">Android</span></div>
         <h3 data-en="Copy to translate">复制即译</h3>
-        <p data-en="Copy a foreign message and tap Translate on the keyboard. The translation stays above the keys while you reply.">复制外文消息，点键盘上的翻译，译文留在键盘上方，可以边看边回复。</p>
+        <p data-en="Copy a message and reply while reading it.">复制消息，边看译文边回复。</p>
       </div>
     </div>
-    <h3 class="langs-title" data-en="14 translation languages">14 种翻译语言</h3>
-    <div class="langs">
-      <span><b>EN</b><span data-en="English">英语</span></span>
-      <span><b>ZH</b><span data-en="Simplified Chinese">简体中文</span></span>
-      <span><b>TW</b><span data-en="Traditional Chinese">繁体中文</span></span>
-      <span><b>ES</b><span data-en="Spanish">西班牙语</span></span>
-      <span><b>FR</b><span data-en="French">法语</span></span>
-      <span><b>AR</b><span data-en="Arabic">阿拉伯语</span></span>
-      <span><b>RU</b><span data-en="Russian">俄语</span></span>
-      <span><b>PT</b><span data-en="Portuguese">葡萄牙语</span></span>
-      <span><b>DE</b><span data-en="German">德语</span></span>
-      <span><b>JA</b><span data-en="Japanese">日语</span></span>
-      <span><b>KO</b><span data-en="Korean">韩语</span></span>
-      <span><b>ID</b><span data-en="Indonesian">印尼语</span></span>
-      <span><b>VI</b><span data-en="Vietnamese">越南语</span></span>
-      <span><b>TH</b><span data-en="Thai">泰语</span></span>
-    </div>
+    <p class="langs-line" data-en="English, Spanish, French, Arabic, Russian, Portuguese, German, Japanese, Korean and more: 14 languages in all.">英语、西班牙语、法语、阿拉伯语、俄语、葡萄牙语、德语、日语、韩语等 14 种语言。</p>
     <p class="trust"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 5 6v5.5c0 4.4 3 8 7 9.5 4-1.5 7-5.1 7-9.5V6z"/><path d="m9 12 2 2 4-4" stroke-linecap="round"/></svg><span data-en="&lt;b&gt;Your key, your data.&lt;/b&gt; Text goes straight from your device to the AI provider: no middleman server, no account."><b>你的 Key，你的数据。</b>文字从你的设备直达 AI 服务商，没有中转服务器，也不用注册账号。</span></p>
   </div>
 </section>
@@ -1300,6 +1328,12 @@ footer .links a { margin-right: 18px; }
   var cardHead = document.getElementById('demo-card-head');
   var cardText = document.getElementById('demo-card-text');
   var shimmer = document.getElementById('demo-shimmer');
+  var desk = document.getElementById('hero-desk');
+  var deskOut = document.getElementById('desk-out');
+  var deskIn = document.getElementById('desk-in');
+  var deskText = document.getElementById('desk-text');
+  var deskSend = document.getElementById('desk-send');
+  var fly = document.getElementById('hero-fly');
   var timers = [];
 
   function script() {
@@ -1311,12 +1345,13 @@ footer .links a { margin-right: 18px; }
       offer: t('翻译', 'Translate'),
       reply: t('可以，周三前发给您', 'Sure, I will send it by Wednesday'),
       sent: 'Sí, se lo enviaré antes del miércoles.',
-      c1: t('西班牙客户发来一条消息', 'A customer in Spain writes to you'),
+      c0: t('西班牙客户用西班牙语发来消息', 'A customer in Spain writes in Spanish'),
+      c1: t('消息到了你的手机', 'It reaches your phone'),
       c2: t('看不懂？长按 <b>复制</b>', 'Can\'t read it? Press and hold, then <b>Copy</b>'),
       c3: t('点键盘上的 <b>翻译</b>', 'Tap <b>Translate</b> on the keyboard'),
       c4: t('译文留在键盘上方，边看边回复', 'The translation stays above the keys while you reply'),
       c5: t('用中文回复，点 <b>翻译为 西班牙文</b>', 'Reply in your language, then tap <b>Translate to ES</b>'),
-      c6: t('客户收到地道的西班牙语', 'The customer gets natural Spanish')
+      c6: t('客户收到的是地道的西班牙语', 'The customer gets natural Spanish')
     };
   }
 
@@ -1324,6 +1359,7 @@ footer .links a { margin-right: 18px; }
   function setCaption(html) { caption.style.opacity = 0; later(150, function () { caption.innerHTML = html; caption.style.opacity = 1; }); }
   function press(el, ms) { el.classList.add('press'); later(ms, function () { el.classList.remove('press'); }); }
   function showBubble(el, text) { el.textContent = text; el.hidden = false; el.classList.add('fresh'); }
+  function flyTo(where) { fly.className = 'hero-fly to-' + where; later(650, function () { fly.className = 'hero-fly'; }); }
   function showOffer(on) { offer.classList.toggle('show', on); toolbar.style.display = on ? 'none' : ''; }
   function showCard(s, done) {
     cardHead.textContent = s.reading;
@@ -1343,25 +1379,49 @@ footer .links a { margin-right: 18px; }
     card.classList.remove('show');
     showOffer(false);
     textEl.textContent = '';
+    fly.className = 'hero-fly';
+    deskOut.hidden = true; deskIn.hidden = true; deskText.textContent = '';
     offer.innerHTML = '';
     offer.appendChild(document.createElement('b')).textContent = s.offer;
     offer.appendChild(document.createTextNode(s.incoming));
     if (reduce) {
       phoneIn.textContent = s.incoming; phoneIn.hidden = false;
       phoneOut.textContent = s.sent; phoneOut.hidden = false;
+      deskOut.textContent = s.incoming; deskOut.hidden = false;
+      deskIn.textContent = s.sent; deskIn.hidden = false;
       showCard(s, true);
       caption.innerHTML = s.c6;
       return;
     }
 
-    later(300, function () { showBubble(phoneIn, s.incoming); setCaption(s.c1); });
-    later(1900, function () { setCaption(s.c2); phoneIn.classList.add('copied'); copyPop.classList.add('show'); });
-    later(3100, function () { press(copyPop, 220); });
-    later(3400, function () { copyPop.classList.remove('show'); phoneIn.classList.remove('copied'); showOffer(true); setCaption(s.c3); });
-    later(4600, function () { press(offer, 220); });
-    later(4900, function () { showOffer(false); showCard(s, false); });
-    later(6200, function () { showCard(s, true); setCaption(s.c4); });
-    later(8000, function () {
+    // The customer writes on their computer first, where that window fits.
+    if (desk.offsetWidth) {
+      setCaption(s.c0);
+      var typed = 0;
+      (function type() {
+        if (typed <= s.incoming.length) { deskText.textContent = s.incoming.slice(0, typed++); later(35, type); return; }
+        later(500, function () { press(deskSend, 260); });
+        later(800, function () {
+          deskText.textContent = '';
+          deskOut.textContent = s.incoming; deskOut.hidden = false;
+          flyTo('phone');
+        });
+        later(1450, function () { readOnPhone(s); });
+      })();
+    } else {
+      later(300, function () { readOnPhone(s); });
+    }
+  }
+
+  function readOnPhone(s) {
+    showBubble(phoneIn, s.incoming); setCaption(s.c1);
+    later(1600, function () { setCaption(s.c2); phoneIn.classList.add('copied'); copyPop.classList.add('show'); });
+    later(2800, function () { press(copyPop, 220); });
+    later(3100, function () { copyPop.classList.remove('show'); phoneIn.classList.remove('copied'); showOffer(true); setCaption(s.c3); });
+    later(4300, function () { press(offer, 220); });
+    later(4600, function () { showOffer(false); showCard(s, false); });
+    later(5900, function () { showCard(s, true); setCaption(s.c4); });
+    later(7700, function () {
       setCaption(s.c5);
       var i = 0;
       (function type() {
@@ -1373,9 +1433,13 @@ footer .links a { margin-right: 18px; }
           textEl.textContent = '';
           card.classList.remove('show');
           showBubble(phoneOut, s.sent);
+          if (desk.offsetWidth) flyTo('desk');
+        });
+        later(4150, function () {
+          deskIn.textContent = s.sent; deskIn.hidden = false;
           setCaption(s.c6);
         });
-        later(7000, restartDemo);
+        later(8000, restartDemo);
       })();
     });
   }
