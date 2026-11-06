@@ -106,6 +106,12 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
         visibility = View.GONE
         setOnClickListener { callback?.onPinyinFixRequested() }
     }
+    private val editButton = TextView(context).apply {
+        gravity = Gravity.CENTER
+        textSize = 14f
+        visibility = View.GONE
+        setOnClickListener { callback?.onPinyinEditRequested() }
+    }
     private val expandButton = ImageView(context).apply {
         setImageResource(R.drawable.ic_expand_more_24)
         scaleType = ImageView.ScaleType.CENTER
@@ -203,6 +209,11 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
         gravity = Gravity.CENTER_VERTICAL
     }
     private val candidateViews = ArrayList<TextView>()
+    // A sentence wider than the row shows its end: that is where the typing is.
+    private val showSentenceEnd = Runnable {
+        val first = candidateViews.firstOrNull() ?: return@Runnable
+        if (first.width > scroller.width) scroller.scrollTo(first.right - scroller.width, 0)
+    }
     private var editCaret = 0
     private var lastEditTouchX = 0f
     private var choosing: Choosing? = null
@@ -228,6 +239,13 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
                 marginEnd = context.dp(8)
             },
         )
+        mainRow.addView(
+            editButton,
+            LayoutParams(context.dp(EXPAND_WIDTH_DP), context.dp(34)).apply {
+                marginStart = context.dp(6)
+                marginEnd = context.dp(8)
+            },
+        )
         mainRow.addView(toolsRow, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.MATCH_PARENT))
         toolsRow.visibility = View.GONE
         applyColors()
@@ -241,6 +259,7 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
         toolsShare.setColorFilter(ImeColors.TEXT)
         toolsLeaf.background = toolBackground()
         fixButton.setTextColor(ImeColors.TEXT)
+        editButton.setTextColor(ImeColors.TEXT)
         editText.setTextColor(ImeColors.TEXT)
         offerButton.setTextColor(ImeColors.TEXT)
         offerButton.background = toolBackground()
@@ -258,7 +277,8 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
     val isChoosing: Boolean get() = choosing != null
 
     /**
-     * [tools] pins 润色 | 翻译 on the right; pass it only while showing predictions. [fixLabel] shows
+     * [tools] pins 润色 | 翻译 on the right; pass it only while showing predictions. [editLabel] shows
+     * the 改拼音 button in the ▾ button's place. [fixLabel] shows
      * the 改词 button and [expanded], when not null, the ▾ one; [highlighted] is the item in bold, -1 for none
      * while choosing what to fix.
      */
@@ -268,6 +288,7 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
         tools: Tools? = null,
         fixLabel: String? = null,
         expanded: Boolean? = null,
+        editLabel: String? = null,
         highlighted: Int = 0,
     ) {
         choosing = null
@@ -276,7 +297,9 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
         fixButton.text = fixLabel
         fixButton.visibility = if (fixLabel == null) View.GONE else View.VISIBLE
         expandButton.rotation = if (expanded == true) 180f else 0f
-        expandButton.visibility = if (expanded == null) View.GONE else View.VISIBLE
+        editButton.text = editLabel
+        editButton.visibility = if (editLabel == null) View.GONE else View.VISIBLE
+        expandButton.visibility = expandVisibility(expanded, fixLabel != null && editLabel == null)
         show(composing, candidates)
     }
 
@@ -286,7 +309,8 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
         showTools(null)
         fixButton.text = doneLabel
         fixButton.visibility = View.VISIBLE
-        expandButton.visibility = View.GONE
+        editButton.visibility = View.GONE
+        expandButton.visibility = expandVisibility(null, holdPlace = true)
         show(preview, emptyList())
         scroller.visibility = View.GONE
         editScroller.visibility = View.VISIBLE
@@ -304,11 +328,19 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
         }
     }
 
+    /** With the 改词 button up, ▾ keeps its place so that button stays put between its two labels. */
+    private fun expandVisibility(expanded: Boolean?, holdPlace: Boolean) = when {
+        expanded != null -> View.VISIBLE
+        holdPlace -> View.INVISIBLE
+        else -> View.GONE
+    }
+
     /** Offers to translate the text just copied, in place of candidates, until something else renders. */
     fun renderReadingOffer(label: String) {
         choosing = null
         showTools(null)
         fixButton.visibility = View.GONE
+        editButton.visibility = View.GONE
         expandButton.visibility = View.GONE
         show("", emptyList())
         visibility = View.VISIBLE
@@ -322,6 +354,7 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
         choosing = Choosing.Tools
         showTools(null)
         fixButton.visibility = View.GONE
+        editButton.visibility = View.GONE
         expandButton.visibility = View.GONE
         show("", emptyList())
         visibility = View.VISIBLE
@@ -377,6 +410,7 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
         highlightedIndex = selectedIndex
         showTools(null)
         fixButton.visibility = View.GONE
+        editButton.visibility = View.GONE
         expandButton.visibility = View.GONE
         show(label, items)
     }
@@ -423,6 +457,7 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
             }
         }
         scroller.scrollTo(0, 0)
+        if (highlightedIndex == 0 && choosing == null && items.isNotEmpty()) scroller.post(showSentenceEnd)
     }
 
     /**

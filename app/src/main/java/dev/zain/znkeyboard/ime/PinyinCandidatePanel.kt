@@ -44,6 +44,19 @@ class PinyinCandidatePanel(context: Context) : ScrollView(context) {
         candidates.forEachIndexed { index, text ->
             val cell = (paint.measureText(text).toInt() + context.dp(CELL_PADDING_DP) * 2)
                 .coerceAtLeast(context.dp(CELL_MIN_WIDTH_DP))
+            if (cell > available) {
+                // A sentence too long for one row wraps, so all of it can be read.
+                rows.addView(
+                    cell(text, index).apply {
+                        maxLines = Int.MAX_VALUE
+                        gravity = Gravity.CENTER_VERTICAL or Gravity.START
+                        setPadding(context.dp(CELL_PADDING_DP), context.dp(WRAPPED_PADDING_DP), context.dp(CELL_PADDING_DP), context.dp(WRAPPED_PADDING_DP))
+                    },
+                    LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT),
+                )
+                row = null
+                return@forEachIndexed
+            }
             val current = row?.takeIf { used + cell <= available } ?: newRow().also {
                 row = it
                 used = 0
@@ -84,6 +97,7 @@ class PinyinCandidatePanel(context: Context) : ScrollView(context) {
         const val ROW_HEIGHT_DP = 52
         const val CELL_PADDING_DP = 12
         const val CELL_MIN_WIDTH_DP = 56
+        const val WRAPPED_PADDING_DP = 8
         val FIRST_TYPEFACE: Typeface = Typeface.create(Typeface.DEFAULT, 600, false)
         val REGULAR_TYPEFACE: Typeface = Typeface.create(Typeface.DEFAULT, 400, false)
     }

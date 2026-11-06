@@ -81,6 +81,11 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     private var pinyinComposing = ""
     // Where letters go while editing the pinyin of a long sentence; -1 when not editing it.
     private var pinyinEditCaret = -1
+    private var pinyinHint: String? = null
+    private val pinyinHintExpiry = Runnable {
+        pinyinHint = null
+        renderPinyinBar()
+    }
     /** How each composing letter's tap fitted the keys, so the decoder can weigh near misses. */
     private val pinyinTaps = PinyinTapBuffer()
     private var chineseKeyboard = KeyboardSettings.ChineseKeyboard.Qwerty
@@ -356,6 +361,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         requestGeneration++
         mainHandler.removeCallbacks(readingOfferExpiry)
         mainHandler.removeCallbacks(clipboardUndoExpiry)
+        mainHandler.removeCallbacks(pinyinHintExpiry)
         unregisterClipboardListener()
         typingEngine.shutdown()
         savePinyinLearning()
@@ -955,11 +961,11 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         if (pinyinComposing.isNotEmpty() && english != null) {
             val words = englishWords
             if (words == null || !words.forget(english.text)) {
-                Toast.makeText(this, t("这个词没有学习记录，不用删除。", "Nothing learned about this one."), Toast.LENGTH_SHORT).show()
+                showPinyinHint(t("这个词没有学习记录，不用删除。", "Nothing learned about this one."))
                 return
             }
             KeyboardSettings.saveEnglishWordUses(this, words.saved())
-            Toast.makeText(this, t("已删除学习记录：${english.text}", "Forgot: ${english.text}"), Toast.LENGTH_SHORT).show()
+            showPinyinHint(t("已删除学习记录：${english.text}", "Forgot: ${english.text}"))
             updatePinyinComposition(pinyinComposing)
             return
         }
@@ -970,12 +976,12 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         }
         val learned = if (pinyinComposing.isEmpty()) texts else texts.filter { dictionary.isLearned(it) }
         if (learned.isEmpty()) {
-            Toast.makeText(this, t("这个词没有学习记录，不用删除。", "Nothing learned about this one."), Toast.LENGTH_SHORT).show()
+            showPinyinHint(t("这个词没有学习记录，不用删除。", "Nothing learned about this one."))
             return
         }
         learned.forEach(pinyinLearner::forget)
         savePinyinLearning()
-        Toast.makeText(this, t("已删除学习记录：${learned.joinToString("、")}", "Forgot: ${learned.joinToString(", ")}"), Toast.LENGTH_SHORT).show()
+        showPinyinHint(t("已删除学习记录：${learned.joinToString("、")}", "Forgot: ${learned.joinToString(", ")}"))
         if (pinyinComposing.isNotEmpty()) updatePinyinComposition(pinyinComposing) else showPinyinPredictions()
     }
 
@@ -1006,7 +1012,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
             val dictionary = pinyinDictionary ?: return
             val options = parts.getOrNull(index)?.let { PinyinEngine.alternatives(it, dictionary) }.orEmpty()
             if (options.isEmpty()) {
-                Toast.makeText(this, t("这个词没有其他读法相同的词。", "No other word reads the same."), Toast.LENGTH_SHORT).show()
+                showPinyinHint(t("这个词没有其他读法相同的词。", "No other word reads the same."))
                 return
             }
             pinyinFix = PinyinFix(index, options)
@@ -1489,6 +1495,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         val editCaret = pinyinEditCaret.takeIf { it >= 0 && pinyinComposing.isNotEmpty() }
         renderPinyinPanel(fix == null)
         val parts = pinyinCandidates.firstOrNull()?.parts.orEmpty()
+        val hint = pinyinHint
         val offer = readingOffer?.takeIf {
             readingOfferAllowed && pinyinComposing.isEmpty() && activeSurface == KeyboardSurface.Keyboard
         }
@@ -1501,13 +1508,19 @@ class ZnKeyboardInputMethodService : InputMethodService(),
             )
             offer != null -> bar.renderReadingOffer("${t("翻译", "Translate")}  ${offer.take(READING_OFFER_PREVIEW_CHARS).replace('\n', ' ')}")
             pinyinComposing.isEmpty() && pinyinPredictions.isNotEmpty() ->
-                bar.render("", pinyinPredictions.map { it.text }, pinyinBarTools())
+                bar.render(hint.orEmpty(), pinyinPredictions.map { it.text }, pinyinBarTools())
             fix != null && fix.part < 0 ->
-                bar.render(t("点要改的词", "Tap the word to change"), parts.map { it.text }, fixLabel = t("取消", "Cancel"), highlighted = -1)
+                bar.render(
+                    hint ?: t("点要改的词", "Tap the word to change"),
+                    parts.map { it.text },
+                    fixLabel = t("取消", "Cancel"),
+                    editLabel = t("改拼音", "Pinyin"),
+                    highlighted = -1,
+                )
             fix != null ->
                 bar.render(t("把「${parts[fix.part].text}」换成", "Change “${parts[fix.part].text}” to"), fix.options.map { it.text }, fixLabel = t("取消", "Cancel"), highlighted = -1)
             else -> bar.render(
-                composingDisplay(),
+                hint ?: composingDisplay(),
                 pinyinCandidates.map { it.text },
                 fixLabel = t("改词", "Fix").takeIf { parts.size >= 2 && !chineseKeyboard.isNineKey },
                 expanded = pinyinExpanded.takeIf { pinyinCandidates.size > 1 },
@@ -1535,7 +1548,8 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     }
 
     override fun onPinyinEditRequested() {
-        if (pinyinComposing.isEmpty() || chineseKeyboard != KeyboardSettings.ChineseKeyboard.Qwerty || pinyinFix != null) return
+        if (pinyinComposing.isEmpty() || chineseKeyboard != KeyboardSettings.ChineseKeyboard.Qwerty) return
+        pinyinFix = null
         pinyinExpanded = false
         pinyinEditCaret = pinyinComposing.length
         renderPinyinBar()
@@ -1545,6 +1559,14 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         if (pinyinEditCaret < 0) return
         pinyinEditCaret = offset.coerceIn(0, pinyinComposing.length)
         renderPinyinBar()
+    }
+
+    /** A short note in the bar, where it covers nothing the way a toast over the keys would. */
+    private fun showPinyinHint(text: String) {
+        mainHandler.removeCallbacks(pinyinHintExpiry)
+        pinyinHint = text
+        renderPinyinBar()
+        mainHandler.postDelayed(pinyinHintExpiry, PINYIN_HINT_DURATION_MS)
     }
 
     private fun endPinyinEdit() {
@@ -2878,6 +2900,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     private companion object {
         const val TAG = "ZnKeyboardAgent"
         const val READING_OFFER_DURATION_MS = 120_000L
+        const val PINYIN_HINT_DURATION_MS = 2_500L
         const val CLIPBOARD_UNDO_DURATION_MS = 5_000L
         const val READING_OFFER_PREVIEW_CHARS = 60
         const val MAX_REWRITE_SOURCE_CHARS = AgentDefaults.MAX_REWRITE_SOURCE_CHARS
