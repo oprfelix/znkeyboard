@@ -31,6 +31,7 @@ object PinyinEngine {
     private const val INITIAL_WORDS_LIMIT = 6
     private const val MIN_BEFORE_INITIALS = 3
     private const val MAX_BEFORE_INITIALS = 5
+    private const val MIN_LETTERS_NEAR_TOP = 3
     private const val MAX_CANDIDATES = 80
     private const val FULL_MATCH_LIMIT = 30
     private const val PARTIAL_MATCH_LIMIT = 8
@@ -123,13 +124,13 @@ object PinyinEngine {
         val words = wordCandidates(input, dictionary)
         val limit = if (dictionary.languageModel == null) 1 else MAX_SENTENCES
         val sentences = SentenceDecoder.decodeAll(input, dictionary, taps, before, limit)
-        val sentence = sentences.firstOrNull() ?: return withInitialWords(input, words, dictionary)
+        val sentence = sentences.firstOrNull() ?: return withInitialWords(input, words, dictionary, before)
         val typed = input.replace(SEPARATOR.toString(), "")
         val corrected = sentence.spelling.replace(" ", "") != typed
         if (sentence.parts.size < 2 && !corrected && dictionary.languageModel == null) {
-            return withInitialWords(input, words, dictionary)
+            return withInitialWords(input, words, dictionary, before)
         }
-        return withInitialWords(input, withSentences(sentences.map { wholeInput(it, input.length) }, words, input.length), dictionary)
+        return withInitialWords(input, withSentences(sentences.map { wholeInput(it, input.length) }, words, input.length), dictionary, before)
     }
 
     /** [sentence] as a candidate that reads all [length] characters. */
@@ -152,23 +153,33 @@ object PinyinEngine {
 
     /**
      * [segment] reads "sh" as the start of 上 and "jjfa" as 经济 + 法; here every letter is the first
-     * of its own character, so 时候 and 解决方案 are found too. Only words not listed yet are added:
-     * after the words that read all of [input], yet on the first screen unless it is whole pinyin.
+     * of its own character, so 时候 and 解决方案 are found too. Only words not listed yet are added,
+     * likeliest after [before] first: after the words that read all of [input], yet on the first
+     * screen unless it is whole pinyin. From three letters on, where few words share the letters,
+     * the likeliest goes right behind the top candidate.
      */
-    private fun withInitialWords(input: String, words: List<Candidate>, dictionary: PinyinDictionary): List<Candidate> {
+    private fun withInitialWords(
+        input: String,
+        words: List<Candidate>,
+        dictionary: PinyinDictionary,
+        before: SentenceDecoder.Context?,
+    ): List<Candidate> {
         if (input.length !in 2..MAX_INITIALS_LENGTH || SEPARATOR in input) return words
         val pieces = input.map { PinyinDictionary.Piece(it.toString(), isPrefix = true) }
-        val found = dictionary.matches(pieces, INITIAL_WORDS_LIMIT).filter { word -> words.none { it.text == word.text } }
+        val found = dictionary.scoredMatches(pieces, INITIAL_WORDS_LIMIT)
+            .filter { match -> words.none { it.text == match.word.text } }
+            .sortedBy { SentenceDecoder.wordCostAfter(it, before, dictionary) }
+            .map { it.word }
         if (found.isEmpty()) return words
-        val at = if (isWholePinyin(input, dictionary)) {
-            words.indexOfFirst { it.consumed < input.length }.let { if (it < 0) words.size else it }
-        } else {
-            val lastWord = words.indexOfLast { it.consumed >= input.length && it.text.length > 1 }
-            (lastWord + 1).coerceIn(MIN_BEFORE_INITIALS, MAX_BEFORE_INITIALS).coerceAtMost(words.size)
+        val added = found.map { Candidate(it.text, input.length, it.syllables, id = it.id) }
+        if (isWholePinyin(input, dictionary)) {
+            val at = words.indexOfFirst { it.consumed < input.length }.let { if (it < 0) words.size else it }
+            return words.subList(0, at) + added + words.subList(at, words.size)
         }
-        return words.subList(0, at) +
-            found.map { Candidate(it.text, input.length, it.syllables, id = it.id) } +
-            words.subList(at, words.size)
+        val lastWord = words.indexOfLast { it.consumed >= input.length && it.text.length > 1 }
+        val at = (lastWord + 1).coerceIn(MIN_BEFORE_INITIALS, MAX_BEFORE_INITIALS).coerceAtMost(words.size)
+        if (input.length < MIN_LETTERS_NEAR_TOP || at < 1 || dictionary.languageModel == null) return words.subList(0, at) + added + words.subList(at, words.size)
+        return words.subList(0, 1) + added.first() + words.subList(1, at) + added.drop(1) + words.subList(at, words.size)
     }
 
     /** Other words that read like [part] of a sentence, best first, to swap it for. */

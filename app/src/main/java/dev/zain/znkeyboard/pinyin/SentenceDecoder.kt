@@ -90,6 +90,10 @@ object SentenceDecoder {
         fun wordCost(edge: Edge, step: Step): Float = edge.cost +
             if (model == null) WORD_COST - edge.match.score else modelCost(edge.match, step, dictionary, model)
 
+        // Each letter its own character, one word: 时候 for sh, 解决方案 for jjfa. Its letters count
+        // as one word's worth of 简拼, or a long word could never beat a few short ones.
+        val wholeInitials = model != null && n in 2..MAX_INITIALS_WORD && PinyinEngine.SEPARATOR !in input &&
+            !PinyinEngine.isWholePinyin(input, dictionary)
         val best = Array(n + 1) { ArrayList<Step>(beam) }
         val startContext = before?.id?.takeIf { it >= 0 && model != null } ?: model?.start ?: -1
         best[0] += Step(0f, null, null, emptyList(), startContext, before?.text)
@@ -124,6 +128,10 @@ object SentenceDecoder {
                 }
             }
             extend(start, ArrayList(), "")
+            if (start == 0 && wholeInitials) {
+                val letters = input.indices.map { Piece(it + 1, input[it].toString(), isPrefix = true, cost = 0f) }
+                for ((match, _) in bestMatches(letters, dictionary, choices)) edges += Edge(n, letters, match, INITIAL_COST)
+            }
             for (step in here) {
                 for (edge in edges) {
                     val target = best[edge.end]
@@ -247,6 +255,13 @@ object SentenceDecoder {
         // Trade words are rarer on the web than in this keyboard's users' messages.
         if (match.word.trade) logP = minOf(logP + TRADE_BONUS, 0f)
         return LM_WORD_COST - LM_WEIGHT * logP
+    }
+
+    /** What [match] costs right after [before], lower when likelier there; see [modelCost]. */
+    fun wordCostAfter(match: PinyinDictionary.Match, before: Context?, dictionary: PinyinDictionary): Float {
+        val model = dictionary.languageModel ?: return -match.score
+        val context = before?.id?.takeIf { it >= 0 } ?: model.start
+        return modelCost(match, Step(0f, null, null, emptyList(), context, before?.text), dictionary, model)
     }
 
     /** Lookups repeat from keystroke to keystroke; kept until the dictionary changes. */
@@ -414,6 +429,7 @@ object SentenceDecoder {
     private const val PICKS_WEIGHT = 0.05f
     private const val PAIRS_WEIGHT = 0.1f
     private const val INITIAL_COST = 2.5f
+    private const val MAX_INITIALS_WORD = 6
     private const val INITIAL_BEFORE_VOWEL_COST = 9f
     private const val VOWELS = "aoe"
     private const val STILL_TYPING_COST = 1.5f

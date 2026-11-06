@@ -182,3 +182,19 @@ model's small per-word cost, much-picked characters (你, 是, 狗) then cost le
 splitting input into them always won: in this simulation the second half of `full` fell to 3%.
 Picks and the pairs the user typed are now a personal model mixed into each word's probability
 (5% picks, 10% pairs after the previous word), which can never make a word free.
+
+## Words typed by initials (1.9.24)
+
+With `--lm --taps --trade`, a word read from every letter (时候 for `sh`, 解决方案 for `jjfa`) now
+competes in sentence search as one word's worth of 简拼, and the likeliest one sits right behind the
+top candidate from three letters on. `tools/pinyin/trade/verify_initials.sh`, by word frequency:
+
+| word | first | top 3 | top 8 |
+|---:|---:|---:|---:|
+| 2 characters | 11.7 → 12.5% | 40.1 → 40.3% | 74.0 → 73.9% |
+| 3 characters | 46.0 → 51.3% | 91.7 → 94.3% | 99.9 → 99.6% |
+| 4 characters | 78.3 → 86.3% | 95.2 → 99.9% | 100% |
+
+Two characters are near the ceiling of ranking by frequency alone (18.3%, 41.9%, 74.6%). In this
+file `full`, `mixed` and `typo` do not move; `initials` goes 6.0 → 6.3% top1 and 10.1 → 9.8% top3,
+since whole clauses typed by initials now meet more single words.
