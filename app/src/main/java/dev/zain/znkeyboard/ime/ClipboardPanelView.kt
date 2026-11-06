@@ -35,7 +35,7 @@ class ClipboardPanelView @JvmOverloads constructor(
         callback = this@ClipboardPanelView
     }
     private val clipboardEmptyText = TextView(context).apply {
-        text = "No clipboard history yet"
+        setText(R.string.ime_clipboard_empty)
         gravity = Gravity.CENTER
         setTextColor(PALETTE.mutedText)
         setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
@@ -96,7 +96,7 @@ class ClipboardPanelView @JvmOverloads constructor(
     }
     private val searchBar = SavedTextPanelChrome.searchKey(
         context = context,
-        label = "Search clipboard",
+        label = context.getString(R.string.ime_clipboard_search),
         backgroundColor = PALETTE.function,
         textColor = PALETTE.mutedText,
         onClick = { callback?.onClipboardSearchRequested() },

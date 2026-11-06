@@ -7,6 +7,7 @@ import android.view.Gravity
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
+import dev.zain.znkeyboard.R
 import dev.zain.znkeyboard.constants.ImeColors
 import java.util.Locale
 import kotlin.math.roundToInt
@@ -132,7 +133,7 @@ class ClipboardSearchView @JvmOverloads constructor(
         clipboardResultList.submitHistory(entries)
         if (entries.isEmpty()) {
             clipboardResultList.visibility = GONE
-            emptyText.text = if (query.isBlank()) "No clipboard history yet" else "No matching clipboard items"
+            emptyText.setText(if (query.isBlank()) R.string.ime_clipboard_empty else R.string.ime_clipboard_no_match)
             emptyText.visibility = VISIBLE
             return
         }
@@ -142,7 +143,7 @@ class ClipboardSearchView @JvmOverloads constructor(
     }
 
     private fun updateQueryText() {
-        queryField.setSearchText(query = query, placeholder = "Search clipboard")
+        queryField.setSearchText(query = query, placeholder = context.getString(R.string.ime_clipboard_search))
     }
 
     private fun visibleClipboardEntries(): List<ClipboardHistoryStore.Entry> {

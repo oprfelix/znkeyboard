@@ -191,6 +191,9 @@
     <string name="key_switch_keyboard">Keyboard switch</string>
     <string name="key_share">Share</string>
     <string name="action_undo">Undo</string>
+    <string name="ime_clipboard_empty">No clipboard history yet</string>
+    <string name="ime_clipboard_no_match">No matching clipboard items</string>
+    <string name="ime_clipboard_search">Search clipboard</string>
     <string name="pinyin_all_candidates">All candidates</string>
     <string name="language_title">Language</string>
     <string name="language_system">System default</string>

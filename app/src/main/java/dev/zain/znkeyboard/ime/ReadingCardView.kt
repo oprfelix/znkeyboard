@@ -1,8 +1,8 @@
 package dev.zain.znkeyboard.ime
 
 import android.content.Context
+import android.content.res.ColorStateList
 import android.graphics.drawable.GradientDrawable
-import android.util.AttributeSet
 import android.view.Gravity
 import android.view.View
 import android.widget.ImageView
@@ -39,13 +39,29 @@ class ReadingCardView(context: Context) : LinearLayout(context) {
         setOnClickListener { callback?.onReadingCardClosed() }
     }
     private val progress = ProgressBar(context).apply { isIndeterminate = true }
+    private val progressLabel = TextView(context).apply {
+        textSize = 14f
+        gravity = Gravity.CENTER_VERTICAL
+        text = context.getString(R.string.reading_translating)
+    }
+    private val working = LinearLayout(context).apply {
+        orientation = HORIZONTAL
+        gravity = Gravity.CENTER_VERTICAL
+        addView(progress, LayoutParams(context.dp(PROGRESS_SIZE_DP), context.dp(PROGRESS_SIZE_DP)))
+        addView(
+            progressLabel,
+            LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT).apply { marginStart = context.dp(10) },
+        )
+    }
     private val body = TextView(context).apply {
         textSize = BODY_TEXT_SP
         setLineSpacing(0f, 1.2f)
     }
     private val scroller = BoundedScrollView(context).apply {
         isVerticalScrollBarEnabled = false
-        maxHeightPx = (resources.displayMetrics.heightPixels * MAX_BODY_SCREEN_FRACTION).toInt()
+        // Fades at the bottom when there is more below, the only sign the text goes on.
+        isVerticalFadingEdgeEnabled = true
+        setFadingEdgeLength(context.dp(FADE_LENGTH_DP))
         addView(body, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
     }
     private val action = TextView(context).apply {
@@ -67,7 +83,7 @@ class ReadingCardView(context: Context) : LinearLayout(context) {
             addView(close, LayoutParams(context.dp(HEADER_HEIGHT_DP), context.dp(HEADER_HEIGHT_DP)))
         }
         addView(header, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
-        addView(progress, LayoutParams(context.dp(PROGRESS_SIZE_DP), context.dp(PROGRESS_SIZE_DP)))
+        addView(working, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
         addView(
             scroller,
             LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply { marginEnd = context.dp(8) },
@@ -84,14 +100,16 @@ class ReadingCardView(context: Context) : LinearLayout(context) {
 
     fun showWorking(languageLabel: String) {
         render(languageLabel)
-        progress.visibility = View.VISIBLE
+        progress.indeterminateTintList = ColorStateList.valueOf(ImeColors.TEXT)
+        progressLabel.setTextColor(ImeColors.MUTED_TEXT)
+        working.visibility = View.VISIBLE
         scroller.visibility = View.GONE
         action.visibility = View.GONE
     }
 
     fun showResult(languageLabel: String, text: String, actionLabel: String? = null, failed: Boolean = false) {
         render(languageLabel)
-        progress.visibility = View.GONE
+        working.visibility = View.GONE
         scroller.visibility = View.VISIBLE
         body.text = text
         body.setTextColor(if (failed) ImeColors.MUTED_TEXT else ImeColors.TEXT)
@@ -117,11 +135,11 @@ class ReadingCardView(context: Context) : LinearLayout(context) {
         visibility = View.VISIBLE
     }
 
-    private class BoundedScrollView(context: Context, attrs: AttributeSet? = null) : ScrollView(context, attrs) {
-        var maxHeightPx = Int.MAX_VALUE
-
+    /** Short text takes only what it needs; long text stops here and scrolls, in any orientation. */
+    private class BoundedScrollView(context: Context) : ScrollView(context) {
         override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-            super.onMeasure(widthMeasureSpec, MeasureSpec.makeMeasureSpec(maxHeightPx, MeasureSpec.AT_MOST))
+            val limit = minOf(context.dp(MAX_BODY_HEIGHT_DP), (resources.displayMetrics.heightPixels * MAX_BODY_SCREEN_FRACTION).toInt())
+            super.onMeasure(widthMeasureSpec, MeasureSpec.makeMeasureSpec(limit, MeasureSpec.AT_MOST))
         }
     }
 
@@ -129,6 +147,8 @@ class ReadingCardView(context: Context) : LinearLayout(context) {
         const val BODY_TEXT_SP = 16f
         const val HEADER_HEIGHT_DP = 34
         const val PROGRESS_SIZE_DP = 24
-        const val MAX_BODY_SCREEN_FRACTION = 0.3f
+        const val MAX_BODY_HEIGHT_DP = 160
+        const val MAX_BODY_SCREEN_FRACTION = 0.25f
+        const val FADE_LENGTH_DP = 28
     }
 }
