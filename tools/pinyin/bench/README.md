@@ -198,3 +198,12 @@ top candidate from three letters on. `tools/pinyin/trade/verify_initials.sh`, by
 Two characters are near the ceiling of ranking by frequency alone (18.3%, 41.9%, 74.6%). In this
 file `full`, `mixed` and `typo` do not move; `initials` goes 6.0 → 6.3% top1 and 10.1 → 9.8% top3,
 since whole clauses typed by initials now meet more single words.
+
+## Slips (1.9.25)
+
+With `--lm --taps --trade`: `typo` 39.3 → 46.0% top1, 50.1 → 58.3% top3, CER 18.2 → 15.7%, and its
+long clauses 33.4 → 40.4%. A vowel that lost its y or w (`ue`, `iqie`) and two letters with a vowel
+that are no syllable (`ho`) are now corrected, and a missing letter costs 3.5 instead of 5. `full`
+goes 67.2 → 67.1%, `initials` 6.3 → 6.1%. One slip per word keeps the search small: 0.92 ms per
+keystroke on an M-series Mac, p95 3 ms, down from 1.7 and 6.6 ms; allowing a second one scored
+46.6% at 4.3 and 25 ms.

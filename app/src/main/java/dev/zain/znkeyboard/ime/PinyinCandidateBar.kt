@@ -4,7 +4,10 @@ import android.content.Context
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.InsetDrawable
+import android.text.SpannableString
+import android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
 import android.text.TextUtils
+import android.text.style.ForegroundColorSpan
 import android.view.Gravity
 import android.view.View
 import android.widget.HorizontalScrollView
@@ -32,6 +35,10 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
         fun onPinyinFixRequested() {}
         /** The ▾ button: show every candidate over the keys, or close that. */
         fun onPinyinExpandRequested() {}
+        /** The typed pinyin was tapped: edit it letter by letter. */
+        fun onPinyinEditRequested() {}
+        /** A letter gap of the pinyin being edited was tapped. */
+        fun onPinyinCaretMoved(offset: Int) {}
         /** The bar's offer to translate the text just copied: its button, and its ✕. */
         fun onReadingOfferAccepted() {}
         fun onReadingOfferDismissed() {}
@@ -60,6 +67,29 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
         setPadding(context.dp(14), context.dp(3), context.dp(14), 0)
         isSingleLine = true
         ellipsize = TextUtils.TruncateAt.START
+        setOnClickListener { callback?.onPinyinEditRequested() }
+    }
+    private val editText = TextView(context).apply {
+        gravity = Gravity.CENTER_VERTICAL
+        textSize = EDIT_TEXT_SP
+        includeFontPadding = false
+        isSingleLine = true
+        setPadding(context.dp(14), 0, context.dp(14), 0)
+        setOnTouchListener { _, event ->
+            lastEditTouchX = event.x
+            false
+        }
+        setOnClickListener { view ->
+            val text = view as TextView
+            val offset = text.layout?.getOffsetForHorizontal(0, lastEditTouchX - text.paddingLeft) ?: return@setOnClickListener
+            // The caret is a character of the text but not of the pinyin.
+            callback?.onPinyinCaretMoved(if (offset > editCaret) offset - 1 else offset)
+        }
+    }
+    private val editScroller = HorizontalScrollView(context).apply {
+        isHorizontalScrollBarEnabled = false
+        visibility = View.GONE
+        addView(editText, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.MATCH_PARENT))
     }
     private val candidateRow = LinearLayout(context).apply {
         orientation = HORIZONTAL
@@ -173,6 +203,8 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
         gravity = Gravity.CENTER_VERTICAL
     }
     private val candidateViews = ArrayList<TextView>()
+    private var editCaret = 0
+    private var lastEditTouchX = 0f
     private var choosing: Choosing? = null
     // Highlighted item: the first candidate (what space commits) or the current choice.
     private var highlightedIndex = 0
@@ -183,6 +215,7 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
         addView(mainRow, LayoutParams(LayoutParams.MATCH_PARENT, 0, 1f))
         mainRow.addView(scroller, LayoutParams(0, LayoutParams.MATCH_PARENT, 1f))
         mainRow.addView(offerRow, LayoutParams(0, LayoutParams.MATCH_PARENT, 1f))
+        mainRow.addView(editScroller, LayoutParams(0, LayoutParams.MATCH_PARENT, 1f))
         mainRow.addView(toolsMenu, LayoutParams(0, LayoutParams.MATCH_PARENT, 1f))
         mainRow.addView(
             fixButton,
@@ -208,6 +241,7 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
         toolsShare.setColorFilter(ImeColors.TEXT)
         toolsLeaf.background = toolBackground()
         fixButton.setTextColor(ImeColors.TEXT)
+        editText.setTextColor(ImeColors.TEXT)
         offerButton.setTextColor(ImeColors.TEXT)
         offerButton.background = toolBackground()
         offerClose.setTextColor(ImeColors.TEXT)
@@ -244,6 +278,30 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
         expandButton.rotation = if (expanded == true) 180f else 0f
         expandButton.visibility = if (expanded == null) View.GONE else View.VISIBLE
         show(composing, candidates)
+    }
+
+    /** [pinyin] with a caret to tap around, [preview] above it, and [doneLabel] to go back to candidates. */
+    fun renderPinyinEdit(preview: String, pinyin: String, caret: Int, doneLabel: String) {
+        choosing = null
+        showTools(null)
+        fixButton.text = doneLabel
+        fixButton.visibility = View.VISIBLE
+        expandButton.visibility = View.GONE
+        show(preview, emptyList())
+        scroller.visibility = View.GONE
+        editScroller.visibility = View.VISIBLE
+        editCaret = caret
+        editText.text = SpannableString(pinyin.substring(0, caret) + EDIT_CARET + pinyin.substring(caret)).apply {
+            setSpan(ForegroundColorSpan(ImeColors.ACCENT), caret, caret + 1, SPAN_EXCLUSIVE_EXCLUSIVE)
+        }
+        // Keep the caret in view; the text is laid out on the next pass.
+        editScroller.post {
+            val x = editText.layout?.getPrimaryHorizontal(caret)?.toInt() ?: return@post
+            val margin = width / EDIT_CARET_MARGIN_DIVISOR
+            if (x - editScroller.scrollX !in margin..(editScroller.width - margin)) {
+                editScroller.scrollTo(x - editScroller.width / 2, 0)
+            }
+        }
     }
 
     /** Offers to translate the text just copied, in place of candidates, until something else renders. */
@@ -327,6 +385,7 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
         visibility = if (label.isEmpty() && items.isEmpty()) View.GONE else View.VISIBLE
         offerRow.visibility = View.GONE
         toolsMenu.visibility = View.GONE
+        editScroller.visibility = View.GONE
         scroller.visibility = View.VISIBLE
         composingLabel.text = label
         composingLabel.visibility = if (label.isEmpty()) View.GONE else View.VISIBLE
@@ -400,6 +459,9 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
         const val EXPAND_WIDTH_DP = 56
         const val OFFER_CLOSE_WIDTH_DP = 44
         const val TOOLS_LEAF_WIDTH_DP = 44
+        const val EDIT_TEXT_SP = 20f
+        const val EDIT_CARET = '|'
+        const val EDIT_CARET_MARGIN_DIVISOR = 8
         const val CANDIDATE_MIN_WIDTH_DP = 52
         const val HIGHLIGHT_RADIUS_DP = 10
         const val HIGHLIGHT_INSET_DP = 3

@@ -79,6 +79,8 @@ class ZnKeyboardInputMethodService : InputMethodService(),
      * 9-key pinyin grid ("ni'4426"), stroke letters on the stroke grid ("szh").
      */
     private var pinyinComposing = ""
+    // Where letters go while editing the pinyin of a long sentence; -1 when not editing it.
+    private var pinyinEditCaret = -1
     /** How each composing letter's tap fitted the keys, so the decoder can weigh near misses. */
     private val pinyinTaps = PinyinTapBuffer()
     private var chineseKeyboard = KeyboardSettings.ChineseKeyboard.Qwerty
@@ -978,6 +980,10 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     }
 
     override fun onPinyinFixRequested() {
+        if (pinyinEditCaret >= 0) {
+            endPinyinEdit()
+            return
+        }
         pinyinFix = if (pinyinFix == null) PinyinFix(part = -1) else null
         renderPinyinBar()
     }
@@ -1189,6 +1195,12 @@ class ZnKeyboardInputMethodService : InputMethodService(),
                         return false
                     }
                     char != null && char in 'a'..'z' && englishRun && !composing -> return false
+                    char != null && char.lowercaseChar() in 'a'..'z' && composing && pinyinEditCaret >= 0 -> {
+                        val at = pinyinEditCaret
+                        pinyinEditCaret = at + 1
+                        updatePinyinComposition(pinyinComposing.replaceRange(at, at, char.lowercaseChar().toString()))
+                        return true
+                    }
                     char != null && char.lowercaseChar() in 'a'..'z' -> {
                         updatePinyinComposition(pinyinComposing + char.lowercaseChar(), keyboardView?.letterTapCosts, keyboardView?.letterTapSample)
                         return true
@@ -1202,6 +1214,10 @@ class ZnKeyboardInputMethodService : InputMethodService(),
                         if (!pinyinComposing.endsWith(PinyinEngine.SEPARATOR)) {
                             updatePinyinComposition(pinyinComposing + PinyinEngine.SEPARATOR)
                         }
+                        return true
+                    }
+                    value == " " && pinyinEditCaret >= 0 -> {
+                        endPinyinEdit()
                         return true
                     }
                     value == " " -> {
@@ -1223,6 +1239,14 @@ class ZnKeyboardInputMethodService : InputMethodService(),
             }
             KeyboardAction.Backspace -> {
                 if (!composing) return false
+                if (pinyinEditCaret >= 0) {
+                    val at = pinyinEditCaret
+                    if (at > 0) {
+                        pinyinEditCaret = at - 1
+                        updatePinyinComposition(pinyinComposing.removeRange(at - 1, at))
+                    }
+                    return true
+                }
                 updatePinyinComposition(
                     if (chineseKeyboard == KeyboardSettings.ChineseKeyboard.NineKeyPinyin) NineKeyEngine.backspace(pinyinComposing)
                     else pinyinComposing.dropLast(1),
@@ -1270,6 +1294,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         pinyinFix = null
         pinyinFixedSentence = null
         pinyinExpanded = false
+        if (pinyinComposing.isEmpty() || composing.isEmpty()) pinyinEditCaret = -1
         if (pinyinComposing.isEmpty()) {
             pinyinFieldContext = fieldTextBeforeCaret?.let(dictionary::contextBefore)
             composingAfterLatin = englishWordJustCommitted ||
@@ -1356,6 +1381,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         val candidate = pinyinCandidates.getOrNull(index) ?: return
         val learnedByHand = byHand || candidate === pinyinFixedSentence
         pinyinFix = null
+        pinyinEditCaret = -1
         pinyinExpanded = false
         val inputConnection = currentInputConnection ?: return
         val remaining = pinyinComposing.substring(candidate.consumed.coerceAtMost(pinyinComposing.length))
@@ -1460,12 +1486,19 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         refreshNineKeySpellings()
         val bar = pinyinBar ?: return
         val fix = pinyinFix?.takeIf { pinyinComposing.isNotEmpty() }
+        val editCaret = pinyinEditCaret.takeIf { it >= 0 && pinyinComposing.isNotEmpty() }
         renderPinyinPanel(fix == null)
         val parts = pinyinCandidates.firstOrNull()?.parts.orEmpty()
         val offer = readingOffer?.takeIf {
             readingOfferAllowed && pinyinComposing.isEmpty() && activeSurface == KeyboardSurface.Keyboard
         }
         when {
+            editCaret != null -> bar.renderPinyinEdit(
+                pinyinCandidates.firstOrNull()?.text.orEmpty(),
+                pinyinComposing,
+                editCaret.coerceAtMost(pinyinComposing.length),
+                t("完成", "Done"),
+            )
             offer != null -> bar.renderReadingOffer("${t("翻译", "Translate")}  ${offer.take(READING_OFFER_PREVIEW_CHARS).replace('\n', ' ')}")
             pinyinComposing.isEmpty() && pinyinPredictions.isNotEmpty() ->
                 bar.render("", pinyinPredictions.map { it.text }, pinyinBarTools())
@@ -1499,6 +1532,24 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         dismissReadingOffer()
         readingSource = text
         startReading()
+    }
+
+    override fun onPinyinEditRequested() {
+        if (pinyinComposing.isEmpty() || chineseKeyboard != KeyboardSettings.ChineseKeyboard.Qwerty || pinyinFix != null) return
+        pinyinExpanded = false
+        pinyinEditCaret = pinyinComposing.length
+        renderPinyinBar()
+    }
+
+    override fun onPinyinCaretMoved(offset: Int) {
+        if (pinyinEditCaret < 0) return
+        pinyinEditCaret = offset.coerceIn(0, pinyinComposing.length)
+        renderPinyinBar()
+    }
+
+    private fun endPinyinEdit() {
+        pinyinEditCaret = -1
+        renderPinyinBar()
     }
 
     private fun readingHeader(): String =

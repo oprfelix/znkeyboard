@@ -31,7 +31,10 @@ object SentenceDecoder {
     class Sentence(val text: String, val parts: List<PinyinEngine.Candidate>, val spelling: String, val cost: Float)
 
     /** One way to read input[start, end): a whole syllable (possibly corrected) or the start of one. */
-    private class Piece(val end: Int, val text: String, val isPrefix: Boolean, val cost: Float)
+    private class Piece(val end: Int, val text: String, val isPrefix: Boolean, val cost: Float) {
+        /** A syllable that differs from what was typed. */
+        val slip get() = !isPrefix && cost > 0f
+    }
 
     /** A word over a run of pieces: [cost] is what the pieces and fuzzy sounds add to the word's own. */
     private class Edge(val end: Int, val pieces: List<Piece>, val match: PinyinDictionary.Match, val cost: Float)
@@ -120,6 +123,8 @@ object SentenceDecoder {
                     return
                 }
                 for (piece in pieces(at)) {
+                    // One slip per word: the readings would multiply with no likelier word to show.
+                    if (piece.slip && run.any { it.slip }) continue
                     val next = if (initials.isEmpty()) "${piece.text[0]}" else "$initials ${piece.text[0]}"
                     if (!dictionary.hasInitialsPrefix(next)) continue
                     run += piece
@@ -333,7 +338,11 @@ object SentenceDecoder {
             // Two letters are too few to tell a slip from 简拼 (hs is h + s, not he), unless the taps
             // say a key was nearly missed (wl → wo, with l just below o).
             val tapAt = { at: Int -> taps?.costs(start + at) }
-            if (typed.length >= 3 || typed.length == 2 && typed.endsWith("n")) {
+            // A vowel starting a syllable may have lost its y or w (ue → yue, i → yi); two letters
+            // with a vowel that are no syllable were never 简拼 (ho → hao).
+            val lostInitial = typed.length <= 2 && typed[0] in ZERO_INITIAL_VOWELS
+            val noSyllable = typed.length == 2 && typed !in dictionary.rawSyllables && typed.any { it in ZERO_INITIAL_VOWELS }
+            if (typed.length >= 3 || typed.length == 2 && typed.endsWith("n") || lostInitial || noSyllable) {
                 for ((fixed, cost) in corrections(typed, dictionary, tapAt)) add(end, fixed, isPrefix = false, cost = cost)
             } else if (typed.length == 2 && taps != null) {
                 for ((fixed, cost) in corrections(typed, dictionary, tapAt, tapsOnly = true)) {
@@ -368,6 +377,11 @@ object SentenceDecoder {
         if (tapsOnly) {
             addTapSlips(typed, tapAt, ::consider)
             return result.sortedBy { it.second }.distinctBy { it.first }
+        }
+        // A syllable that should have started with y or w, which pinyin writes before a vowel.
+        if (typed[0] in ZERO_INITIAL_VOWELS) {
+            consider("y$typed", LOST_INITIAL_COST)
+            consider("w$typed", LOST_INITIAL_COST)
         }
         // Front and back nasals, the commonest slip: in/ing, an/ang, en/eng.
         if (typed.endsWith("n")) consider(typed + "g", NASAL_COST)
@@ -434,7 +448,9 @@ object SentenceDecoder {
     private const val VOWELS = "aoe"
     private const val STILL_TYPING_COST = 1.5f
     private const val NASAL_COST = 3f
-    private const val MISSING_LETTER_COST = 5f
+    private const val MISSING_LETTER_COST = 3.5f
+    private const val LOST_INITIAL_COST = 5f
+    private const val ZERO_INITIAL_VOWELS = "aeiou"
     private const val SLIP_COST = 7f
     /** A key swapped for another, given the tap: this plus how much worse the tap fits that key. */
     private const val TOUCH_SLIP_COST = 2f
