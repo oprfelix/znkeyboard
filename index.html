@@ -787,13 +787,14 @@ footer .links a { margin-right: 18px; }
 <section id="download">
   <div class="wrap">
     <h2 data-en="Download">下载</h2>
-    <p class="lead" data-en="Free. Updates install from inside the app with one click (Mac 0.3, Windows 0.6, Android 1.7 and later); your settings and API key stay.">免费使用。新版本可以在 App 内一键更新（Mac 0.3、Windows 0.6、Android 1.7 起），设置和 API Key 都会保留。</p>
+    <p class="lead" data-en="Free. Updates install from inside the app, and your settings and API key stay.">免费使用。App 内可一键更新，设置和 API Key 都会保留。</p>
     <div class="grid three">
       <article class="card platform" data-platform="android">
         <header><img src="assets/icon-android.png" alt=""><div><h3>Android <span class="tag" data-en="Keyboard">输入法</span></h3><div class="kind" data-en="Pinyin + English keyboard">拼音 + 英文输入法</div></div></header>
         <ul>
-          <li data-en="Polish, translate and AI voice input in the toolbar">工具栏里直接润色、翻译和 AI 语音输入</li>
-          <li data-en="Whole-sentence pinyin, fuzzy pinyin, 9-key and stroke input, adaptive touch">整句拼音、模糊音、九宫格和笔画、自适应触控</li>
+          <li data-en="Polish, translate and voice input in the toolbar">工具栏里润色、翻译和语音输入</li>
+          <li data-en="Copy a message and reply while reading it">复制消息，边看译文边回复</li>
+          <li data-en="Whole-sentence pinyin, correction, 9-key and stroke">整句拼音、纠错、九宫格和笔画</li>
           <li data-en="Requires Android 14 or later">需要 Android 14 及以上</li>
         </ul>
         <a class="btn" data-repo="znkeyboard" data-ext=".apk" href="https://zn.2amz.com/download/android"><svg><use href="#i-download"/></svg><span data-en="Download APK">下载 APK</span></a>
@@ -802,9 +803,9 @@ footer .links a { margin-right: 18px; }
       <article class="card platform" data-platform="mac">
         <header><img src="assets/icon-desktop.png" alt=""><div><h3>macOS <span class="tag" data-en="Menu bar">菜单栏</span></h3><div class="kind" data-en="Works in any app">在任何 App 里使用</div></div></header>
         <ul>
-          <li data-en="Select text in a text box for Polish | Translate, or press <kbd>⇧⌘E</kbd> / <kbd>⇧⌘R</kbd>">输入框里选中文字弹出「润色 | AI 翻译」，或按 <kbd>⇧⌘E</kbd> / <kbd>⇧⌘R</kbd></li>
-          <li data-en="Translate selection <kbd>⇧⌘1</kbd>, screenshot translate <kbd>⇧⌘2</kbd>">划词翻译 <kbd>⇧⌘1</kbd>，截图翻译 <kbd>⇧⌘2</kbd></li>
-          <li data-en="For Apple silicon and Intel Macs">适用于 Apple 芯片和 Intel 芯片的 Mac</li>
+          <li data-en="Select text to polish or translate">选中文字，润色或翻译</li>
+          <li data-en="Translate a selection or a screenshot">划词翻译、截图翻译</li>
+          <li data-en="For Apple silicon and Intel">适用于 Apple 芯片和 Intel 芯片</li>
           <li data-en="Requires macOS 14 or later">需要 macOS 14 及以上</li>
         </ul>
         <a class="btn" data-repo="Znkeyboard-for-macOS" data-ext=".dmg" href="https://zn.2amz.com/download/macos"><svg><use href="#i-download"/></svg><span data-en="Download DMG">下载 DMG</span></a>
@@ -813,11 +814,10 @@ footer .links a { margin-right: 18px; }
       <article class="card platform" data-platform="windows">
         <header><img src="assets/icon-desktop.png" alt=""><div><h3>Windows <span class="tag" data-en="Tray">托盘</span></h3><div class="kind" data-en="Works in any app">在任何软件里使用</div></div></header>
         <ul>
-          <li data-en="Select text in a text box for Polish | Translate, or press <kbd>Ctrl+Shift+E</kbd> / <kbd>Ctrl+Shift+R</kbd>">输入框里选中文字弹出「润色 | AI 翻译」，或按 <kbd>Ctrl+Shift+E</kbd> / <kbd>Ctrl+Shift+R</kbd></li>
-          <li data-en="Translate selection <kbd>Ctrl+Shift+1</kbd>, screenshot translate <kbd>Ctrl+Shift+2</kbd>">划词翻译 <kbd>Ctrl+Shift+1</kbd>，截图翻译 <kbd>Ctrl+Shift+2</kbd></li>
-          <li data-en="Double-click to install, then open it from the Start menu">双击自动安装，可从开始菜单打开</li>
-          <li data-en="Windows 10 / 11, 64-bit (Intel / AMD)">Windows 10 / 11，64 位（Intel / AMD）</li>
-          <li data-en="Needs the free <a href=&quot;https://dotnet.microsoft.com/download/dotnet/10.0&quot;>.NET 10 Desktop Runtime</a>">需先安装免费的 <a href="https://dotnet.microsoft.com/download/dotnet/10.0">.NET 10 桌面运行时</a></li>
+          <li data-en="Select text to polish or translate">选中文字，润色或翻译</li>
+          <li data-en="Translate a selection or a screenshot">划词翻译、截图翻译</li>
+          <li data-en="Windows 10 / 11, 64-bit">Windows 10 / 11，64 位</li>
+          <li data-en="Needs the free <a href=&quot;https://dotnet.microsoft.com/download/dotnet/10.0&quot;>.NET 10 Desktop Runtime</a>">需安装 <a href="https://dotnet.microsoft.com/download/dotnet/10.0">.NET 10 Desktop Runtime</a></li>
         </ul>
         <a class="btn" data-repo="Znkeyboard-for-Windows" data-ext=".exe" href="https://zn.2amz.com/download/windows"><svg><use href="#i-download"/></svg><span data-en="Download installer">下载安装程序</span></a>
         <div class="meta" data-meta="Znkeyboard-for-Windows"></div>
@@ -927,7 +927,7 @@ footer .links a { margin-right: 18px; }
           <summary data-en="Windows: “Windows protected your PC” or it won't start">Windows：提示「Windows 已保护你的电脑」或打不开</summary>
           <div class="answer" data-en="<ol><li>Install the <a href=&quot;https://dotnet.microsoft.com/download/dotnet/10.0&quot;>.NET 10 Desktop Runtime</a> (x64) first.</li><li>Run the downloaded <b>ZnKeyboard-Windows-….exe</b>. It installs itself for you (no admin rights) and adds ZnKeyboard to the Start menu; you can then delete the download. Later updates install from the tray with one click (0.6 and later).</li><li>If SmartScreen appears, click <b>More info → Run anyway</b>.</li><li>ZnKeyboard sits in the tray (bottom right) and starts with Windows. Click it for Settings, or right-click for the menu. To uninstall, go to Settings → Apps → Installed apps.</li></ol>Something not working? Right-click the tray icon → <b>Open diagnostic log</b> and send it with your <a href=&quot;https://github.com/oprfelix/Znkeyboard-for-Windows/issues&quot;>report</a>. It never contains your text.">
             <ol>
-              <li>先安装 <a href="https://dotnet.microsoft.com/download/dotnet/10.0">.NET 10 桌面运行时</a>（x64）。</li>
+              <li>先在微软下载页安装 <a href="https://dotnet.microsoft.com/download/dotnet/10.0">.NET 10 Desktop Runtime</a>，选 <b>x64</b> 版本。</li>
               <li>双击下载的 <b>ZnKeyboard-Windows-….exe</b>，会自动安装到本机（不需要管理员权限）并添加到开始菜单，之后下载的文件可以删除。以后有新版本时托盘会提醒，点一下即可更新（0.6 起）。</li>
               <li>如果出现蓝色的 SmartScreen 提示，点 <b>更多信息 → 仍要运行</b>。</li>
               <li>ZnKeyboard 会出现在右下角托盘里，并且开机自动启动。单击打开设置，右键打开菜单。卸载：Windows「设置」→「应用」→「已安装的应用」。</li>
