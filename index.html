@@ -4,9 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ZnKeyboard · 选中文字，一键润色或翻译</title>
-<meta name="description" content="ZnKeyboard：带 AI 润色和翻译的拼音输入法，另有 macOS 和 Windows 版。选中文字，一键改通顺或翻译成 14 种语言；看外文时划词翻译、截图翻译。">
+<meta name="description" content="ZnKeyboard：带 AI 润色和翻译的拼音输入法，另有 iPhone 测试版和 macOS、Windows 版。选中文字，一键改通顺或翻译成 14 种语言；看外文时划词翻译、截图翻译。">
 <meta property="og:title" content="ZnKeyboard · 选中文字，一键润色或翻译">
-<meta property="og:description" content="Android 输入法 · macOS · Windows。用 AI 把文字改通顺，或翻译成 14 种语言。">
+<meta property="og:description" content="Android 输入法 · iPhone 测试版 · macOS · Windows。用 AI 把文字改通顺，或翻译成 14 种语言。">
 <meta property="og:image" content="https://zn.2amz.com/assets/og.png">
 <meta property="og:url" content="https://zn.2amz.com/">
 <!-- zn.2amz.com is the main site; znkeyboard.2amz.com serves it too, and oprfelix.github.io/znkeyboard mirrors it. -->
@@ -788,7 +788,7 @@ footer .links a { margin-right: 18px; }
   <div class="wrap">
     <h2 data-en="Download">下载</h2>
     <p class="lead" data-en="Free. Updates install from inside the app, and your settings and API key stay.">免费使用。App 内可一键更新，设置和 API Key 都会保留。</p>
-    <div class="grid three">
+    <div class="grid four">
       <article class="card platform" data-platform="android">
         <header><img src="assets/icon-android.png" alt=""><div><h3>Android <span class="tag" data-en="Keyboard">输入法</span></h3><div class="kind" data-en="Pinyin + English keyboard">拼音 + 英文输入法</div></div></header>
         <ul>
@@ -799,6 +799,17 @@ footer .links a { margin-right: 18px; }
         </ul>
         <a class="btn" data-repo="znkeyboard" data-ext=".apk" href="https://zn.2amz.com/download/android"><svg><use href="#i-download"/></svg><span data-en="Download APK">下载 APK</span></a>
         <div class="meta" data-meta="znkeyboard"></div>
+      </article>
+      <article class="card platform" data-platform="ios">
+        <header><img src="assets/icon-ios.png" alt=""><div><h3>iPhone <span class="tag" data-en="Beta">测试版</span></h3><div class="kind" data-en="Pinyin + English keyboard">拼音 + 英文输入法</div></div></header>
+        <ul>
+          <li data-en="Polish and translate in the toolbar">工具栏里润色和翻译</li>
+          <li data-en="Copy a message and translate it">复制外文消息，一键翻译</li>
+          <li data-en="Whole-sentence pinyin, correction and 9-key">整句拼音、按键纠错和九宫格</li>
+          <li data-en="Requires iOS 16 or later">需要 iOS 16 及以上</li>
+        </ul>
+        <a class="btn" id="ios-link" target="_blank" rel="noopener"><svg><use href="#i-download"/></svg><span data-en="Install with TestFlight">用 TestFlight 安装</span></a>
+        <div class="meta" data-en="Install TestFlight first, then open the link in Safari.">先装 TestFlight，再用 Safari 打开链接</div>
       </article>
       <article class="card platform" data-platform="mac">
         <header><img src="assets/icon-desktop.png" alt=""><div><h3>macOS <span class="tag" data-en="Menu bar">菜单栏</span></h3><div class="kind" data-en="Works in any app">在任何 App 里使用</div></div></header>
@@ -824,7 +835,6 @@ footer .links a { margin-right: 18px; }
       </article>
     </div>
     <p class="keys-note" id="dl-source"></p>
-    <p class="keys-note" data-en="No iPhone version: iOS doesn't let keyboards read or rewrite text in other apps the way this needs.">暂无 iPhone 版：iOS 对第三方输入法的限制较多，无法实现完整的润色和翻译功能。</p>
   </div>
 </section>
 
@@ -835,7 +845,7 @@ footer .links a { margin-right: 18px; }
     <div class="grid three steps">
       <div class="card step">
         <h3 data-en="Install">安装</h3>
-        <p data-en="Download the version for your device above. On Android, also turn on ZnKeyboard in the keyboard settings; the app walks you through it. On Mac, allow ZnKeyboard under Accessibility when asked, so it can read the text you select (screenshot translate also needs Screen Recording). On Windows, run the installer; the first time, install the .NET 10 runtime.">在上方下载对应版本。Android 安装后还要在系统里启用 ZnKeyboard 输入法，App 首页会引导你完成；Mac 需要按提示在「辅助功能」里授权，才能读取你选中的文字（截图翻译还需要「屏幕录制」权限）；Windows 双击安装程序即可，第一次需先安装 .NET 10 运行时。</p>
+        <p data-en="Download the version for your device above. On iPhone, install TestFlight first, open the install link in Safari rather than inside WeChat, then add ZnKeyboard in Settings and allow Full Access; the app walks you through it. On Android, also turn on ZnKeyboard in the keyboard settings; the app walks you through it. On Mac, allow ZnKeyboard under Accessibility when asked, so it can read the text you select (screenshot translate also needs Screen Recording). On Windows, run the installer; the first time, install the .NET 10 runtime.">在上方下载对应版本。iPhone 要先安装 TestFlight，并用 Safari 打开安装链接（不要在微信里打开），之后在系统设置里添加键盘并打开完全访问，App 首页会引导你完成。Android 安装后还要在系统里启用 ZnKeyboard 输入法，App 首页会引导你完成；Mac 需要按提示在「辅助功能」里授权，才能读取你选中的文字（截图翻译还需要「屏幕录制」权限）；Windows 双击安装程序即可，第一次需先安装 .NET 10 运行时。</p>
       </div>
       <div class="card step">
         <h3 data-en="Get an API key">获取 API Key</h3>
@@ -849,8 +859,8 @@ footer .links a { margin-right: 18px; }
       </div>
       <div class="card step">
         <h3 data-en="Paste and go">粘贴，开始用</h3>
-        <div class="step-body" data-en="&lt;p&gt;Open Settings (on Android, the “AI” tab; on Mac and Windows, “Settings” in the menu bar or tray icon):&lt;/p&gt;&lt;ul&gt;&lt;li&gt;&lt;b&gt;DeepSeek&lt;/b&gt;: choose “DeepSeek” as the provider, then paste your key.&lt;/li&gt;&lt;li&gt;&lt;b&gt;Gemini&lt;/b&gt;: choose “Google Gemini”, then paste your key.&lt;/li&gt;&lt;/ul&gt;&lt;p&gt;When you see &lt;span class=&quot;ok&quot;&gt;&lt;span class=&quot;dot&quot;&gt;&lt;/span&gt;API key works&lt;/span&gt;, you&#x27;re all set.&lt;/p&gt;&lt;p class=&quot;note&quot;&gt;AI voice input (Android) currently needs a Gemini key.&lt;/p&gt;">
-        <p>打开设置（Android 在底部的「AI」页，Mac 和 Windows 在菜单栏或托盘图标的「设置」里）：</p>
+        <div class="step-body" data-en="&lt;p&gt;Open Settings (on Android, the “AI” tab; on iPhone, “API settings” on the Translate page of the app; on Mac and Windows, “Settings” in the menu bar or tray icon):&lt;/p&gt;&lt;ul&gt;&lt;li&gt;&lt;b&gt;DeepSeek&lt;/b&gt;: choose “DeepSeek” as the provider, then paste your key.&lt;/li&gt;&lt;li&gt;&lt;b&gt;Gemini&lt;/b&gt;: choose “Google Gemini”, then paste your key.&lt;/li&gt;&lt;/ul&gt;&lt;p&gt;When you see &lt;span class=&quot;ok&quot;&gt;&lt;span class=&quot;dot&quot;&gt;&lt;/span&gt;API key works&lt;/span&gt;, you&#x27;re all set.&lt;/p&gt;&lt;p class=&quot;note&quot;&gt;AI voice input (Android) currently needs a Gemini key.&lt;/p&gt;">
+        <p>打开设置（Android 在底部的「AI」页，iPhone 在 App「翻译」页的「API 配置」，Mac 和 Windows 在菜单栏或托盘图标的「设置」里）：</p>
         <ul>
           <li><b>DeepSeek</b>：服务商选「DeepSeek」，粘贴 Key。</li>
           <li><b>Gemini</b>：服务商选「Google Gemini」，粘贴 Key。</li>
@@ -966,7 +976,7 @@ footer .links a { margin-right: 18px; }
         </details>
         <details>
           <summary data-en="Is there an iPhone version?">有 iPhone 版吗？</summary>
-          <div class="answer" data-en="Not for now. iOS restricts third-party keyboards (for example, they can't reliably read and replace the text you've written), so the experience would fall short. Mac and Windows users can use the desktop apps.">暂时没有。iOS 对第三方输入法限制较多（比如无法可靠地读取和替换已经输入的文字），做出来体验会打折扣。电脑上可以使用 Mac 和 Windows 版。</div>
+          <div class="answer" data-en="Yes, as a beta through Apple's TestFlight. Install TestFlight from the App Store, then open <a href=&quot;https://testflight.apple.com/join/8YzSZYwx&quot;>the install link</a> in Safari; inside WeChat the button may do nothing. Polish and translate need your own API key and Full Access. There's no voice input or screenshot translate on iPhone.">有，目前是测试版，通过苹果的 TestFlight 安装。先在 App Store 安装 TestFlight，再用 Safari 打开<a href="https://testflight.apple.com/join/8YzSZYwx">安装链接</a>；在微信里打开时按钮可能没有反应。润色和翻译需要你自己的 API Key，并打开完全访问。iPhone 版没有语音输入和截图翻译。</div>
         </details>
         <details>
           <summary data-en="Is it open source?">是开源的吗？</summary>
@@ -1126,6 +1136,7 @@ footer .links a { margin-right: 18px; }
     mac: { repo: 'Znkeyboard-for-macOS', ext: '.dmg', name: 'macOS' },
     windows: { repo: 'Znkeyboard-for-Windows', ext: '.exe', name: 'Windows' }
   };
+  var testFlightUrl = 'https://testflight.apple.com/join/8YzSZYwx';
   var latest = {}; // repo -> { url, version, size }
   var backup = {}; // platform -> the file on GitHub
   var fromCloudflare = !/github\.io$/.test(location.hostname);
@@ -1151,6 +1162,7 @@ footer .links a { margin-right: 18px; }
 
   function renderDownloads() {
     // Platform cards.
+    document.getElementById('ios-link').href = testFlightUrl;
     document.querySelectorAll('a[data-repo]').forEach(function (a) {
       var info = latest[a.dataset.repo];
       if (info) a.href = info.url;
@@ -1166,7 +1178,11 @@ footer .links a { margin-right: 18px; }
     var meta = document.getElementById('hero-meta');
     var others = document.getElementById('hero-others');
     var target = repos[platform];
-    if (target) {
+    if (platform === 'ios') {
+      btn.href = testFlightUrl;
+      label.textContent = t('用 TestFlight 安装', 'Install with TestFlight');
+      meta.textContent = t('iPhone 测试版，请在 Safari 中打开', 'iPhone beta; open this page in Safari');
+    } else if (target) {
       var info = latest[target.repo];
       btn.href = info ? info.url : directUrl(platform);
       label.textContent = t('下载 ' + target.name + ' 版', 'Download for ' + target.name);
@@ -1174,12 +1190,13 @@ footer .links a { margin-right: 18px; }
     } else {
       btn.href = '#download';
       label.textContent = t('免费下载', 'Download free');
-      meta.textContent = platform === 'ios' ? t('暂无 iPhone 版，可在电脑上使用', 'No iPhone version yet; try it on your computer') : '';
+      meta.textContent = '';
     }
     var links = Object.keys(repos).filter(function (k) { return k !== platform; }).map(function (k) {
       return '<a href="#download">' + repos[k].name + '</a>';
     });
-    others.innerHTML = target ? t('其他平台：', 'Other platforms: ') + links.join('') : '';
+    if (platform !== 'ios') links.push('<a href="#download">iPhone</a>');
+    others.innerHTML = target || platform === 'ios' ? t('其他平台：', 'Other platforms: ') + links.join('') : '';
 
     // Where the installers come from here, and the other site.
     var backups = Object.keys(repos).filter(function (k) { return backup[k]; }).map(function (k) {
