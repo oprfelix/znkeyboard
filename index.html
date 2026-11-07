@@ -539,7 +539,7 @@ footer .links a { margin-right: 18px; }
     <div>
       <span class="eyebrow"><svg class="spark"><use href="#spark"/></svg><span data-en="AI polish &amp; translate">AI 润色与翻译</span></span>
       <h1 data-en="Select text.<br><em>Polish or translate</em> in one tap.">选中文字，<br><em>一键润色或翻译</em></h1>
-      <p class="sub" data-en="Replies to overseas customers that sound natural, in one tap. Foreign text you can't read, translated from a selection, a copy or a screenshot. 14 languages on Android, Mac and Windows.">给海外客户的回复，一点就地道；看不懂的外文，选中、复制或截图就能翻译。支持 14 种语言，Android、Mac、Windows 都能用。</p>
+      <p class="sub" data-en="Replies to overseas customers that sound natural, in one tap. Foreign text you can't read, translated from a selection, a copy or a screenshot. 14 languages on Android, iPhone, Mac and Windows.">给海外客户的回复，一点就地道；看不懂的外文，选中、复制或截图就能翻译。支持 14 种语言，Android、iPhone、Mac、Windows 都能用。</p>
       <div class="cta">
         <a class="btn" id="hero-btn" href="#download">
           <svg><use href="#i-download"/></svg><span id="hero-label" data-en="Download">免费下载</span>
@@ -699,7 +699,7 @@ footer .links a { margin-right: 18px; }
         <p data-en="Images and PDFs translate too.">图片和 PDF 也能翻译。</p>
       </div>
       <div class="card feature span-tablet">
-        <div class="top"><div class="ico read"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="3" width="8" height="4" rx="1.2"/><path d="M8 5H6.5A1.5 1.5 0 0 0 5 6.5v13A1.5 1.5 0 0 0 6.5 21h11a1.5 1.5 0 0 0 1.5-1.5v-13A1.5 1.5 0 0 0 17.5 5H16"/><path d="M9 12h6M9 16h4"/></svg></div><span class="plat">Android</span></div>
+        <div class="top"><div class="ico read"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="3" width="8" height="4" rx="1.2"/><path d="M8 5H6.5A1.5 1.5 0 0 0 5 6.5v13A1.5 1.5 0 0 0 6.5 21h11a1.5 1.5 0 0 0 1.5-1.5v-13A1.5 1.5 0 0 0 17.5 5H16"/><path d="M9 12h6M9 16h4"/></svg></div><span class="plat">Android · iPhone</span></div>
         <h3 data-en="Copy to translate">复制即译</h3>
         <p data-en="Copy a message and reply while reading it.">复制消息，边看译文边回复。</p>
       </div>
@@ -787,7 +787,7 @@ footer .links a { margin-right: 18px; }
 <section id="download">
   <div class="wrap">
     <h2 data-en="Download">下载</h2>
-    <p class="lead" data-en="Free. Updates install from inside the app, and your settings and API key stay.">免费使用。App 内可一键更新，设置和 API Key 都会保留。</p>
+    <p class="lead" data-en="Free. Updates install from inside the app (through TestFlight on iPhone), and your settings and API key stay.">免费使用。App 内可一键更新（iPhone 在 TestFlight 里更新），设置和 API Key 都会保留。</p>
     <div class="grid four">
       <article class="card platform" data-platform="android">
         <header><img src="assets/icon-android.png" alt=""><div><h3>Android <span class="tag" data-en="Keyboard">输入法</span></h3><div class="kind" data-en="Pinyin + English keyboard">拼音 + 英文输入法</div></div></header>
@@ -923,6 +923,19 @@ footer .links a { margin-right: 18px; }
           </div>
         </details>
         <details>
+          <summary data-en="iPhone: install and turn on the keyboard">iPhone：安装和启用键盘</summary>
+          <div class="answer" data-en="<ol><li>Install <b>TestFlight</b> from the App Store and open it once.</li><li>Open <a href=&quot;https://testflight.apple.com/join/8YzSZYwx&quot;>the install link</a> in Safari. Inside WeChat the button may do nothing: use “Open in Safari”.</li><li>In TestFlight, tap <b>Accept</b>, then <b>Install</b>.</li><li>In Settings → General → Keyboard → Keyboards → Add New Keyboard, choose ZnKeyboard, tap it and turn on <b>Allow Full Access</b>. Polish and translate need it; plain typing doesn't.</li><li>In the ZnKeyboard app, choose a provider, paste your API key and test the connection.</li></ol>Updating: update ZnKeyboard in TestFlight. To type on 9 keys, open the app's Keyboard page and choose it under Chinese keyboard.">
+            <ol>
+              <li>在 App Store 安装 <b>TestFlight</b>，并打开一次。</li>
+              <li>用 Safari 打开<a href="https://testflight.apple.com/join/8YzSZYwx">安装链接</a>。在微信里打开时按钮可能没有反应，请选「在 Safari 中打开」。</li>
+              <li>在 TestFlight 里点 <b>接受</b>，再点 <b>安装</b>。</li>
+              <li>打开「设置 → 通用 → 键盘 → 键盘 → 添加新键盘」，选择 ZnKeyboard，再点进去打开 <b>允许完全访问</b>。润色和翻译需要它，只打字不需要。</li>
+              <li>打开 ZnKeyboard App，选择服务商，粘贴 API Key 并测试连接。</li>
+            </ol>
+            以后更新：在 TestFlight 里更新 ZnKeyboard。想用九宫格：在 App「键盘」页的「中文键盘」里选择。
+          </div>
+        </details>
+        <details>
           <summary data-en="Mac: first launch and permissions">Mac：第一次打开和授权</summary>
           <div class="answer" data-en="&lt;ol&gt;&lt;li&gt;Drag ZnKeyboard into Applications and open it.&lt;/li&gt;&lt;li&gt;When asked, turn on ZnKeyboard under &lt;b&gt;System Settings → Privacy &amp; Security → Accessibility&lt;/b&gt; so it can read the text you select.&lt;/li&gt;&lt;li&gt;The first time you use screenshot translate, turn on ZnKeyboard under &lt;b&gt;Screen Recording&lt;/b&gt; as well, then quit and reopen ZnKeyboard.&lt;/li&gt;&lt;/ol&gt;Updates install from the menu bar with one click (0.3 and later); your settings, API key and permissions stay.">
             <ol>
@@ -956,7 +969,7 @@ footer .links a { margin-right: 18px; }
         </details>
         <details>
           <summary data-en="Where does my text go?">我的文字会发到哪里？</summary>
-          <div class="answer" data-en="Only when you tap Polish or Translate (or use AI voice input), that text is sent directly to the AI provider you chose. There is no middleman server and no account. Once a day the apps send an anonymous count for the numbers on this site: a random ID, platform, version and how often you used it, never any text; turn it off in Settings (About &amp; updates on Android, General on Mac and Windows). For screenshot translate, the image is read on your computer and never uploaded; only the recognised text is sent. Your API key is stored on your device (Android Keystore, macOS Keychain, Windows Credential Manager). Ordinary typing never leaves the keyboard.">只有在你点「润色」「翻译」或使用 AI 语音输入时，那一段文字才会直接发给你选择的 AI 服务商。ZnKeyboard 没有中转服务器，也不需要注册。应用每天发送一次匿名统计，用于本站的用户数：只有随机编号、平台、版本和使用次数，不含任何文字，可在设置里关闭（Android 在「关于与更新」，Mac 和 Windows 在「通用」）。截图翻译时，截图只在你的电脑上识别，不会上传，只有识别出的文字会发给服务商。API Key 只保存在你的设备上（Android 密钥库、macOS 钥匙串、Windows 凭据管理器）。平时普通打字的内容不会离开键盘。</div>
+          <div class="answer" data-en="Only when you tap Polish or Translate (or use AI voice input), that text is sent directly to the AI provider you chose. There is no middleman server and no account. Once a day the apps send an anonymous count for the numbers on this site: a random ID, platform, version and how often you used it, never any text; turn it off in Settings (About &amp; updates on Android, General on Mac and Windows). The iPhone app sends no such count. For screenshot translate, the image is read on your computer and never uploaded; only the recognised text is sent. Your API key is stored on your device (Android Keystore, iOS and macOS Keychain, Windows Credential Manager). Ordinary typing never leaves the keyboard.">只有在你点「润色」「翻译」或使用 AI 语音输入时，那一段文字才会直接发给你选择的 AI 服务商。ZnKeyboard 没有中转服务器，也不需要注册。应用每天发送一次匿名统计，用于本站的用户数：只有随机编号、平台、版本和使用次数，不含任何文字，可在设置里关闭（Android 在「关于与更新」，Mac 和 Windows 在「通用」）；iPhone 版不发送统计。截图翻译时，截图只在你的电脑上识别，不会上传，只有识别出的文字会发给服务商。API Key 只保存在你的设备上（Android 密钥库、iOS 和 macOS 钥匙串、Windows 凭据管理器）。平时普通打字的内容不会离开键盘。</div>
         </details>
         <details>
           <summary data-en="How do I turn on Translate selection?">划词翻译怎么打开？</summary>
@@ -972,7 +985,7 @@ footer .links a { margin-right: 18px; }
         </details>
         <details>
           <summary data-en="Which AI services can I use?">可以用哪些 AI 服务？</summary>
-          <div class="answer" data-en="DeepSeek and Google Gemini are set up for you; see <a href=&quot;#start&quot;>Get started</a>. “OpenAI compatible” also works with OpenAI, OpenRouter and other compatible services: type their address and model. AI voice input needs a Gemini key.">DeepSeek 和 Google Gemini 都已内置，设置方法见上方<a href="#start">三步开始使用</a>。「OpenAI 兼容」还可以接 OpenAI、OpenRouter 等其他兼容服务，填写对方的地址和模型即可。AI 语音输入需要 Gemini Key。</div>
+          <div class="answer" data-en="DeepSeek and Google Gemini are set up for you; see <a href=&quot;#start&quot;>Get started</a>. “OpenAI compatible” (“自定义” on iPhone) also works with OpenAI, OpenRouter and other compatible services: type their address and model. AI voice input needs a Gemini key.">DeepSeek 和 Google Gemini 都已内置，设置方法见上方<a href="#start">三步开始使用</a>。「OpenAI 兼容」（iPhone 版叫「自定义」）还可以接 OpenAI、OpenRouter 等其他兼容服务，填写对方的地址和模型即可。AI 语音输入需要 Gemini Key。</div>
         </details>
         <details>
           <summary data-en="Is there an iPhone version?">有 iPhone 版吗？</summary>
@@ -995,7 +1008,8 @@ footer .links a { margin-right: 18px; }
       <a href="privacy" data-en="Privacy policy">隐私政策</a>
       <a href="https://github.com/oprfelix/znkeyboard/issues" data-en="Report a problem">反馈问题</a>
       <a href="https://github.com/oprfelix/znkeyboard">Android</a>
-      <a href="https://github.com/oprfelix/Znkeyboard-for-macOS">macOS</a>
+      <a href="https://github.com/oprfelix/Znkeyboard-for-IOS">iPhone</a>
+        <a href="https://github.com/oprfelix/Znkeyboard-for-macOS">macOS</a>
       <a href="https://github.com/oprfelix/Znkeyboard-for-Windows">Windows</a>
     </div>
   </div>
