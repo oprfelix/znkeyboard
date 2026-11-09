@@ -91,6 +91,9 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     private var chineseKeyboard = KeyboardSettings.ChineseKeyboard.Qwerty
     /** The spellings shown beside the 9-key grid, in the order NineKeySpelling indexes them. */
     private var nineKeySpellingOptions: List<String> = emptyList()
+    /** Every spelling for the digits, and which page of them the list shows when they don't fit. */
+    private var nineKeySpellingAll: List<String> = emptyList()
+    private var nineKeySpellingPage = 0
     @Volatile private var strokeIndex: StrokeIndex? = null
     private var strokeIndexLoading = false
     private var pinyinCandidates: List<PinyinEngine.Candidate> = emptyList()
@@ -1168,7 +1171,12 @@ class ZnKeyboardInputMethodService : InputMethodService(),
             }
             is KeyboardAction.NineKeySpelling -> {
                 val spelling = nineKeySpellingOptions.getOrNull(action.index) ?: return true
-                updatePinyinComposition(NineKeyEngine.lock(pinyinComposing, spelling))
+                if (spelling == NINE_KEY_MORE_SPELLINGS) {
+                    nineKeySpellingPage++
+                    refreshNineKeySpellings()
+                } else {
+                    updatePinyinComposition(NineKeyEngine.lock(pinyinComposing, spelling))
+                }
                 return true
             }
             is KeyboardAction.Stroke -> {
@@ -1342,12 +1350,24 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     /** The spelling list beside the 9-key grid follows the digits not yet locked. */
     private fun refreshNineKeySpellings() {
         val dictionary = pinyinDictionary
-        nineKeySpellingOptions = if (
+        val all = if (
             chineseKeyboard == KeyboardSettings.ChineseKeyboard.NineKeyPinyin && pinyinComposing.isNotEmpty() && dictionary != null
         ) {
-            NineKeyEngine.spellings(pinyinComposing, dictionary).take(NINE_KEY_SPELLING_SLOTS)
+            NineKeyEngine.spellings(pinyinComposing, dictionary)
         } else {
             emptyList()
+        }
+        if (all != nineKeySpellingAll) {
+            nineKeySpellingAll = all
+            nineKeySpellingPage = 0
+        }
+        // More than fit (586: luo, lun, jun, kun, kuo…): two per page and 更多 turns the page.
+        nineKeySpellingOptions = if (all.size <= NINE_KEY_SPELLING_SLOTS) {
+            all
+        } else {
+            val perPage = NINE_KEY_SPELLING_SLOTS - 1
+            val pages = (all.size + perPage - 1) / perPage
+            all.drop(nineKeySpellingPage % pages * perPage).take(perPage) + NINE_KEY_MORE_SPELLINGS
         }
         keyboardView?.setNineKeySpellings(nineKeySpellingOptions.takeIf { pinyinComposing.isNotEmpty() })
     }
@@ -2929,6 +2949,8 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         const val REQUEST_TIMEOUT_MS = AgentDefaults.REQUEST_TIMEOUT_MS
         const val STROKE_ASSET = "stroke/strokes.tsv"
         const val NINE_KEY_SPELLING_SLOTS = 3
+        /** The last spelling slot when more spellings than slots: turns to the next ones. */
+        const val NINE_KEY_MORE_SPELLINGS = "更多"
         const val CONNECT_TIMEOUT_MS = AgentDefaults.CONNECT_TIMEOUT_MS
         const val MIN_REWRITE_LLM_TOKENS = AgentDefaults.MIN_REWRITE_LLM_TOKENS
         const val MAX_REWRITE_LLM_TOKENS = AgentDefaults.MAX_REWRITE_LLM_TOKENS

@@ -28,6 +28,10 @@ fun main(args: Array<String>) {
     check("简拼 64 brings two-character words early", top("64", 10).any { it.length == 2 }, top("64", 10).toString())
     val kun = top("586", 8)
     check("586 -> 困 before 简拼 words", "困" in kun, kun.toString())
+    val ji = top("54", 10)
+    check("54 -> 及 and 机 before 简拼 words", "及" in ji && "机" in ji, ji.toString())
+    val jian = NineKeyEngine.candidates("5426", dictionary).map { it.text }
+    check("5426 lists every character, 健 too", "健" in jian, jian.size.toString())
     check("spellings 64 start ni/mi", NineKeyEngine.spellings("64", dictionary).take(3).containsAll(listOf("ni", "mi")),
         NineKeyEngine.spellings("64", dictionary).take(6).toString())
     check("display 64426", NineKeyEngine.display("64426", dictionary, NineKeyEngine.candidates("64426", dictionary).firstOrNull()) == "ni'hao",

@@ -486,14 +486,25 @@ class PinyinDictionary private constructor(
         val whole = index.full[lockedCode + digits].orEmpty().filter { fits(it, digits.length) }
         val singlesOnly = locked.isEmpty() && whole.isNotEmpty() && whole.all { it.raw.size == 1 }
         if (singlesOnly && digits.length >= 2) {
-            // Also the top character of every syllable the digits spell (586 → 落, 论, 军, 困, 括),
-            // so a less used syllable is not pushed behind the 简拼 words.
+            // The first few, and the top character of every syllable the digits spell (586 → 落, 论,
+            // 军, 困, 括), so a less used syllable is not pushed behind the 简拼 words. Then the
+            // other characters and the 简拼 words by how often they are used, 简拼 counting a little
+            // less: 54 lists 及 and 机 before 机构.
             val firstOfEach = whole.distinctBy { it.raw[0] }.toHashSet()
             val heads = whole.filterIndexed { i, entry -> i < SINGLES_BEFORE_INITIALS || entry in firstOfEach }
             take(heads.asSequence(), digits.length, heads.size)
-            take(index.initials[digits].orEmpty().asSequence().filter { it.raw.size == digits.length }, digits.length, INITIALS_LIMIT)
+            val shortcuts = index.initials[digits].orEmpty().filter { it.raw.size == digits.length }.take(INITIALS_LIMIT)
+            val rest = whole.filter { it !in heads }
+            var s = 0
+            for (single in rest) {
+                while (s < shortcuts.size && shortcuts[s].score - INITIALS_PENALTY > single.score) take(sequenceOf(shortcuts[s++]), digits.length, 1)
+                take(sequenceOf(single), digits.length, 1)
+            }
+            take(shortcuts.asSequence().drop(s), digits.length, INITIALS_LIMIT)
         }
         take(whole.asSequence(), digits.length, FULL_LIMIT)
+        // Then every other character, however many share the digits (5426: jian, lian, jiao…).
+        take(whole.asSequence().filter { it.raw.size == 1 }, digits.length, whole.size)
         // The last syllable still being typed: complete it from every syllable code it starts.
         val growing = ArrayList<Entry>()
         for (split in digits.length - 1 downTo maxOf(0, digits.length - MAX_CODE_LENGTH + 1)) {
@@ -611,6 +622,8 @@ class PinyinDictionary private constructor(
         private const val FULL_LIMIT = 30
         private const val INITIALS_LIMIT = 10
         private const val SINGLES_BEFORE_INITIALS = 6
+        /** How much less a 简拼 word counts than a character spelled in full (ln 4: a quarter). */
+        private val INITIALS_PENALTY = ln(4f)
         private const val PARTIAL_LIMIT = 8
         private const val SINGLE_LIMIT = 40
         private const val MAX_CODE_LENGTH = 6
