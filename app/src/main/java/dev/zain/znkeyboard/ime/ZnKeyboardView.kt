@@ -562,7 +562,8 @@ class ZnKeyboardView @JvmOverloads constructor(
         touch.currentKey = key
         activeTouches.put(pointerId, touch)
         if (key != null && keyHapticsEnabled) {
-            performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+            // VIRTUAL_KEY, the navigation keys' tick: KEYBOARD_TAP is too faint on many phones.
+            performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
         }
         pointerQueue.remove(pointerId)
         pointerQueue.add(pointerId)
@@ -1894,6 +1895,20 @@ class ZnKeyboardView @JvmOverloads constructor(
         }
         tapCostNext = (tapCostNext + 1) % TAP_COST_POOL
         if (!engine.adaptiveEnabled) return key
+        // On the key itself, even at its edge, it is that key, as on the system keyboards; only a
+        // touch in the gap between keys is weighed against its neighbours.
+        if (hit?.visualBounds?.contains(x, y) == true) {
+            touch.sample = TypingLearner.Sample(
+                letter = geometricLetter,
+                xDp = xDp,
+                yDp = yDp,
+                centersXDp = letterCentersXDp,
+                centersYDp = letterCentersYDp,
+                pitchXDp = letterPitchXDp,
+                pitchYDp = letterPitchYDp,
+            )
+            return key
+        }
         var previous2 = engine.learner.previous2()
         var previous1 = engine.learner.previous1()
         // Rollover typing: letters still held by other fingers precede this one.
