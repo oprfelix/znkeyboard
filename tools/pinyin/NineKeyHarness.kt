@@ -26,6 +26,8 @@ fun main(args: Array<String>) {
     check("9466448 growing -> 中国", top("9466448").contains("中国"), top("9466448").toString())
     check("64 -> 你 among", top("64", 10).contains("你"), top("64", 10).toString())
     check("简拼 64 brings two-character words early", top("64", 10).any { it.length == 2 }, top("64", 10).toString())
+    val kun = top("586", 8)
+    check("586 -> 困 before 简拼 words", "困" in kun, kun.toString())
     check("spellings 64 start ni/mi", NineKeyEngine.spellings("64", dictionary).take(3).containsAll(listOf("ni", "mi")),
         NineKeyEngine.spellings("64", dictionary).take(6).toString())
     check("display 64426", NineKeyEngine.display("64426", dictionary, NineKeyEngine.candidates("64426", dictionary).firstOrNull()) == "ni'hao",

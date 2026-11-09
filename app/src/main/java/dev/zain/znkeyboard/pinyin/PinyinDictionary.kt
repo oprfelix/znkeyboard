@@ -486,7 +486,11 @@ class PinyinDictionary private constructor(
         val whole = index.full[lockedCode + digits].orEmpty().filter { fits(it, digits.length) }
         val singlesOnly = locked.isEmpty() && whole.isNotEmpty() && whole.all { it.raw.size == 1 }
         if (singlesOnly && digits.length >= 2) {
-            take(whole.asSequence(), digits.length, SINGLES_BEFORE_INITIALS)
+            // Also the top character of every syllable the digits spell (586 → 落, 论, 军, 困, 括),
+            // so a less used syllable is not pushed behind the 简拼 words.
+            val firstOfEach = whole.distinctBy { it.raw[0] }.toHashSet()
+            val heads = whole.filterIndexed { i, entry -> i < SINGLES_BEFORE_INITIALS || entry in firstOfEach }
+            take(heads.asSequence(), digits.length, heads.size)
             take(index.initials[digits].orEmpty().asSequence().filter { it.raw.size == digits.length }, digits.length, INITIALS_LIMIT)
         }
         take(whole.asSequence(), digits.length, FULL_LIMIT)
