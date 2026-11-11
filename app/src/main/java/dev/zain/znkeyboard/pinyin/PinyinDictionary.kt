@@ -220,7 +220,8 @@ class PinyinDictionary private constructor(
     private fun matchEntries(pieces: List<Piece>, limit: Int): List<Entry> {
         val normalized = pieces.map { fuzzy.normalize(it.text) }
         if (pieces.none { it.isPrefix }) {
-            return exact[normalized.joinToString(" ")].orEmpty().asSequence().take(limit).toList()
+            val bucket = exact[normalized.joinToString(" ")].orEmpty()
+            return typedFirst(bucket, pieces).take(limit).toList()
         }
         val lastIndex = normalized.lastIndex
         fun fitsPiece(entry: Entry, i: Int): Boolean {
@@ -235,9 +236,27 @@ class PinyinDictionary private constructor(
             .flatMap { byInitials[it].orEmpty() }
             .filter { entry -> pieces.indices.all { fitsPiece(entry, it) } }
             .sortedWith(BEST_FIRST)
+            .let { typedFirst(it, pieces).toList() }
         val lastExact = candidates.asSequence().filter { it.syllables[lastIndex] == normalized[lastIndex] }
         val lastLonger = candidates.asSequence().filter { it.syllables[lastIndex] != normalized[lastIndex] }
         return (lastExact + lastLonger).take(limit).toList()
+    }
+
+    /**
+     * [entries] (best first) with what was typed first: a word read only through a fuzzy rule
+     * (li for ni) counts as much less used, per syllable, so it follows the words spelled as
+     * typed unless far more common. A whole syllable typed last is what was typed, though it is
+     * still a prefix: xing words come after xin ones.
+     */
+    private fun typedFirst(entries: List<Entry>, pieces: List<Piece>): Sequence<Entry> {
+        if (fuzzy.rules.isEmpty() || entries.size < 2) return entries.asSequence()
+        val whole = pieces.map { !it.isPrefix || it.text in rawSyllables }
+        fun fuzzyCount(entry: Entry): Int = pieces.indices.count { i ->
+            val raw = entry.raw.getOrNull(i) ?: return@count false
+            if (whole[i]) raw != pieces[i].text else !raw.startsWith(pieces[i].text)
+        }
+        if (entries.none { fuzzyCount(it) > 0 }) return entries.asSequence()
+        return entries.sortedWith(compareByDescending<Entry> { it.score - FUZZY_PENALTY * fuzzyCount(it) }.thenBy { it.rank }).asSequence()
     }
 
     // ---- Sentence search ----
@@ -274,6 +293,35 @@ class PinyinDictionary private constructor(
         val full = index.full[digits].orEmpty().asSequence().take(limit).map { found(it, false) }
         val initials = index.initials[digits].orEmpty().asSequence().filter { it.raw.size == digits.length }.take(limit).map { found(it, true) }
         return (full + initials).toList()
+    }
+
+    /** Each word id's best row (rows come by weight, most used first), to read a predicted word. */
+    private val rowById: IntArray by lazy {
+        IntArray(wordCount) { -1 }.also { byId ->
+            rows.forEachIndexed { index, row -> if (row.id in byId.indices && byId[row.id] < 0) byId[row.id] = index }
+        }
+    }
+
+    /**
+     * Words likely to come next after [text] (its last word, by the language model): 发货 → 时间,
+     * 好的 → 朋友. Only words of two or more Chinese characters in common use: the model was
+     * learned from the web, and its single characters and rare words (多少 → 马赫) are noise.
+     */
+    fun nextWords(text: String, id: Int, limit: Int): List<Word> {
+        val model = languageModel ?: return emptyList()
+        val previous = if (id >= 0) id else contextBefore(text)?.id ?: return emptyList()
+        if (previous < 0) return emptyList()
+        val result = ArrayList<Word>()
+        val seen = HashSet<String>()
+        for ((next, logP) in model.followers(previous, limit * 4)) {
+            if (logP < MIN_NEXT_WORD_LOG_P) break
+            val row = rowById.getOrNull(next)?.takeIf { it >= 0 }?.let { rows[it] } ?: continue
+            if (model.unigram(next) < MIN_NEXT_WORD_UNIGRAM || row.text.length < 2) continue
+            if (!row.text.all { it in '\u4e00'..'\u9fff' } || !seen.add(row.text)) continue
+            result += Word(row.text, row.syllables, row.id)
+            if (result.size >= limit) break
+        }
+        return result
     }
 
     /** Longer words that start with [text], best first, as the characters still to type. */
@@ -624,6 +672,11 @@ class PinyinDictionary private constructor(
         private const val SINGLES_BEFORE_INITIALS = 6
         /** How much less a 简拼 word counts than a character spelled in full (ln 4: a quarter). */
         private val INITIALS_PENALTY = ln(4f)
+        /** How much less a word read only through a fuzzy rule counts, per syllable (ln 200). */
+        private val FUZZY_PENALTY = ln(200f)
+        /** A predicted next word under this is a guess no better than chance (ln 1/400). */
+        private val MIN_NEXT_WORD_LOG_P = ln(1f / 400)
+        private const val MIN_NEXT_WORD_UNIGRAM = -11f
         private const val PARTIAL_LIMIT = 8
         private const val SINGLE_LIMIT = 40
         private const val MAX_CODE_LENGTH = 6

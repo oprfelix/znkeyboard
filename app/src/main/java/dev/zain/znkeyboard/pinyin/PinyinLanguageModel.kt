@@ -47,6 +47,22 @@ class PinyinLanguageModel private constructor(
         return buffer.getShort(backoffAt + previous * 2) / SHORT_SCALE + unigram(word)
     }
 
+    /** The words seen after [previous], likeliest first, with ln P(word | previous). */
+    fun followers(previous: Int, limit: Int): List<Pair<Int, Float>> {
+        if (previous < 0 || previous >= words || limit <= 0) return emptyList()
+        val low = buffer.getInt(offsetsAt + previous * 4)
+        val high = buffer.getInt(offsetsAt + (previous + 1) * 4)
+        if (high <= low) return emptyList()
+        val found = ArrayList<Pair<Int, Float>>(high - low)
+        for (at in low until high) {
+            val pair = buffer.getInt(pairsAt + at * 4)
+            val id = pair ushr PROB_BITS
+            if (id < words) found += id to -(pair and PROB_MASK) / PROB_SCALE
+        }
+        found.sortByDescending { it.second }
+        return found.take(limit)
+    }
+
     /** ln P([word]) on its own. */
     fun unigram(word: Int): Float = buffer.getShort(unigramAt + word * 2) / SHORT_SCALE
 

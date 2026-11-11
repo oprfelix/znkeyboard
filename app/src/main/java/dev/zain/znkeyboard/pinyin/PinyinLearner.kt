@@ -104,11 +104,16 @@ class PinyinLearner(var data: PinyinUserData) {
         for (next in data.nextWords(context, LEARNED_PREDICTIONS)) {
             if (seen.add(next)) result += Prediction(next, null)
         }
-        dictionary?.continuations(context, limit)?.forEach { continuation ->
-            if (result.size < limit && seen.add(continuation.suffix)) {
-                result += Prediction(continuation.suffix, continuation.word)
-            }
+        // Then words that continue it (怎么 → 样, 办), a few words likely to follow it (发货 →
+        // 时间, 速度), and the rest of the continuations.
+        val continuations = dictionary?.continuations(context, limit).orEmpty()
+        val following = dictionary?.nextWords(context, previousId, MODEL_PREDICTIONS).orEmpty()
+        fun add(prediction: Prediction) {
+            if (result.size < limit && seen.add(prediction.text)) result += prediction
         }
+        continuations.take(CONTINUATIONS_FIRST).forEach { add(Prediction(it.suffix, it.word)) }
+        following.forEach { add(Prediction(it.text, null)) }
+        continuations.drop(CONTINUATIONS_FIRST).forEach { add(Prediction(it.suffix, it.word)) }
         return result
     }
 
@@ -138,5 +143,7 @@ class PinyinLearner(var data: PinyinUserData) {
     companion object {
         const val MAX_PHRASE_SYLLABLES = 6
         private const val LEARNED_PREDICTIONS = 4
+        private const val CONTINUATIONS_FIRST = 4
+        private const val MODEL_PREDICTIONS = 6
     }
 }

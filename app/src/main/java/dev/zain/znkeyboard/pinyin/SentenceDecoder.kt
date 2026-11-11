@@ -305,7 +305,9 @@ object SentenceDecoder {
             // unless the other is much commoner.
             dictionary.scoredMatches(run.map { PinyinDictionary.Piece(it.text, it.isPrefix) }, maxOf(FUZZY_CHOICES, limit))
                 .map { match ->
-                    val fuzzy = run.indices.count { i -> !run[i].isPrefix && match.word.syllables.getOrNull(i) != run[i].text }
+                    val fuzzy = run.indices.count { i ->
+                        (!run[i].isPrefix || run[i].text in dictionary.rawSyllables) && match.word.syllables.getOrNull(i) != run[i].text
+                    }
                     match to FUZZY_COST * fuzzy
                 }
                 .sortedBy { (match, fuzzyCost) -> fuzzyCost - match.score }
@@ -437,7 +439,7 @@ object SentenceDecoder {
     private const val MAX_CACHE = 20_000
     private const val FUZZY_CHOICES = 8
     /** Per syllable that only matches through a fuzzy rule (shan for shang). */
-    private const val FUZZY_COST = 2.5f
+    private const val FUZZY_COST = 4.5f
     private const val MAX_SYLLABLE_LENGTH = 6
     private const val MAX_WORD_SYLLABLES = 6
 
