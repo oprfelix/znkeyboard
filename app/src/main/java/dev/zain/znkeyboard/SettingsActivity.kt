@@ -430,7 +430,9 @@ private fun SettingsScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .verticalScroll(destinationScrollState)
+                // Pulls and bounces past the ends as on iOS, even when the page fits the screen.
+                .bounceScroll()
+                .verticalScroll(destinationScrollState, overscrollEffect = null)
                 .pointerInput(focusManager) {
                     detectTapGestures(onTap = { focusManager.clearFocus() })
                 }
