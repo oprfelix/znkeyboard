@@ -302,7 +302,6 @@ internal fun PinyinSection() {
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        ChineseKeyboardSelector()
         PinyinFuzzyRule.entries.forEach { rule ->
             SettingsSwitchRow(
                 title = rule.label,
@@ -508,43 +507,6 @@ private fun TouchHeatmap(model: TouchModel?, modifier: Modifier = Modifier) {
 }
 
 /** 全键盘 / 九宫格拼音 / 九宫格笔画; the keyboard switches the last two with its 笔画 / 拼音 key too. */
-@Composable
-private fun ChineseKeyboardSelector() {
-    val context = LocalContext.current
-    var keyboard by remember { mutableStateOf(KeyboardSettings.readChineseKeyboard(context)) }
-    val options = KeyboardSettings.ChineseKeyboard.entries
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(stringResource(R.string.chinese_keyboard_title), style = MaterialTheme.typography.bodyLarge)
-        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-            options.forEachIndexed { index, option ->
-                SegmentedButton(
-                    selected = keyboard == option,
-                    onClick = {
-                        keyboard = option
-                        KeyboardSettings.saveChineseKeyboard(context, option)
-                    },
-                    shape = SegmentedButtonDefaults.itemShape(index, options.size),
-                ) {
-                    Text(
-                        stringResource(
-                            when (option) {
-                                KeyboardSettings.ChineseKeyboard.Qwerty -> R.string.chinese_keyboard_qwerty
-                                KeyboardSettings.ChineseKeyboard.NineKeyPinyin -> R.string.chinese_keyboard_nine
-                                KeyboardSettings.ChineseKeyboard.NineKeyStroke -> R.string.chinese_keyboard_stroke
-                            },
-                        ),
-                    )
-                }
-            }
-        }
-        Text(
-            text = stringResource(R.string.chinese_keyboard_desc),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
-}
-
 @Composable
 internal fun KeyboardThemeSelector() {
     val context = LocalContext.current

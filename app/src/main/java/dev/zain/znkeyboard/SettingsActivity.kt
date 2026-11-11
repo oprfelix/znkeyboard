@@ -529,6 +529,7 @@ private fun SettingsScreen(
 
                 SettingsDestination.Keyboard -> {
                     TryTypingField()
+                    KeyboardLayoutSection()
                     PinyinSection()
                     PhrasesSettingsSection()
                     TypingFeelSection()

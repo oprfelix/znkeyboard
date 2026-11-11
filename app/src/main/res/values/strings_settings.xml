@@ -296,6 +296,7 @@
     <string name="ime_preview_link">Preview clipboard link</string>
     <string name="update_channel">Updates</string>
     <string name="update_notification_text">Tap to update now; your settings and API key stay.</string>
+    <string name="chinese_keyboard_section">Keyboard layout</string>
     <string name="chinese_keyboard_title">Chinese keyboard</string>
     <string name="chinese_keyboard_qwerty">26 keys</string>
     <string name="chinese_keyboard_nine">9 keys</string>

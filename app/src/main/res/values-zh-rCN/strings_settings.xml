@@ -294,6 +294,7 @@
     <string name="ime_preview_link">预览剪贴板链接</string>
     <string name="update_channel">更新提醒</string>
     <string name="update_notification_text">点这里立即更新，设置和 API Key 都会保留。</string>
+    <string name="chinese_keyboard_section">键盘布局</string>
     <string name="chinese_keyboard_title">中文键盘</string>
     <string name="chinese_keyboard_qwerty">全键盘</string>
     <string name="chinese_keyboard_nine">九宫格</string>
