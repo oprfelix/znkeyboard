@@ -1,7 +1,9 @@
 package dev.zain.znkeyboard.constants
 
 object ImeDimensions {
-    const val BASE_HEIGHT_DP = 282f
+    // The candidate / toolbar row is as tall as a key row, as on Gboard; the extra 10 dp keeps the
+    // letter keys their size.
+    const val BASE_HEIGHT_DP = 292f
     const val EXTENDED_PANEL_EXTRA_HEIGHT_DP = 224f
 
     const val HORIZONTAL_PADDING_DP = 6
@@ -16,7 +18,7 @@ object ImeDimensions {
     const val BOTTOM_SYSTEM_CONTROL_GAP_MULTIPLIER = 2.0f
     const val ICON_VIEWPORT = 24f
 
-    const val COMPACT_ROW_WEIGHT = 0.78f
+    const val COMPACT_ROW_WEIGHT = 1f
     const val STANDARD_ROW_WEIGHT = 1f
     const val BOTTOM_ROW_WEIGHT = 1.08f
     const val ROW_COUNT_WITH_UPPER_ROW = 5

@@ -494,8 +494,8 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
 
     private companion object {
         const val DISABLED_ALPHA = 0.45f
-        const val CANDIDATE_TEXT_SP = 20f
-        const val COMPOSING_TEXT_SP = 12f
+        const val CANDIDATE_TEXT_SP = 21f
+        const val COMPOSING_TEXT_SP = 13f
         const val EXPAND_WIDTH_DP = 56
         const val OFFER_CLOSE_WIDTH_DP = 44
         const val TOOLS_LEAF_WIDTH_DP = 44
