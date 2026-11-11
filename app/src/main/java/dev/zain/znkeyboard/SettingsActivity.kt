@@ -2,13 +2,11 @@ package dev.zain.znkeyboard
 
 import android.Manifest
 import android.app.Activity
-import android.app.LocaleManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color as AndroidColor
 import android.net.Uri
-import android.os.LocaleList
 import android.provider.Settings
 import android.view.inputmethod.InputMethodManager
 import android.widget.Toast
@@ -80,7 +78,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -672,19 +669,6 @@ private fun SettingsScreen(
                 ),
         )
 
-        LanguageSwitch(
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .windowInsetsPadding(
-                    WindowInsets.statusBars.union(WindowInsets.displayCutout)
-                        .only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal),
-                )
-                .padding(
-                    end = SettingsShellDimensions.TITLE_PILL_START_MARGIN,
-                    top = SettingsShellDimensions.TITLE_PILL_TOP_GAP,
-                ),
-        )
-
         LiquidNavBar(
             items = SettingsDestination.entries.map { LiquidNavItem(stringResource(it.labelRes), it.iconResId) },
             selectedIndex = selectedDestination.ordinal,
@@ -704,74 +688,6 @@ private fun SettingsScreen(
                     bottom = LiquidNavDimensions.BOTTOM_GAP,
                 ),
         )
-    }
-}
-
-/**
- * Top-right 文/A pill: the settings screen's language. It sets Android's per-app language, so it
- * matches Settings → Apps → ZnKeyboard → Language and the screen reloads in the new language.
- */
-@Composable
-private fun LanguageSwitch(modifier: Modifier = Modifier) {
-    val context = LocalContext.current
-    val localeManager = remember { context.getSystemService(LocaleManager::class.java) }
-    val currentTag = remember { localeManager.applicationLocales.toLanguageTags() }
-    var expanded by remember { mutableStateOf(false) }
-    val options = listOf(
-        "" to R.string.language_system,
-        "zh-CN" to R.string.language_zh,
-        "en" to R.string.language_english,
-    )
-    val selectedTag = options.firstOrNull { (tag, _) ->
-        tag.isNotEmpty() && currentTag.startsWith(tag.substringBefore('-'))
-    }?.first.orEmpty()
-    val description = stringResource(R.string.language_title)
-
-    Box(modifier = modifier) {
-        Surface(
-            onClick = { expanded = true },
-            shape = CircleShape,
-            color = MaterialTheme.colorScheme.surfaceContainerHigh,
-            border = BorderStroke(SettingsShellDimensions.TITLE_PILL_BORDER_WIDTH, MaterialTheme.colorScheme.outlineVariant),
-            modifier = Modifier.semantics { contentDescription = description },
-        ) {
-            Box(
-                modifier = Modifier
-                    .height(SettingsShellDimensions.TITLE_PILL_HEIGHT)
-                    .padding(horizontal = 16.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text = "文/A",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = ZnKeyboardColors.OnSurface,
-                )
-            }
-        }
-        DropdownMenu(
-            expanded = expanded,
-            onDismissRequest = { expanded = false },
-            shape = RoundedCornerShape(PICKER_CORNER_RADIUS),
-            containerColor = ZnKeyboardColors.Key,
-        ) {
-            options.forEach { (tag, labelRes) ->
-                DropdownMenuItem(
-                    text = { Text(stringResource(labelRes)) },
-                    trailingIcon = if (tag == selectedTag) {
-                        { Text("✓", color = ZnKeyboardColors.Accent) }
-                    } else {
-                        null
-                    },
-                    onClick = {
-                        expanded = false
-                        if (tag != selectedTag) {
-                            localeManager.applicationLocales =
-                                if (tag.isEmpty()) LocaleList.getEmptyLocaleList() else LocaleList.forLanguageTags(tag)
-                        }
-                    },
-                )
-            }
-        }
     }
 }
 
