@@ -10,6 +10,7 @@ import android.graphics.Path
 import android.graphics.Rect
 import android.graphics.RectF
 import android.graphics.Shader
+import android.graphics.drawable.Drawable
 import androidx.core.graphics.PathParser
 import android.os.Handler
 import android.os.Looper
@@ -183,6 +184,11 @@ class ZnKeyboardView @JvmOverloads constructor(
     private var translateLanguageCode: String? = null
     // Reused by onDraw for round and merged keys, which must not allocate.
     private val chipKeyBounds = RectF()
+    // 润色 and 翻译 lead with the icons iOS shows on them.
+    private val polishIcon by lazy(LazyThreadSafetyMode.NONE) { context.tintedDrawable(dev.zain.znkeyboard.R.drawable.ic_auto_fix_high_24, Color.WHITE) }
+    private val translateIcon by lazy(LazyThreadSafetyMode.NONE) { context.tintedDrawable(dev.zain.znkeyboard.R.drawable.ic_translate_24, Color.WHITE) }
+    private val toolbarPillBounds = RectF()
+    private val iconLabelBounds = RectF()
     private val chipChevronPath = Path()
     private val mergedKeyBounds = RectF()
     private val mergedLabelBounds = RectF()
@@ -1015,7 +1021,10 @@ class ZnKeyboardView @JvmOverloads constructor(
     /** [next] is the key drawn after this one; a [KeySpec.mergesWithNext] key stretches its pill over it. */
     private fun drawKey(canvas: Canvas, hit: KeyHit, next: KeyHit? = null) {
         val key = hit.key
-        val bounds = if (key.chip) chipBounds(hit.visualBounds) else hit.visualBounds
+        val toolbar = hit.rowStyle == RowStyle.Toolbar
+        // A toolbar label (润色, 翻译 and its chip) sits on a pill lower than the row, as in the candidate bar.
+        val keyBounds = if (toolbar && key.icon == null) toolbarPill(hit.visualBounds) else hit.visualBounds
+        val bounds = if (key.chip) chipBounds(keyBounds) else keyBounds
         val backgroundBounds = if (key.mergesWithNext && next != null) {
             mergedKeyBounds.set(bounds.left, bounds.top, next.visualBounds.right, bounds.bottom)
             mergedKeyBounds
@@ -1025,7 +1034,6 @@ class ZnKeyboardView @JvmOverloads constructor(
         val rewriteLoading = key.intent == KeyIntent.AgentRewrite && shortcutRowState.loading
         val pressed = isKeyPressed(key.id)
         val selected = key.active && !rewriteLoading
-        val toolbar = hit.rowStyle == RowStyle.Toolbar
         val keyAlpha = if (key.enabled || key.emphasizedWhenDisabled) 255 else DISABLED_KEY_ALPHA
         val radius = if (key.chip) bounds.height() / 2f else keyRadius(bounds, toolbar)
         val isActionKey = key.role == KeyRole.Action && key.id == "enter"
@@ -1098,7 +1106,7 @@ class ZnKeyboardView @JvmOverloads constructor(
         } else if (key.id == PINYIN_MODE_KEY_ID) {
             drawLanguageToggle(canvas, bounds, contentColor, contentAlpha)
         } else key.icon?.let {
-            drawIcon(canvas, it, bounds, contentColor, contentAlpha)
+            drawIcon(canvas, it, bounds, contentColor, contentAlpha, toolbar)
         } ?: run {
             if (key.subLabel != null) {
                 when (key.subLabelStyle) {
@@ -1107,6 +1115,16 @@ class ZnKeyboardView @JvmOverloads constructor(
                 }
             } else {
                 val role = if (toolbar && key.role == KeyRole.Character && key.label.length > 1) KeyRole.Function else key.role
+                val labelIcon = when {
+                    !toolbar -> null
+                    key.intent == KeyIntent.AgentPolishOnly -> polishIcon
+                    key.intent == KeyIntent.AgentRewrite -> translateIcon
+                    else -> null
+                }
+                if (labelIcon != null) {
+                    drawIconLabel(canvas, labelIcon, key.label, labelBounds, contentColor, contentAlpha, hit.rowStyle)
+                    return@run
+                }
                 val textSize = fitTextSize(key.label, labelBounds, role, hit.rowStyle)
                 textPaint.typeface = if (role == KeyRole.Character) letterTypeface else labelTypeface
                 textPaint.textSize = textSize
@@ -1292,6 +1310,36 @@ class ZnKeyboardView @JvmOverloads constructor(
     }
 
     /** Capsule inset in the chip key's slot; a toolbar's half-height radius rounds its ends. */
+    /** An icon, then the label, centered together; the label gives way first if the key is narrow. */
+    private fun drawIconLabel(canvas: Canvas, icon: Drawable, label: String, bounds: RectF, color: Int, alpha: Int, rowStyle: RowStyle) {
+        val iconSize = dp(ImeDimensions.TOOLBAR_LABEL_ICON_DP)
+        val gap = dp(ImeDimensions.TOOLBAR_LABEL_ICON_GAP_DP)
+        iconLabelBounds.set(bounds.left + iconSize + gap, bounds.top, bounds.right, bounds.bottom)
+        textPaint.typeface = labelTypeface
+        textPaint.textSize = fitTextSize(label, iconLabelBounds, KeyRole.Function, rowStyle)
+        textPaint.color = color
+        textPaint.alpha = alpha
+        val textWidth = textPaint.measureText(label)
+        val left = bounds.centerX() - (iconSize + gap + textWidth) / 2f
+        val iconTop = bounds.centerY() - iconSize / 2f
+        icon.setTint(color)
+        icon.alpha = alpha
+        icon.setBounds(left.roundToInt(), iconTop.roundToInt(), (left + iconSize).roundToInt(), (iconTop + iconSize).roundToInt())
+        icon.draw(canvas)
+        val metrics = textPaint.fontMetrics
+        textPaint.textAlign = Paint.Align.LEFT
+        canvas.drawText(label, left + iconSize + gap, bounds.centerY() - (metrics.ascent + metrics.descent) / 2f, textPaint)
+        textPaint.textAlign = Paint.Align.CENTER
+        textPaint.typeface = letterTypeface
+    }
+
+    private fun toolbarPill(bounds: RectF): RectF {
+        val height = min(bounds.height(), dp(ImeDimensions.TOOLBAR_PILL_HEIGHT_DP))
+        val top = bounds.centerY() - height / 2f
+        toolbarPillBounds.set(bounds.left, top, bounds.right, top + height)
+        return toolbarPillBounds
+    }
+
     private fun chipBounds(bounds: RectF): RectF {
         val inset = dp(ImeDimensions.TRANSLATE_CHIP_INSET_DP)
         val height = bounds.height() * ImeDimensions.TRANSLATE_CHIP_HEIGHT_FRACTION
@@ -1604,8 +1652,12 @@ class ZnKeyboardView @JvmOverloads constructor(
         return (SystemClock.uptimeMillis() % AI_LOADING_CYCLE_MS) / AI_LOADING_CYCLE_MS.toFloat()
     }
 
-    private fun drawIcon(canvas: Canvas, icon: KeyIcon, bounds: RectF, color: Int, alpha: Int) {
-        val iconSize = min(bounds.width(), bounds.height()) * 0.5f
+    private fun drawIcon(canvas: Canvas, icon: KeyIcon, bounds: RectF, color: Int, alpha: Int, toolbar: Boolean = false) {
+        val iconSize = if (toolbar) {
+            min(dp(ImeDimensions.TOOLBAR_ICON_DP), min(bounds.width(), bounds.height()) * 0.7f)
+        } else {
+            min(bounds.width(), bounds.height()) * 0.5f
+        }
         val left = bounds.centerX() - iconSize / 2f
         val top = bounds.centerY() - iconSize / 2f
 
@@ -1789,6 +1841,7 @@ class ZnKeyboardView @JvmOverloads constructor(
             role == KeyRole.Character && rowStyle == RowStyle.Numbers -> sp(ImeDimensions.KEY_LABEL_NUMBER_TEXT_SIZE_SP)
             role == KeyRole.Character && rowStyle == RowStyle.Toolbar -> sp(ImeDimensions.KEY_LABEL_TOOLBAR_SYMBOL_TEXT_SIZE_SP)
             role == KeyRole.Character -> sp(ImeDimensions.KEY_LABEL_CHARACTER_TEXT_SIZE_SP)
+            role == KeyRole.Function && rowStyle == RowStyle.Toolbar -> sp(ImeDimensions.TOOLBAR_LABEL_TEXT_SIZE_SP)
             role == KeyRole.Function -> sp(ImeDimensions.KEY_LABEL_FUNCTION_TEXT_SIZE_SP)
             else -> sp(ImeDimensions.KEY_LABEL_ACTION_TEXT_SIZE_SP)
         }

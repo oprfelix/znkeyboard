@@ -44,17 +44,24 @@ object ImeDimensions {
     const val EDGE_UPPER_ROW_KEY_WEIGHT = 1.4f
     // The row starts 润色 | AI 翻译为 [EN ▾]; the language chip's slot is inside the translate pill.
     // The toolbar keeps these widths on any screen; what is left stays empty in the middle.
-    const val TOOLBAR_ICON_KEY_DP = 40f
-    const val TOOLBAR_POLISH_KEY_DP = 56f
-    const val TOOLBAR_TRANSLATE_LABEL_DP = 54f
-    const val TOOLBAR_TRANSLATE_LABEL_EN_DP = 72f
+    const val TOOLBAR_ICON_KEY_DP = 44f
+    /** Leaf, clipboard, phrases and help are drawn this size, as a Material icon. */
+    const val TOOLBAR_ICON_DP = 24f
+    /** 润色 | 翻译 sit on pills this tall, as in the candidate bar, not the row's full height. */
+    const val TOOLBAR_PILL_HEIGHT_DP = 34f
+    const val TOOLBAR_LABEL_TEXT_SIZE_SP = 14f
+    const val TOOLBAR_LABEL_ICON_DP = 17f
+    const val TOOLBAR_LABEL_ICON_GAP_DP = 4f
+    const val TOOLBAR_POLISH_KEY_DP = 72f
+    const val TOOLBAR_TRANSLATE_LABEL_DP = 74f
+    const val TOOLBAR_TRANSLATE_LABEL_EN_DP = 92f
     /** Fits the longest language name, so the button is one width for every language. */
     const val TOOLBAR_LANGUAGE_CHIP_DP = 92f
     const val TOOLBAR_LANGUAGE_CHIP_EN_DP = 56f
     const val REWRITE_TRANSLATE_KEY_WEIGHT = 1.5f
     const val TRANSLATE_CHIP_INSET_DP = 5f
-    const val TRANSLATE_CHIP_HEIGHT_FRACTION = 0.62f
-    const val TRANSLATE_CHIP_TEXT_FRACTION = 0.42f
+    const val TRANSLATE_CHIP_HEIGHT_FRACTION = 0.76f
+    const val TRANSLATE_CHIP_TEXT_FRACTION = 0.46f
     const val SIDE_FUNCTION_KEY_WEIGHT = 1.5f
     const val MODE_SWITCH_KEY_WEIGHT = 1.25f
     const val SPACE_KEY_WEIGHT = 4.85f

@@ -17,10 +17,12 @@ import android.widget.TextView
 import dev.zain.znkeyboard.R
 import dev.zain.znkeyboard.constants.ImeColors
 import dev.zain.znkeyboard.constants.ImeDimensions
+import kotlin.math.roundToInt
 
 /**
- * Strip laid over the keyboard's toolbar row showing, while composing, the typed pinyin in small
- * type on top and below it a scrollable row of candidates only (or predictions after a commit). It also hosts the target-language
+ * Strip laid over the keyboard's toolbar row showing, while composing, a scrollable row of
+ * candidates only (or predictions after a commit); the pinyin itself shows in the text. A hint or
+ * a label for a list sits in small type above them. It also hosts the target-language
  * choices opened from the round language key. Hidden when it has nothing to show, so the toolbar
  * is usable and the keyboard never changes height. While it shows predictions it pins 润色 | 翻译
  * on the right, since it covers the toolbar keys. Candidate views are pooled so typing does not
@@ -60,7 +62,7 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
 
     var callback: Callback? = null
 
-    // The pinyin being typed, small, above the candidates; a long sentence keeps only its end in view.
+    // A hint or a list's label, small, above the candidates; a long one keeps only its end in view.
     private val composingLabel = TextView(context).apply {
         gravity = Gravity.CENTER_VERTICAL or Gravity.START
         textSize = COMPOSING_TEXT_SP
@@ -165,13 +167,15 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
     private val polishButton = TextView(context).apply {
         gravity = Gravity.CENTER
         textSize = 14f
-        setPadding(context.dp(14), 0, context.dp(14), 0)
+        setPadding(context.dp(12), 0, context.dp(14), 0)
+        compoundDrawablePadding = context.dp(ImeDimensions.TOOLBAR_LABEL_ICON_GAP_DP).roundToInt()
         setOnClickListener { callback?.onAgentPolishOnlyRequested() }
     }
     private val translateLabel = TextView(context).apply {
         gravity = Gravity.CENTER
         textSize = 14f
-        setPadding(context.dp(14), 0, context.dp(6), 0)
+        setPadding(context.dp(12), 0, context.dp(6), 0)
+        compoundDrawablePadding = context.dp(ImeDimensions.TOOLBAR_LABEL_ICON_GAP_DP).roundToInt()
     }
     private val languageBadge = TextView(context).apply {
         gravity = Gravity.CENTER
@@ -273,6 +277,9 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
         composingLabel.setTextColor(ImeColors.DISABLED_TEXT)
         polishButton.setTextColor(ImeColors.TEXT)
         translateLabel.setTextColor(ImeColors.TEXT)
+        // The icons iOS shows on 润色 and 翻译, before the label.
+        polishButton.setCompoundDrawablesRelative(labelIcon(R.drawable.ic_auto_fix_high_24), null, null, null)
+        translateLabel.setCompoundDrawablesRelative(labelIcon(R.drawable.ic_translate_24), null, null, null)
         polishButton.background = toolBackground()
         translateButton.background = toolBackground()
         candidateViews.forEachIndexed { index, view -> styleCandidate(view, index == highlightedIndex) }
@@ -390,6 +397,11 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
         translateButton.alpha = alpha
     }
 
+    private fun labelIcon(icon: Int) = context.tintedDrawable(icon, ImeColors.TEXT)?.apply {
+        val size = context.dp(ImeDimensions.TOOLBAR_LABEL_ICON_DP).roundToInt()
+        setBounds(0, 0, size, size)
+    }
+
     private fun toolBackground() = GradientDrawable().apply {
         cornerRadius = context.dp(ImeDimensions.KEY_RADIUS_DP.toFloat())
         setColor(ImeColors.FUNCTION)
@@ -494,7 +506,7 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
 
     private companion object {
         const val DISABLED_ALPHA = 0.45f
-        const val CANDIDATE_TEXT_SP = 21f
+        const val CANDIDATE_TEXT_SP = 20f
         const val COMPOSING_TEXT_SP = 13f
         const val EXPAND_WIDTH_DP = 56
         const val OFFER_CLOSE_WIDTH_DP = 44

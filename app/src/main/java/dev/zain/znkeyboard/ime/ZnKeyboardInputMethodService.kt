@@ -1650,8 +1650,9 @@ class ZnKeyboardInputMethodService : InputMethodService(),
                 )
             fix != null ->
                 bar.render(t("把「${parts[fix.part].text}」换成", "Change “${parts[fix.part].text}” to"), fix.options.map { it.text }, fixLabel = t("取消", "Cancel"), highlighted = -1)
+            // The pinyin shows in the text as it is typed; the bar lists only the candidates.
             else -> bar.render(
-                hint ?: composingDisplay(),
+                hint.orEmpty(),
                 pinyinCandidates.map { it.text },
                 fixLabel = t("改词", "Fix").takeIf { parts.size >= 2 && !chineseKeyboard.isNineKey },
                 expanded = pinyinExpanded.takeIf { pinyinCandidates.size > 1 },
