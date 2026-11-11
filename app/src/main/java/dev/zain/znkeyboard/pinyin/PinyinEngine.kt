@@ -1,5 +1,7 @@
 package dev.zain.znkeyboard.pinyin
 
+import kotlin.math.ln
+
 /**
  * Turns typed pinyin letters into candidates, longest match first, each group ranked by the
  * dictionary (weights plus what the user picked before). Full pinyin, 简拼 (initials such as
@@ -38,6 +40,15 @@ object PinyinEngine {
     private const val SINGLE_SYLLABLE_LIMIT = 40
     /** Readings of the whole input to offer: the best, and others that stay close to it. */
     const val MAX_SENTENCES = 3
+    /** Other ways to split the input: only for inputs this short, at most this many splits, their
+     * best words, placed after the first few candidates. */
+    private const val MAX_SPLIT_LETTERS = 8
+    private const val MAX_SPLITS = 4
+    private const val WORDS_PER_SPLIT = 2
+    private const val OTHER_SPLITS_AT = 3
+    /** Common words only (ln of a dictionary weight): 余额 and 西安, not 积案 or 堤岸. A word the
+     * user has picked gains from learning and can pass. */
+    private val MIN_SPLIT_WORD_SCORE = ln(20000.0).toFloat()
 
     /**
      * Splits [input] into pieces, longest first, backtracking when the rest would not parse.
@@ -120,6 +131,13 @@ object PinyinEngine {
         dictionary: PinyinDictionary,
         taps: SentenceDecoder.Taps? = null,
         before: SentenceDecoder.Context? = null,
+    ): List<Candidate> = withOtherSplits(input, rankedCandidates(input, dictionary, taps, before), dictionary)
+
+    private fun rankedCandidates(
+        input: String,
+        dictionary: PinyinDictionary,
+        taps: SentenceDecoder.Taps?,
+        before: SentenceDecoder.Context?,
     ): List<Candidate> {
         val words = wordCandidates(input, dictionary)
         val limit = if (dictionary.languageModel == null) 1 else MAX_SENTENCES
@@ -210,6 +228,47 @@ object PinyinEngine {
             }
         }
         return reachable[input.length]
+    }
+
+    /**
+     * yue reads as 月 but also as yu e, 余额; xian also as xi an, 西安. A short input that splits
+     * into whole syllables another way gets that reading's best common words a few places down,
+     * where they are on the first screen without moving what was first.
+     */
+    private fun withOtherSplits(input: String, ranked: List<Candidate>, dictionary: PinyinDictionary): List<Candidate> {
+        if (input.length !in 3..MAX_SPLIT_LETTERS || !input.all { it in 'a'..'z' }) return ranked
+        val usual = segment(input, dictionary).map { it.text }
+        val splits = ArrayList<List<String>>()
+        val path = ArrayList<String>()
+        fun search(position: Int) {
+            if (splits.size >= MAX_SPLITS) return
+            if (position == input.length) {
+                if (path.size >= 2 && path != usual) splits += path.toList()
+                return
+            }
+            for (end in position + 1..minOf(position + MAX_SYLLABLE_LENGTH, input.length)) {
+                val piece = input.substring(position, end)
+                if (dictionary.isSyllable(piece)) {
+                    path += piece
+                    search(end)
+                    path.removeAt(path.size - 1)
+                }
+            }
+        }
+        search(0)
+        if (splits.isEmpty()) return ranked
+        val seen = ranked.mapTo(HashSet()) { it.text }
+        val added = ArrayList<Candidate>()
+        for (split in splits) {
+            for (match in dictionary.scoredMatches(split.map { PinyinDictionary.Piece(it, isPrefix = false) }, WORDS_PER_SPLIT)) {
+                if (match.score >= MIN_SPLIT_WORD_SCORE && seen.add(match.word.text)) {
+                    added += Candidate(match.word.text, input.length, match.word.syllables, id = match.word.id)
+                }
+            }
+        }
+        if (added.isEmpty()) return ranked
+        val at = minOf(OTHER_SPLITS_AT, ranked.size)
+        return ranked.subList(0, at) + added + ranked.subList(at, ranked.size)
     }
 
     private fun wordCandidates(input: String, dictionary: PinyinDictionary): List<Candidate> {

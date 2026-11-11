@@ -39,6 +39,13 @@ fun main(args: Array<String>) {
     val nihao = top("nihao", strict)
     check("nihao -> 你好", nihao.firstOrNull()?.text == "你好", nihao.toString())
     check("nihao consumes all", nihao.firstOrNull()?.consumed == 5, nihao.toString())
+    // Another split of the whole input, among the first candidates: yu e, xi an.
+    val yue = top("yue", fuzzy, 6)
+    check("yue offers 余额 on the first screen", yue.any { it.text == "余额" } && yue.first().text != "余额", yue.map { it.text }.toString())
+    val xian = top("xian", fuzzy, 6)
+    check("xian offers 西安 on the first screen", xian.any { it.text == "西安" } && xian.first().text != "西安", xian.map { it.text }.toString())
+    val jian = top("jian", fuzzy, 6)
+    check("jian offers no rare split like 积案", jian.none { it.text == "积案" || it.text == "几案" }, jian.map { it.text }.toString())
     val zhongguo = top("zhongguo", strict)
     check("zhongguo -> 中国", zhongguo.firstOrNull()?.text == "中国", zhongguo.toString())
     val partial = top("zhongg", strict)

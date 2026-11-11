@@ -89,9 +89,10 @@ object SentenceDecoder {
         val choices = if (model == null) 1 else LM_CHOICES
         val piecesAt = arrayOfNulls<List<Piece>>(n)
         fun pieces(at: Int): List<Piece> = piecesAt[at] ?: readPieces(input, at, dictionary, taps).also { piecesAt[at] = it }
+        val picksScale = picksScale(n)
 
         fun wordCost(edge: Edge, step: Step): Float = edge.cost +
-            if (model == null) WORD_COST - edge.match.score else modelCost(edge.match, step, dictionary, model)
+            if (model == null) WORD_COST - edge.match.score else modelCost(edge.match, step, dictionary, model, picksScale)
 
         // Each letter its own character, one word: 时候 for sh, 解决方案 for jjfa. Its letters count
         // as one word's worth of 简拼, or a long word could never beat a few short ones.
@@ -175,6 +176,7 @@ object SentenceDecoder {
         val model = dictionary.languageModel
         val beam = if (model == null) 1 else BEAM
         val choices = if (model == null) 1 else NINE_KEY_LM_CHOICES
+        val picksScale = picksScale(n)
         val best = Array(n + 1) { ArrayList<Step>(beam) }
         best[0] += Step(0f, null, null, emptyList(), model?.start ?: -1, null)
         for (start in 0 until n) {
@@ -190,7 +192,7 @@ object SentenceDecoder {
                         val extra = if (candidate.byInitials) INITIAL_COST * match.word.syllables.size else 0f
                         // As in decode: skip the lookup when even a certain word can't make the beam.
                         if (model != null && target.size >= beam && target.last().cost <= step.cost + LM_WORD_COST + extra) continue
-                        val cost = step.cost + extra + if (model == null) WORD_COST - match.score else modelCost(match, step, dictionary, model)
+                        val cost = step.cost + extra + if (model == null) WORD_COST - match.score else modelCost(match, step, dictionary, model, picksScale)
                         relax(target, Step(cost, step, match.word, emptyList(), match.word.id, match.word.text), beam)
                     }
                 }
@@ -236,7 +238,21 @@ object SentenceDecoder {
     }
 
     /** What [match] costs after [step] with a language model: less the likelier it is there. */
-    private fun modelCost(match: PinyinDictionary.Match, step: Step, dictionary: PinyinDictionary, model: PinyinLanguageModel): Float {
+    /**
+     * How many of the latest picks a word's personal share is taken of, for an input of [letters].
+     * A word or short phrase takes its share of the last [PICKS_SCALE], so a pick still counts
+     * after weeks of typing; a long sentence of all of them, so many learned words can't crowd the
+     * language model out of the segmentation.
+     */
+    private fun picksScale(letters: Int) = if (letters <= SHORT_INPUT_LETTERS) PICKS_SCALE else Int.MAX_VALUE
+
+    private fun modelCost(
+        match: PinyinDictionary.Match,
+        step: Step,
+        dictionary: PinyinDictionary,
+        model: PinyinLanguageModel,
+        picksScale: Int,
+    ): Float {
         val id = match.word.id
         var logP = if (id >= 0) model.logP(step.context, id) else match.score - match.learned - dictionary.logTotalWeight
         // What the user picks is a second, personal model mixed in: how often they chose this
@@ -249,7 +265,9 @@ object SentenceDecoder {
             var personal = 0f
             if (learnedUses > 0) {
                 keep -= PICKS_WEIGHT
-                personal += PICKS_WEIGHT * match.uses / learnedUses
+                // Shares of at most the last few hundred picks: over all of them, a word picked once
+                // after weeks of typing would count for nothing next to the language model.
+                personal += PICKS_WEIGHT * minOf(match.uses.toFloat() / minOf(learnedUses, picksScale), 1f)
             }
             if (pairTotal > 0) {
                 keep -= PAIRS_WEIGHT
@@ -266,7 +284,7 @@ object SentenceDecoder {
     fun wordCostAfter(match: PinyinDictionary.Match, before: Context?, dictionary: PinyinDictionary): Float {
         val model = dictionary.languageModel ?: return -match.score
         val context = before?.id?.takeIf { it >= 0 } ?: model.start
-        return modelCost(match, Step(0f, null, null, emptyList(), context, before?.text), dictionary, model)
+        return modelCost(match, Step(0f, null, null, emptyList(), context, before?.text), dictionary, model, PICKS_SCALE)
     }
 
     /** Lookups repeat from keystroke to keystroke; kept until the dictionary changes. */
@@ -441,6 +459,10 @@ object SentenceDecoder {
     private const val LM_WEIGHT = 0.6f
     /** Shares of the personal models in a word's probability: the user's picks, and their pairs. */
     private const val PICKS_WEIGHT = 0.05f
+    /** How many of the latest picks a word's share is taken of. */
+    private const val PICKS_SCALE = 300
+    /** Inputs up to this many letters or digits, a word or short phrase, use [PICKS_SCALE]. */
+    private const val SHORT_INPUT_LETTERS = 16
     private const val PAIRS_WEIGHT = 0.1f
     private const val INITIAL_COST = 2.5f
     private const val MAX_INITIALS_WORD = 6

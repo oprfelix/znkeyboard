@@ -23,8 +23,8 @@ android {
         applicationId = "dev.zain.znkeyboard"
         minSdk = 34
         targetSdk = 36
-        versionCode = 64
-        versionName = "1.9.29"
+        versionCode = 65
+        versionName = "1.9.30"
     }
 
     androidResources {

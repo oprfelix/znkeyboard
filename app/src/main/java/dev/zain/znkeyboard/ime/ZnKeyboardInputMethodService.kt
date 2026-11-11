@@ -86,6 +86,9 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         pinyinHint = null
         renderPinyinBar()
     }
+    /** Learning is also written a few seconds after typing stops: the system may end the process
+     * without onFinishInputView or onDestroy, and what was learned since would be lost. */
+    private val pinyinLearningSave = Runnable { savePinyinLearning() }
     /** How each composing letter's tap fitted the keys, so the decoder can weigh near misses. */
     private val pinyinTaps = PinyinTapBuffer()
     private var chineseKeyboard = KeyboardSettings.ChineseKeyboard.Qwerty
@@ -1138,7 +1141,13 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         }.start()
     }
 
+    private fun schedulePinyinLearningSave() {
+        mainHandler.removeCallbacks(pinyinLearningSave)
+        mainHandler.postDelayed(pinyinLearningSave, PINYIN_LEARNING_SAVE_DELAY_MS)
+    }
+
     private fun savePinyinLearning() {
+        mainHandler.removeCallbacks(pinyinLearningSave)
         if (pinyinLearningGeneration == -1) return
         val generation = KeyboardSettings.readPinyinLearningGeneration(this)
         if (generation != pinyinLearningGeneration) {
@@ -1437,6 +1446,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
             candidate.parts?.forEach { part -> pinyinLearner.onPick(part.text, part.syllables, learnedByHand, part.id) }
                 ?: pinyinLearner.onPick(candidate.text, candidate.syllables, learnedByHand, candidate.id)
         }
+        schedulePinyinLearningSave()
         if (remaining.isEmpty()) {
             pinyinLearner.onCompositionDone()
             pinyinComposing = ""
@@ -1487,6 +1497,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         noteOwnEdit()
         inputConnection.commitText(prediction.text, 1)
         pinyinLearner.onPredictionPicked(prediction)
+        schedulePinyinLearningSave()
         showPinyinPredictions()
     }
 
@@ -2932,6 +2943,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         const val PINYIN_DICTIONARY_ASSET = "pinyin/dict.tsv"
         const val ENGLISH_WORDS_ASSET = "pinyin/english.txt"
         const val TRADE_WORDS_ASSET = "pinyin/trade.tsv"
+        private const val PINYIN_LEARNING_SAVE_DELAY_MS = 3_000L
         const val PINYIN_LANGUAGE_MODEL_ASSET = "pinyin/lm.bin"
         const val MAX_PINYIN_PREDICTIONS = 16
         val CHINESE_PUNCTUATION = mapOf(
