@@ -264,9 +264,9 @@ private fun SettingsScreen(
     var backupPasswordDialogMode by remember { mutableStateOf<BackupPasswordDialogMode?>(null) }
     var pendingExportPassword by remember { mutableStateOf<String?>(null) }
     var pendingImportUri by remember { mutableStateOf<Uri?>(null) }
-    var selectedDestinationId by rememberSaveable { mutableStateOf(SettingsDestination.Typing.id) }
+    var selectedDestinationId by rememberSaveable { mutableStateOf(SettingsDestination.Translate.id) }
     val selectedDestination = SettingsDestination.entries.firstOrNull { it.id == selectedDestinationId }
-        ?: SettingsDestination.Typing
+        ?: SettingsDestination.Translate
     val destinationScrollState = rememberSaveable(selectedDestinationId, saver = ScrollState.Saver) { ScrollState(0) }
     val scope = rememberCoroutineScope()
     val currentVersion = remember { UpdateChecker.currentVersion(context) }
@@ -314,7 +314,7 @@ private fun SettingsScreen(
     // From the update notification.
     LaunchedEffect(openAiRequested) {
         if (openAiRequested) {
-            selectedDestinationId = SettingsDestination.Tools.id
+            selectedDestinationId = SettingsDestination.Translate.id
             onOpenAiHandled()
         }
     }
@@ -451,7 +451,7 @@ private fun SettingsScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             when (selectedDestination) {
-                SettingsDestination.Typing -> {
+                SettingsDestination.Translate -> {
                     availableRelease?.takeIf { it.version != dismissedUpdateVersion }?.let { release ->
                         UpdateBanner(
                             version = release.version,
@@ -463,74 +463,13 @@ private fun SettingsScreen(
                         )
                     }
                     SetupStatusCard()
-                    TryTypingField()
-                    PinyinSection()
-                    PhrasesSettingsSection()
-                    TypingFeelSection()
-                    AdaptiveTouchSection()
-                }
-
-                SettingsDestination.Keyboard -> {
-                    SettingsSectionCard(verticalSpacing = 18.dp) {
-                        SettingsSectionHeader(
-                            title = stringResource(R.string.layout_look_title),
-                            iconResId = R.drawable.ic_palette_24,
-                        )
-
-                        KeyboardThemeSelector()
-
-                        LabeledSlider(
-                            title = stringResource(R.string.layout_key_height),
-                            valueLabel = "${(heightScale * 100f).roundToInt()}%",
-                            value = heightScale,
-                            valueRange = KeyboardSettings.MIN_HEIGHT_SCALE..KeyboardSettings.MAX_HEIGHT_SCALE,
-                            steps = 6,
-                            onValueChange = {
-                                heightScale = it
-                                KeyboardSettings.saveHeightScale(context, it)
-                            },
-                            defaultLabel = "${(KeyboardSettings.DEFAULT_HEIGHT_SCALE * 100f).roundToInt()}%",
-                            isDefault = (heightScale * 100f).roundToInt() == (KeyboardSettings.DEFAULT_HEIGHT_SCALE * 100f).roundToInt(),
-                            onReset = {
-                                heightScale = KeyboardSettings.DEFAULT_HEIGHT_SCALE
-                                KeyboardSettings.saveHeightScale(context, KeyboardSettings.DEFAULT_HEIGHT_SCALE)
-                            },
-                        )
-
-                        LabeledSlider(
-                            title = stringResource(R.string.layout_bottom_space),
-                            valueLabel = "$bottomPaddingDp dp",
-                            value = bottomPaddingDp.toFloat(),
-                            valueRange = KeyboardSettings.MIN_BOTTOM_PADDING_DP.toFloat()..KeyboardSettings.MAX_BOTTOM_PADDING_DP.toFloat(),
-                            steps = (KeyboardSettings.MAX_BOTTOM_PADDING_DP - KeyboardSettings.MIN_BOTTOM_PADDING_DP) / 4 - 1,
-                            onValueChange = {
-                                val value = KeyboardSettings.normalizeBottomPaddingDp((it / 4f).roundToInt() * 4)
-                                bottomPaddingDp = value
-                                KeyboardSettings.saveBottomPaddingDp(context, value)
-                            },
-                            defaultLabel = "${KeyboardSettings.DEFAULT_BOTTOM_PADDING_DP} dp",
-                            isDefault = bottomPaddingDp == KeyboardSettings.DEFAULT_BOTTOM_PADDING_DP,
-                            onReset = {
-                                bottomPaddingDp = KeyboardSettings.DEFAULT_BOTTOM_PADDING_DP
-                                KeyboardSettings.saveBottomPaddingDp(context, KeyboardSettings.DEFAULT_BOTTOM_PADDING_DP)
-                            },
-                        )
-
-                        SettingsSwitchRow(
-                            title = stringResource(R.string.layout_modifier_bg_title),
-                            description = stringResource(R.string.layout_modifier_bg_desc),
-                            checked = functionKeyBackgroundsEnabled,
-                            onCheckedChange = {
-                                functionKeyBackgroundsEnabled = it
-                                KeyboardSettings.saveFunctionKeyBackgroundsEnabled(context, it)
-                            },
-                        )
-                    }
-
-                    ShortcutsSummaryCard(onOpen = onOpenShortcuts)
-                }
-
-                SettingsDestination.Tools -> {
+                    LanguagesCard(
+                        replyTarget = agentTranslateTarget,
+                        onReplyTargetChange = {
+                            agentTranslateTarget = it
+                            KeyboardSettings.saveAgentTranslateTarget(context, it)
+                        },
+                    )
                     AgentModeSection(
                         agentModeEnabled = agentModeEnabled,
                         agentProviderType = agentProviderType,
@@ -588,21 +527,75 @@ private fun SettingsScreen(
                     VoiceInputSection()
                 }
 
-                SettingsDestination.Backup -> {
-                    BackupRestoreSection(
-                        onExport = { backupPasswordDialogMode = BackupPasswordDialogMode.Export },
-                        onImport = { importLauncher.launch(BACKUP_IMPORT_MIME_TYPES) },
-                    )
+                SettingsDestination.Keyboard -> {
+                    TryTypingField()
+                    PinyinSection()
+                    PhrasesSettingsSection()
+                    TypingFeelSection()
+                    AdaptiveTouchSection()
+                    CollapsibleSettingsSection(
+                        title = stringResource(R.string.layout_look_title),
+                        iconResId = R.drawable.ic_palette_24,
+                        summary = stringResource(
+                            R.string.layout_look_summary,
+                            (heightScale * 100f).roundToInt(),
+                            bottomPaddingDp,
+                        ),
+                    ) {
+                        KeyboardThemeSelector()
 
-                    ClipboardHistorySettingsSection(
-                        entryCount = clipboardHistoryCount,
-                        onClearConfirmed = {
-                            ClipboardHistoryStore.clear(context)
-                            clipboardHistoryCount = 0
-                            Toast.makeText(context, context.getString(R.string.clipboard_cleared), Toast.LENGTH_SHORT).show()
-                        },
-                    )
+                        LabeledSlider(
+                            title = stringResource(R.string.layout_key_height),
+                            valueLabel = "${(heightScale * 100f).roundToInt()}%",
+                            value = heightScale,
+                            valueRange = KeyboardSettings.MIN_HEIGHT_SCALE..KeyboardSettings.MAX_HEIGHT_SCALE,
+                            steps = 6,
+                            onValueChange = {
+                                heightScale = it
+                                KeyboardSettings.saveHeightScale(context, it)
+                            },
+                            defaultLabel = "${(KeyboardSettings.DEFAULT_HEIGHT_SCALE * 100f).roundToInt()}%",
+                            isDefault = (heightScale * 100f).roundToInt() == (KeyboardSettings.DEFAULT_HEIGHT_SCALE * 100f).roundToInt(),
+                            onReset = {
+                                heightScale = KeyboardSettings.DEFAULT_HEIGHT_SCALE
+                                KeyboardSettings.saveHeightScale(context, KeyboardSettings.DEFAULT_HEIGHT_SCALE)
+                            },
+                        )
 
+                        LabeledSlider(
+                            title = stringResource(R.string.layout_bottom_space),
+                            valueLabel = "$bottomPaddingDp dp",
+                            value = bottomPaddingDp.toFloat(),
+                            valueRange = KeyboardSettings.MIN_BOTTOM_PADDING_DP.toFloat()..KeyboardSettings.MAX_BOTTOM_PADDING_DP.toFloat(),
+                            steps = (KeyboardSettings.MAX_BOTTOM_PADDING_DP - KeyboardSettings.MIN_BOTTOM_PADDING_DP) / 4 - 1,
+                            onValueChange = {
+                                val value = KeyboardSettings.normalizeBottomPaddingDp((it / 4f).roundToInt() * 4)
+                                bottomPaddingDp = value
+                                KeyboardSettings.saveBottomPaddingDp(context, value)
+                            },
+                            defaultLabel = "${KeyboardSettings.DEFAULT_BOTTOM_PADDING_DP} dp",
+                            isDefault = bottomPaddingDp == KeyboardSettings.DEFAULT_BOTTOM_PADDING_DP,
+                            onReset = {
+                                bottomPaddingDp = KeyboardSettings.DEFAULT_BOTTOM_PADDING_DP
+                                KeyboardSettings.saveBottomPaddingDp(context, KeyboardSettings.DEFAULT_BOTTOM_PADDING_DP)
+                            },
+                        )
+
+                        SettingsSwitchRow(
+                            title = stringResource(R.string.layout_modifier_bg_title),
+                            description = stringResource(R.string.layout_modifier_bg_desc),
+                            checked = functionKeyBackgroundsEnabled,
+                            onCheckedChange = {
+                                functionKeyBackgroundsEnabled = it
+                                KeyboardSettings.saveFunctionKeyBackgroundsEnabled(context, it)
+                            },
+                        )
+                    }
+
+                    ShortcutsSummaryCard(onOpen = onOpenShortcuts)
+                }
+
+                SettingsDestination.About -> {
                     AboutUpdateSection(
                         currentVersion = currentVersion,
                         availableRelease = availableRelease,
@@ -622,6 +615,20 @@ private fun SettingsScreen(
                             anonymousStats = enabled
                             KeyboardSettings.saveAnonymousStats(context, enabled)
                             UpdateCheckJob.sync(context)
+                        },
+                    )
+
+                    BackupRestoreSection(
+                        onExport = { backupPasswordDialogMode = BackupPasswordDialogMode.Export },
+                        onImport = { importLauncher.launch(BACKUP_IMPORT_MIME_TYPES) },
+                    )
+
+                    ClipboardHistorySettingsSection(
+                        entryCount = clipboardHistoryCount,
+                        onClearConfirmed = {
+                            ClipboardHistoryStore.clear(context)
+                            clipboardHistoryCount = 0
+                            Toast.makeText(context, context.getString(R.string.clipboard_cleared), Toast.LENGTH_SHORT).show()
                         },
                     )
                 }
@@ -916,10 +923,10 @@ private enum class SettingsDestination(
     @StringRes val titleRes: Int,
     val iconResId: Int,
 ) {
-    Typing("typing", R.string.nav_typing, R.string.nav_typing, R.drawable.ic_touch_24),
-    Keyboard("keyboard", R.string.nav_layout, R.string.nav_layout_title, R.drawable.ic_keyboard_24),
-    Tools("tools", R.string.nav_tools, R.string.nav_tools_title, R.drawable.ic_tune_24),
-    Backup("backup", R.string.nav_backup, R.string.nav_backup_title, R.drawable.ic_download_24),
+    // As on iOS: what the AI does first, then the keyboard, then the app itself.
+    Translate("translate", R.string.nav_translate, R.string.nav_translate, R.drawable.ic_translate_24),
+    Keyboard("keyboard", R.string.nav_keyboard, R.string.nav_keyboard, R.drawable.ic_keyboard_24),
+    About("about", R.string.nav_about, R.string.nav_about, R.drawable.ic_info_24),
 }
 
 private enum class BackupPasswordDialogMode {
@@ -1155,17 +1162,21 @@ private fun AgentModeSection(
         keyEdited = false
     }
 
-    SettingsSectionCard {
-        SettingsSectionHeader(
+    CollapsibleSettingsSection(
+        title = stringResource(R.string.ai_service_title),
+        iconResId = R.drawable.ic_auto_awesome_24,
+        summary = when {
+            !agentModeEnabled -> stringResource(R.string.ai_service_off)
+            agentApiKey.isBlank() -> stringResource(R.string.ai_service_no_key, agentProviderType.label)
+            else -> "${agentProviderType.label} · $agentModel"
+        },
+        verticalSpacing = 14.dp,
+    ) {
+        SettingsSwitchRow(
             title = stringResource(R.string.rewrite_title),
-            iconResId = R.drawable.ic_auto_awesome_24,
-            subtitle = stringResource(R.string.rewrite_subtitle),
-            trailingContent = {
-                Switch(
-                    checked = agentModeEnabled,
-                    onCheckedChange = onAgentModeEnabledChange,
-                )
-            },
+            description = stringResource(R.string.rewrite_subtitle),
+            checked = agentModeEnabled,
+            onCheckedChange = onAgentModeEnabledChange,
         )
 
         ProviderTypeSelector(
@@ -1218,11 +1229,6 @@ private fun AgentModeSection(
                 onValueChange = onAgentModelChange,
             )
         }
-
-        TranslateLanguageSelector(
-            value = agentTranslateTarget,
-            onValueChange = onAgentTranslateTargetChange,
-        )
 
         // Gemini always runs with reasoning off; the other providers expose it.
         if (agentProviderType != KeyboardSettings.AgentProviderType.Gemini) {
@@ -1438,11 +1444,42 @@ private fun GeminiModelSelector(
     }
 }
 
+/**
+ * The two directions the keyboard translates, first on the page as on iOS: what the user writes
+ * goes into [replyTarget]; what they copy to read comes out in the reading language.
+ */
+@Composable
+private fun LanguagesCard(replyTarget: String, onReplyTargetChange: (String) -> Unit) {
+    val context = LocalContext.current
+    var readingTarget by remember { mutableStateOf(KeyboardSettings.readReadingTarget(context).code) }
+    SettingsSectionCard {
+        SettingsSectionHeader(
+            title = stringResource(R.string.languages_title),
+            iconResId = R.drawable.ic_translate_24,
+            subtitle = stringResource(R.string.languages_subtitle),
+        )
+        TranslateLanguageSelector(
+            value = replyTarget,
+            onValueChange = onReplyTargetChange,
+            label = stringResource(R.string.languages_reply),
+        )
+        TranslateLanguageSelector(
+            value = readingTarget,
+            onValueChange = {
+                readingTarget = it
+                KeyboardSettings.saveReadingTarget(context, it)
+            },
+            label = stringResource(R.string.languages_received),
+        )
+    }
+}
+
 /** Picks the customer's language (stored as its code); the keyboard can also switch it while typing. */
 @Composable
 private fun TranslateLanguageSelector(
     value: String,
     onValueChange: (String) -> Unit,
+    label: String = stringResource(R.string.translate_to),
 ) {
     var expanded by remember { mutableStateOf(false) }
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -1458,7 +1495,7 @@ private fun TranslateLanguageSelector(
                     horizontalAlignment = Alignment.Start,
                 ) {
                     Text(
-                        text = stringResource(R.string.translate_to),
+                        text = label,
                         color = ZnKeyboardColors.Muted,
                         style = MaterialTheme.typography.labelSmall,
                     )

@@ -33,6 +33,8 @@ class ClipboardPanelView @JvmOverloads constructor(
     var callback: Callback? = null
     /** Phrases or help, from the tabs; the clipboard's own tab closes the panel. */
     var onTabSelected: ((SavedTextTab) -> Unit)? = null
+    /** The keys' height when the panel opened: it takes their place without growing the keyboard. */
+    var fixedHeightPx = 0
 
     private val clipboardList = ClipboardHistoryListView(context).apply {
         callback = this@ClipboardPanelView
@@ -161,7 +163,7 @@ class ClipboardPanelView @JvmOverloads constructor(
     }
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-        val desiredHeight = ((ImeLayout.BASE_HEIGHT_DP + ImeLayout.EXTENDED_PANEL_EXTRA_HEIGHT_DP) *
+        val desiredHeight = if (fixedHeightPx > 0) fixedHeightPx else ((ImeLayout.BASE_HEIGHT_DP + ImeLayout.EXTENDED_PANEL_EXTRA_HEIGHT_DP) *
             heightScale *
             resources.displayMetrics.density +
             bottomSystemControlGapPx)

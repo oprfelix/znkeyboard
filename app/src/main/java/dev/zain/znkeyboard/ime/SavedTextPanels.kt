@@ -32,6 +32,8 @@ abstract class SavedTextPanel(context: Context, tab: SavedTextTab) : LinearLayou
     }
 
     var panelCallback: Callback? = null
+    /** The keys' height when the panel opened: it takes their place without growing the keyboard. */
+    var fixedHeightPx = 0
     private var heightScale = 1f
     private val bottomSystemControlGapPx by lazy(LazyThreadSafetyMode.NONE) { ImeLayout.bottomSystemControlGapPx(context) }
     protected val content = FrameLayout(context)
@@ -90,7 +92,7 @@ abstract class SavedTextPanel(context: Context, tab: SavedTextTab) : LinearLayou
     }
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-        val desiredHeight = ((ImeLayout.BASE_HEIGHT_DP + ImeLayout.EXTENDED_PANEL_EXTRA_HEIGHT_DP) *
+        val desiredHeight = if (fixedHeightPx > 0) fixedHeightPx else ((ImeLayout.BASE_HEIGHT_DP + ImeLayout.EXTENDED_PANEL_EXTRA_HEIGHT_DP) *
             heightScale * resources.displayMetrics.density + bottomSystemControlGapPx).roundToInt()
         super.onMeasure(widthMeasureSpec, MeasureSpec.makeMeasureSpec(resolveSize(desiredHeight, heightMeasureSpec), MeasureSpec.EXACTLY))
     }

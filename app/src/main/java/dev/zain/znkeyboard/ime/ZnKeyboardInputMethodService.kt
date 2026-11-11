@@ -527,6 +527,21 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         }
     }
 
+    /**
+     * How tall the keys stand, so a panel in their place keeps the keyboard's height: the keys as
+     * laid out last (they keep their size while a panel is shown), else what they would measure.
+     */
+    private fun keysHeightPx(): Int {
+        val keyboard = keyboardView ?: return 0
+        if (keyboard.height > 0) return keyboard.height
+        val width = keyboardContainer?.width?.takeIf { it > 0 } ?: resources.displayMetrics.widthPixels
+        keyboard.measure(
+            View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
+            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
+        )
+        return keyboard.measuredHeight
+    }
+
     private fun showPhrasesPanel() {
         hideClipboardSearchView()
         val panel = phrasesPanelView ?: PhrasesPanelView(this).also { view ->
@@ -535,6 +550,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
             view.callback = this
         }
         panel.setHeightScale(KeyboardSettings.readHeightScale(this))
+        panel.fixedHeightPx = keysHeightPx()
         panel.submitPhrases(dev.zain.znkeyboard.PhrasesStore.read(this))
         activeSurface = KeyboardSurface.Phrases
         swapKeyboardSurface(panel)
@@ -549,6 +565,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
             view.callback = this
         }
         panel.setHeightScale(KeyboardSettings.readHeightScale(this))
+        panel.fixedHeightPx = keysHeightPx()
         activeSurface = KeyboardSurface.Help
         swapKeyboardSurface(panel)
         renderSecondRow()
@@ -754,6 +771,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
             view.onTabSelected = ::onSavedTextTabSelected
         }
         panel.setHeightScale(KeyboardSettings.readHeightScale(this))
+        panel.fixedHeightPx = keysHeightPx()
         panel.submitClipboardHistory(ClipboardHistoryStore.read(this))
         activeSurface = KeyboardSurface.Clipboard
         swapKeyboardSurface(panel)

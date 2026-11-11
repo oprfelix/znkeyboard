@@ -25,7 +25,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 
-/** 常用语: added here or kept from the keyboard's clipboard, typed from the keyboard's phrases panel. */
+/** 常用语, folded until opened: added here or kept from the keyboard's clipboard, typed from the keyboard's phrases panel. */
 @Composable
 internal fun PhrasesSettingsSection() {
     val context = LocalContext.current
@@ -36,12 +36,13 @@ internal fun PhrasesSettingsSection() {
         phrases = PhrasesStore.read(context)
     }
 
-    SettingsSectionCard {
-        SettingsSectionHeader(
-            title = stringResource(R.string.phrases_title),
-            iconResId = R.drawable.ic_toolbar_phrases_24,
-            trailingText = "${phrases.size}/${PhrasesStore.MAX_PHRASES}",
-        )
+    // Folded like the other cards: the list grows, and must not push them down.
+    CollapsibleSettingsSection(
+        title = stringResource(R.string.phrases_title),
+        iconResId = R.drawable.ic_toolbar_phrases_24,
+        summary = stringResource(R.string.phrases_summary, phrases.size),
+        verticalSpacing = 14.dp,
+    ) {
         Text(
             text = stringResource(R.string.phrases_desc),
             color = ZnKeyboardColors.Muted,
