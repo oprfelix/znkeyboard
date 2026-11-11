@@ -12,6 +12,8 @@ Corpora are .parquet files with a `text` column (documents, split here at line b
 sentence ends) or text files with one sentence per line (an "id<TAB>" prefix is dropped, as in
 Leipzig corpora). --docs N reads only the first N documents of each parquet file;
 --min-count N drops word pairs seen fewer than N times (default MIN_COUNT), trading size for accuracy.
+--counts counts.npz saves the pair counts after counting, or loads them when the file exists, so
+models with other --min-count values are written in seconds instead of recounting the corpus.
 
 The vocabulary is the dictionary's: text is cut into runs of characters the dictionary has,
 each run is split into dictionary words by their weights (the way the decoder would read it),
@@ -25,15 +27,26 @@ unigram that mixes how many words a word follows (continuation) with the diction
 so words the corpus never saw keep their dictionary rank. Pairs seen fewer than MIN_COUNT
 times are dropped; a backoff weight per context keeps each context's probabilities summing to 1.
 
-File layout, big-endian (read by PinyinLanguageModel.kt):
+File layout (version 2), big-endian (read by PinyinLanguageModel.kt and LanguageModel.swift):
   "ZNLM", int version, int words (V: distinct dictionary texts in dict.tsv order, the word ids),
-  int dictionary rows, int pairs (B)
+  int dictionary rows, int pairs (B), int blocks (K), int block size, int stream bytes
   short[V + 2] unigram ln P × 1000   (id V is <s>, V + 1 is </s>)
   short[V + 2] backoff ln α × 1000
+  short[256]   codebook: round(-ln P × 400) of each probability code
   int[V + 3]   first pair of each context
-  int[B]       pairs, per context sorted by word: word id << 14 | round(-ln P × 400)
+  int[V + 3]   first block of each context
+  int[K]       block heads: first word id << 5 | Rice parameter k
+  int[K]       bit offset of each block's gaps in the stream
+  byte[B]      probability code of each pair
+  byte[]       stream, then 8 zero bytes
+Per context the pairs are sorted by word and cut into blocks of the block size. A block's first
+word is in its head; each next word is the gap from the one before less 1, Rice-coded with the
+block's k (the quotient in unary as ones and a zero, then k bits, most significant first). A
+lookup binary-searches the context's block heads and decodes at most one block, so the file is
+read in place. Probabilities are 256 levels fitted to the pairs (Lloyd), about 0.015 nat off.
 """
 import math
+import os
 import struct
 import sys
 import re
@@ -54,6 +67,10 @@ ID_BITS = 18
 PROB_BITS = 14
 PROB_SCALE = 400
 SHORT_SCALE = 1000
+VERSION = 2
+BLOCK = 32
+CODES = 256
+RICE_BITS = 5
 
 _words = None
 _logp = None
@@ -167,6 +184,81 @@ def chunks(paths, docs):
         yield batch
 
 
+def codebook(q):
+    """CODES levels of -ln P × PROB_SCALE fitted to [q] (Lloyd), and each value's code."""
+    values, counts = np.unique(q, return_counts=True)
+    centers = np.quantile(q, (np.arange(CODES) + 0.5) / CODES).astype(np.float64)
+    for _ in range(40):
+        nearest = np.abs(values[:, None] - centers[None, :]).argmin(1)
+        weight = np.bincount(nearest, weights=counts, minlength=CODES)
+        total = np.bincount(nearest, weights=values * counts, minlength=CODES)
+        centers = np.where(weight > 0, total / np.maximum(weight, 1), centers)
+    centers = np.round(centers)
+    nearest = np.abs(values[:, None] - centers[None, :]).argmin(1)
+    return centers.astype(">i2"), nearest[np.searchsorted(values, q)].astype(np.uint8)
+
+
+def write_model(out_path, v, dict_rows, unigram, backoff, offsets, right, q, m):
+    """Writes the version-2 layout in the module docstring."""
+    assert m < 1 << ID_BITS
+    pairs = len(right)
+    sizes = np.diff(offsets)
+    context = np.repeat(np.arange(len(sizes)), sizes)
+    position = np.arange(pairs) - offsets[context]
+    block_starts_in_context = (sizes + BLOCK - 1) // BLOCK
+    first_block = np.zeros(len(offsets), dtype=np.int64)
+    first_block[1:] = np.cumsum(block_starts_in_context)
+    block = first_block[context] + position // BLOCK
+    blocks = int(first_block[-1])
+    starts = np.zeros(blocks, dtype=np.int64)
+    head_pair = position % BLOCK == 0
+    starts[block[head_pair]] = np.nonzero(head_pair)[0]
+    # The gap less one from the word before, 0 for a block's first word (which its head holds).
+    value = np.where(head_pair, 0, right - np.r_[0, right[:-1]] - 1)
+    assert value.min() >= 0
+    # Each block's k: the one that codes its gaps in the fewest bits.
+    best_bits = np.full(blocks, np.iinfo(np.int64).max)
+    best_k = np.zeros(blocks, dtype=np.int64)
+    for k in range(ID_BITS):
+        length = np.where(head_pair, 0, (value >> k) + 1 + k)
+        bits = np.bincount(block, weights=length, minlength=blocks).astype(np.int64)
+        better = bits < best_bits
+        best_bits[better], best_k[better] = bits[better], k
+    k = best_k[block]
+    length = np.where(head_pair, 0, (value >> k) + 1 + k)
+    bit_offset = np.zeros(blocks, dtype=np.int64)
+    bit_offset[1:] = np.cumsum(best_bits)[:-1]
+    # Bit position of each pair's code within the stream; blocks follow each other in order.
+    pair_bit = np.cumsum(length) - length
+    assert np.array_equal(pair_bit[starts], bit_offset)
+    total_bits = int(length.sum())
+    stream = np.zeros(total_bits, dtype=np.uint8)
+    quotient = value >> k
+    coded = ~head_pair
+    ones_at = np.repeat(pair_bit[coded], quotient[coded]) + (
+        np.arange(int(quotient[coded].sum())) - np.repeat(np.cumsum(quotient[coded]) - quotient[coded], quotient[coded]))
+    stream[ones_at] = 1
+    remainder_at = pair_bit + quotient + 1
+    for bit in range(ID_BITS):
+        has = coded & (k > bit)
+        stream[remainder_at[has] + bit] = (value[has] >> (k[has] - 1 - bit)) & 1
+    packed = np.packbits(stream)
+    heads = ((right[starts] << RICE_BITS) | best_k).astype(">i4")
+    book, codes = codebook(q)
+    with open(out_path, "wb") as out:
+        out.write(b"ZNLM" + struct.pack(">iiiiiii", VERSION, v, dict_rows, pairs, blocks, BLOCK, len(packed)))
+        out.write(unigram.tobytes())
+        out.write(backoff.tobytes())
+        out.write(book.tobytes())
+        out.write(offsets.astype(">i4").tobytes())
+        out.write(first_block.astype(">i4").tobytes())
+        out.write(heads.tobytes())
+        out.write(bit_offset.astype(">i4").tobytes())
+        out.write(codes.tobytes())
+        out.write(packed.tobytes())
+        out.write(bytes(8))
+
+
 def merge(keys, counts):
     keys, counts = np.concatenate(keys), np.concatenate(counts)
     order = np.argsort(keys, kind="stable")
@@ -187,6 +279,11 @@ def main(dict_path, bench_path, out_path, *corpora):
 
     docs = option("--docs", 0)
     min_count = option("--min-count", MIN_COUNT)
+    counts_path = None
+    if "--counts" in corpora:
+        at = corpora.index("--counts")
+        counts_path = corpora[at + 1]
+        corpora = corpora[:at] + corpora[at + 2:]
     ids, weights, dict_rows = load_dictionary(dict_path)
     v = len(ids)
     m = v + 2
@@ -198,18 +295,25 @@ def main(dict_path, bench_path, out_path, *corpora):
             if len(parts) > 3 and not line.startswith("#") and len(parts[3]) >= BENCH_MIN_CHARS:
                 skip.add(parts[3])
 
-    all_keys, all_counts = [], []
-    tokens = np.zeros(m, dtype=np.int64)
-    with Pool(initializer=init_worker, initargs=(ids, weights, skip)) as pool:
-        for n, (keys, counts, unigrams) in enumerate(pool.imap_unordered(count_chunk, chunks(corpora, docs)), 1):
-            all_keys.append(keys)
-            all_counts.append(counts)
-            tokens += unigrams
-            if n % MERGE_EVERY == 0:
-                keys, counts = merge(all_keys, all_counts)
-                all_keys, all_counts = [keys], [counts]
-                print(f"  {n * CHUNK_LINES:,} lines, {len(keys):,} distinct pairs", flush=True)
-    keys, counts = merge(all_keys, all_counts)
+    if counts_path and os.path.exists(counts_path):
+        saved = np.load(counts_path)
+        keys, counts, tokens = saved["keys"], saved["counts"], saved["tokens"]
+        print(f"pair counts loaded from {counts_path}")
+    else:
+        all_keys, all_counts = [], []
+        tokens = np.zeros(m, dtype=np.int64)
+        with Pool(initializer=init_worker, initargs=(ids, weights, skip)) as pool:
+            for n, (keys, counts, unigrams) in enumerate(pool.imap_unordered(count_chunk, chunks(corpora, docs)), 1):
+                all_keys.append(keys)
+                all_counts.append(counts)
+                tokens += unigrams
+                if n % MERGE_EVERY == 0:
+                    keys, counts = merge(all_keys, all_counts)
+                    all_keys, all_counts = [keys], [counts]
+                    print(f"  {n * CHUNK_LINES:,} lines, {len(keys):,} distinct pairs", flush=True)
+        keys, counts = merge(all_keys, all_counts)
+        if counts_path:
+            np.savez(counts_path, keys=keys, counts=counts, tokens=tokens)
     left, right = keys // m, keys % m
     print(f"{int(tokens.sum()):,} words, {len(keys):,} distinct pairs")
 
@@ -243,14 +347,8 @@ def main(dict_path, bench_path, out_path, *corpora):
     offsets = np.zeros(m + 1, dtype=">i4")
     offsets[1:] = np.cumsum(np.bincount(left, minlength=m))
     q = np.clip(np.round(-np.log(prob) * PROB_SCALE), 0, (1 << PROB_BITS) - 1).astype(np.int64)
-    packed = ((right << PROB_BITS) | q).astype(">i4")
-    with open(out_path, "wb") as out:
-        out.write(b"ZNLM" + struct.pack(">iiii", 1, v, dict_rows, len(packed)))
-        out.write(shorts(uni_log).tobytes())
-        out.write(shorts(np.log(backoff)).tobytes())
-        out.write(offsets.tobytes())
-        out.write(packed.tobytes())
-    print(f"discount {discount:.3f}; kept {len(packed):,} pairs seen {min_count}+ times -> {out_path}")
+    write_model(out_path, v, dict_rows, shorts(uni_log), shorts(np.log(backoff)), offsets.astype(np.int64), right, q, m)
+    print(f"discount {discount:.3f}; kept {len(right):,} pairs seen {min_count}+ times -> {out_path}")
 
 
 if __name__ == "__main__":
