@@ -8,9 +8,12 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.ui.graphics.Color
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -49,14 +52,23 @@ internal fun PhrasesSettingsSection() {
             style = MaterialTheme.typography.bodySmall,
         )
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedTextField(
+            // A filled capsule, no outline: round while it is one line, a rounded card as it grows.
+            TextField(
                 value = draft,
                 onValueChange = { draft = it.take(PhrasesStore.MAX_LENGTH) },
                 placeholder = { Text(stringResource(R.string.phrases_new)) },
                 maxLines = 4,
+                shape = RoundedCornerShape(28.dp),
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent,
+                    disabledIndicatorColor = Color.Transparent,
+                ),
                 modifier = Modifier.weight(1f),
             )
-            TextButton(
+            FilledTonalButton(
                 onClick = {
                     PhrasesStore.add(context, draft)
                     phrases = PhrasesStore.read(context)

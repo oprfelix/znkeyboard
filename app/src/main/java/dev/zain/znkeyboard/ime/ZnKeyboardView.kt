@@ -364,6 +364,13 @@ class ZnKeyboardView @JvmOverloads constructor(
     fun setPinyinMode(enabled: Boolean) {
         if (pinyinModeEnabled != enabled) {
             pinyinModeEnabled = enabled
+            // Pinyin is lowercase: a one-shot Shift left from English (often the sentence-start
+            // one) would make the first letter a capital that goes straight into the text.
+            // Caps lock was chosen and stays.
+            if (enabled && shiftState == ShiftState.OneShot) {
+                shiftState = ShiftState.Off
+                autoShiftActive = false
+            }
             refreshHitTargets()
             invalidate()
         }
