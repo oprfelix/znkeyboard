@@ -48,6 +48,7 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
         /** The leaf's menu: its keys, and the leaf again to close it. */
         fun onChineseKeyboardMenuRequested() {}
         fun onShareRequested() {}
+        fun onToolsSettingsRequested() {}
         fun onToolsMenuClosed() {}
         fun onAgentPolishOnlyRequested()
         fun onAgentRewriteRequested()
@@ -149,6 +150,8 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
         callback?.onChineseKeyboardMenuRequested()
     }
     private val toolsShare = toolIcon(R.drawable.ic_share_24, R.string.key_share) { callback?.onShareRequested() }
+    // The keyboard's settings, here since the toolbar's end holds clipboard, phrases and help.
+    private val toolsSettings = toolIcon(R.drawable.ic_toolbar_settings_24, R.string.ime_tools_settings) { callback?.onToolsSettingsRequested() }
     private val toolsMenu = LinearLayout(context).apply {
         orientation = HORIZONTAL
         gravity = Gravity.CENTER_VERTICAL
@@ -157,6 +160,7 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
         addView(toolsLeaf, LayoutParams(context.dp(TOOLS_LEAF_WIDTH_DP), context.dp(34)))
         addView(toolsKeyboard, LayoutParams(0, context.dp(34), 1f))
         addView(toolsShare, LayoutParams(0, context.dp(34), 1f))
+        addView(toolsSettings, LayoutParams(0, context.dp(34), 1f))
     }
     private val polishButton = TextView(context).apply {
         gravity = Gravity.CENTER
@@ -257,6 +261,7 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
         toolsLeaf.setColorFilter(ImeColors.TEXT)
         toolsKeyboard.setColorFilter(ImeColors.TEXT)
         toolsShare.setColorFilter(ImeColors.TEXT)
+        toolsSettings.setColorFilter(ImeColors.TEXT)
         toolsLeaf.background = toolBackground()
         fixButton.setTextColor(ImeColors.TEXT)
         editButton.setTextColor(ImeColors.TEXT)

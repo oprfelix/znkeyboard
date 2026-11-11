@@ -22,6 +22,7 @@ class ClipboardSearchView @JvmOverloads constructor(
         fun onClipboardSearchClosed()
         fun onClipboardSearchItemSelected(text: String)
         fun onClipboardSearchItemDeleted(text: String)
+        fun onClipboardHistoryItemKept(text: String)
     }
 
     var callback: Callback? = null
@@ -104,6 +105,10 @@ class ClipboardSearchView @JvmOverloads constructor(
 
     override fun onClipboardHistoryItemDeleted(text: String) {
         callback?.onClipboardSearchItemDeleted(text)
+    }
+
+    override fun onClipboardHistoryItemKept(text: String) {
+        callback?.onClipboardHistoryItemKept(text)
     }
 
     private fun setQuery(value: String) {

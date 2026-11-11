@@ -25,11 +25,14 @@ class ClipboardPanelView @JvmOverloads constructor(
         fun onClipboardPanelClosed()
         fun onClipboardHistoryItemSelected(text: String)
         fun onClipboardHistoryItemDeleted(text: String)
+        fun onClipboardHistoryItemKept(text: String)
         fun onClipboardClearRequested()
         fun onClipboardClearUndone()
     }
 
     var callback: Callback? = null
+    /** Phrases or help, from the tabs; the clipboard's own tab closes the panel. */
+    var onTabSelected: ((SavedTextTab) -> Unit)? = null
 
     private val clipboardList = ClipboardHistoryListView(context).apply {
         callback = this@ClipboardPanelView
@@ -175,6 +178,10 @@ class ClipboardPanelView @JvmOverloads constructor(
         callback?.onClipboardHistoryItemDeleted(text)
     }
 
+    override fun onClipboardHistoryItemKept(text: String) {
+        callback?.onClipboardHistoryItemKept(text)
+    }
+
     private fun updateClipboardContent() {
         clipboardList.submitHistory(clipboardEntries)
         val empty = clipboardEntries.isEmpty()
@@ -202,6 +209,12 @@ class ClipboardPanelView @JvmOverloads constructor(
                 LayoutParams(0, LayoutParams.MATCH_PARENT, 1f).withMargins(start = 2),
             )
             addView(clearButton, LayoutParams(dp(44), LayoutParams.MATCH_PARENT))
+            addView(
+                SavedTextPanelChrome.tabs(context, SavedTextTab.Clipboard, ImeColors.FUNCTION, ImeColors.TEXT) { tab ->
+                    if (tab == SavedTextTab.Clipboard) callback?.onClipboardPanelClosed() else onTabSelected?.invoke(tab)
+                },
+                LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.MATCH_PARENT).withMargins(start = 4),
+            )
         }
     }
 

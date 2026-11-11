@@ -10,6 +10,7 @@ import android.graphics.Path
 import android.graphics.Rect
 import android.graphics.RectF
 import android.graphics.Shader
+import androidx.core.graphics.PathParser
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
@@ -51,6 +52,8 @@ class ZnKeyboardView @JvmOverloads constructor(
         fun onSpaceCursorDragFinished()
         fun onSpaceCursorDragCancelled()
         fun onClipboardPanelRequested()
+        fun onPhrasesPanelRequested()
+        fun onHelpPanelRequested()
         fun onToolsMenuRequested()
         fun onKeyboardSettingsRequested()
         fun onAgentRewriteRequested()
@@ -145,6 +148,11 @@ class ZnKeyboardView @JvmOverloads constructor(
             addPath(leaf, turn)
         }
     }
+    private val clipboardIconStroke = PathParser.createPathFromPathData(ToolbarIconPaths.CLIPBOARD_STROKE)
+    private val clipboardIconFill = PathParser.createPathFromPathData(ToolbarIconPaths.CLIPBOARD_FILL)
+    private val phrasesIconStroke = PathParser.createPathFromPathData(ToolbarIconPaths.PHRASES_STROKE)
+    private val helpIconStroke = PathParser.createPathFromPathData(ToolbarIconPaths.HELP_STROKE)
+    private val helpIconFill = PathParser.createPathFromPathData(ToolbarIconPaths.HELP_FILL)
     private val settingsIconPath = Path().apply {
         repeat(SETTINGS_ICON_TEETH) { tooth ->
             val angle = tooth * 2.0 * Math.PI / SETTINGS_ICON_TEETH
@@ -1612,7 +1620,9 @@ class ZnKeyboardView @JvmOverloads constructor(
             KeyIcon.Search -> drawSearchIcon(canvas)
             KeyIcon.Enter -> drawEnterIcon(canvas)
             KeyIcon.Space -> drawSpaceIcon(canvas)
-            KeyIcon.Clipboard -> drawClipboardIcon(canvas)
+            KeyIcon.Clipboard -> drawToolbarIcon(canvas, clipboardIconStroke, clipboardIconFill)
+            KeyIcon.Phrases -> drawToolbarIcon(canvas, phrasesIconStroke, null)
+            KeyIcon.Help -> drawToolbarIcon(canvas, helpIconStroke, helpIconFill)
             KeyIcon.Leaf -> canvas.drawPath(leafIconPath, iconPaint)
             KeyIcon.Settings -> canvas.drawPath(settingsIconPath, iconPaint)
         }
@@ -1697,24 +1707,15 @@ class ZnKeyboardView @JvmOverloads constructor(
         canvas.drawPath(cross, iconPaint)
     }
 
-    private fun drawClipboardIcon(canvas: Canvas) {
-        val board = Path().apply {
-            moveTo(8.5f, 5f)
-            lineTo(6f, 5f)
-            lineTo(6f, 21f)
-            lineTo(18f, 21f)
-            lineTo(18f, 5f)
-            lineTo(15.5f, 5f)
+    /** The iOS-matching toolbar icons: an outline, and parts drawn solid (the sheet behind, the dot of ?). */
+    private fun drawToolbarIcon(canvas: Canvas, stroke: Path, fill: Path?) {
+        iconPaint.strokeWidth = TOOLBAR_ICON_STROKE
+        canvas.drawPath(stroke, iconPaint)
+        if (fill != null) {
+            iconPaint.style = Paint.Style.FILL
+            canvas.drawPath(fill, iconPaint)
+            iconPaint.style = Paint.Style.STROKE
         }
-        canvas.drawPath(board, iconPaint)
-        canvas.drawRoundRect(8.5f, 3f, 15.5f, 7f, 1.5f, 1.5f, iconPaint)
-        val lines = Path().apply {
-            moveTo(9f, 12f)
-            lineTo(15f, 12f)
-            moveTo(9f, 16f)
-            lineTo(13f, 16f)
-        }
-        canvas.drawPath(lines, iconPaint)
     }
 
     private fun drawSearchIcon(canvas: Canvas) {
@@ -1842,6 +1843,8 @@ class ZnKeyboardView @JvmOverloads constructor(
             KeyIntent.ChooseTranslateLanguage -> callback?.onTranslateLanguageMenuRequested()
             KeyIntent.AgentPolishOnly -> callback?.onAgentPolishOnlyRequested()
             KeyIntent.OpenClipboard -> callback?.onClipboardPanelRequested()
+            KeyIntent.OpenPhrases -> callback?.onPhrasesPanelRequested()
+            KeyIntent.OpenHelp -> callback?.onHelpPanelRequested()
             KeyIntent.OpenTools -> callback?.onToolsMenuRequested()
             KeyIntent.None -> Unit
             KeyIntent.OpenSettings -> callback?.onKeyboardSettingsRequested()
@@ -2296,7 +2299,11 @@ class ZnKeyboardView @JvmOverloads constructor(
         if (shortcutRowState.aiVisible) {
             fixed.add(0, KeySpec("second_tools", "Tools", KeyIntent.OpenTools, ImeDimensions.TOOLBAR_ICON_KEY_DP, KeyRole.Function, icon = KeyIcon.Leaf))
         }
-        fixed.add(KeySpec("second_settings", "Settings", KeyIntent.OpenSettings, ImeDimensions.TOOLBAR_ICON_KEY_DP, KeyRole.Function, icon = KeyIcon.Settings))
+        // Clipboard, phrases and help end the row, as on iOS; settings moved into the tools menu.
+        fixed.removeAll { it.intent == KeyIntent.OpenClipboard }
+        fixed.add(KeySpec("second_clipboard", "Clipboard", KeyIntent.OpenClipboard, ImeDimensions.TOOLBAR_ICON_KEY_DP, KeyRole.Function, icon = KeyIcon.Clipboard))
+        fixed.add(KeySpec("second_phrases", "Phrases", KeyIntent.OpenPhrases, ImeDimensions.TOOLBAR_ICON_KEY_DP, KeyRole.Function, icon = KeyIcon.Phrases))
+        fixed.add(KeySpec("second_help", "Help", KeyIntent.OpenHelp, ImeDimensions.TOOLBAR_ICON_KEY_DP, KeyRole.Function, icon = KeyIcon.Help))
         val metrics = resources.displayMetrics
         val spare = metrics.widthPixels / metrics.density - fixed.sumOf { it.weight.toDouble() }.toFloat()
         if (spare > 0f) {
@@ -2834,6 +2841,8 @@ class ZnKeyboardView @JvmOverloads constructor(
         Enter,
         Space,
         Clipboard,
+        Phrases,
+        Help,
         Leaf,
         Settings,
     }
@@ -2944,6 +2953,8 @@ class ZnKeyboardView @JvmOverloads constructor(
         data object AgentPolishOnly : KeyIntent()
         data object AgentRewrite : KeyIntent()
         data object OpenClipboard : KeyIntent()
+        data object OpenPhrases : KeyIntent()
+        data object OpenHelp : KeyIntent()
         data object OpenTools : KeyIntent()
         data object None : KeyIntent()
         data object OpenSettings : KeyIntent()
@@ -2975,6 +2986,8 @@ class ZnKeyboardView @JvmOverloads constructor(
 
     private companion object {
         const val SETTINGS_ICON_TEETH = 8
+        /** Stroke of the clipboard, phrases and help icons, on the 24-unit icon grid. */
+        const val TOOLBAR_ICON_STROKE = 1.9f
         // One tooth of the gear, as (angle from its middle, distance from the center).
         val SETTINGS_ICON_TOOTH = listOf(-0.3 to 7.0, -0.17 to 9.5, 0.17 to 9.5, 0.3 to 7.0)
 

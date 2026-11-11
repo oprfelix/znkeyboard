@@ -72,7 +72,8 @@ private fun getJsonObject(
             connection.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
         }
         if (responseCode !in 200..299) {
-            throw IOException("$failureMessage ($responseCode).")
+            val detail = providerErrorDetail(responseText)
+            throw ProviderHttpException(responseCode, detail, "$failureMessage ($responseCode)" + (detail?.let { ": $it" } ?: "."))
         }
         return JSONObject(responseText)
     } finally {
@@ -80,32 +81,19 @@ private fun getJsonObject(
     }
 }
 
-/**
- * Gemini's model list mixes in image, video, speech and embedding models; keep the ones that can
- * rewrite text, without the "models/" prefix the OpenAI-compatible endpoint adds.
- */
-/** Flash-Lite text models only, newest version first: larger models cost many times more per rewrite. */
-internal fun List<ModelOption>.geminiTextModels(): List<ModelOption> {
-    return map { it.copy(id = it.id.removePrefix("models/")) }
-        .filter { option ->
-            val id = option.id.lowercase(Locale.US)
-            KeyboardSettings.isGeminiLiteModel(id) && GEMINI_NON_TEXT_MARKERS.none { it in id }
-        }
-        .distinctBy { it.id }
-        .let { models ->
-            // A preview is redundant (and usually retired) once its stable release is listed.
-            val ids = models.mapTo(HashSet()) { it.id }
-            models.filterNot { it.id.endsWith("-preview") && it.id.removeSuffix("-preview") in ids }
-        }
-        .sortedByDescending { option ->
-            option.id.substringAfter("gemini-").substringBefore("-flash").toDoubleOrNull() ?: 0.0
-        }
-}
+/** An HTTP error from the provider, with what it said in [detail] when the body carried a message. */
+internal class ProviderHttpException(val code: Int, val detail: String?, message: String) : IOException(message)
 
-private val GEMINI_NON_TEXT_MARKERS = listOf(
-    "embedding", "image", "imagen", "tts", "audio", "live", "veo", "robotics", "computer-use", "aqa",
-    "transcribe", "nano-banana",
-)
+/** The message of an OpenAI-style or Google error body: {"error": {"message": ...}}, or a list of them. */
+private fun providerErrorDetail(body: String): String? {
+    val text = body.trim()
+    if (text.isEmpty()) return null
+    val error = runCatching {
+        if (text.startsWith("[")) org.json.JSONArray(text).optJSONObject(0)?.optJSONObject("error")
+        else JSONObject(text).optJSONObject("error")
+    }.getOrNull() ?: return null
+    return error.optString("message").trim().takeIf { it.isNotEmpty() }?.take(200)
+}
 
 internal fun List<ModelOption>.filterForQuery(query: String): List<ModelOption> {
     val normalizedQuery = query.trim().lowercase(Locale.US)

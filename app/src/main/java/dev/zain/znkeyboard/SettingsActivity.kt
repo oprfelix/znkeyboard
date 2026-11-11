@@ -465,6 +465,7 @@ private fun SettingsScreen(
                     SetupStatusCard()
                     TryTypingField()
                     PinyinSection()
+                    PhrasesSettingsSection()
                     TypingFeelSection()
                     AdaptiveTouchSection()
                 }
@@ -1133,10 +1134,19 @@ private fun AgentModeSection(
         }
         listing = ModelListing.Loading
         delay(MODEL_LOAD_DEBOUNCE_MS)
-        listing = withContext(Dispatchers.IO) { fetchModelOptions(baseUrl = listingBaseUrl, apiKey = agentApiKey) }
+        // The field keeps what was pasted, a trailing space or line break included; the key is
+        // saved trimmed, and checked the same way.
+        listing = withContext(Dispatchers.IO) { fetchModelOptions(baseUrl = listingBaseUrl, apiKey = agentApiKey.trim()) }
             .fold(
                 onSuccess = { ModelListing.Loaded(it) },
-                onFailure = { ModelListing.Failed(it.message?.takeIf(String::isNotBlank), it.isKeyRejection()) },
+                onFailure = { error ->
+                    val message = if (error.isRegionRejection()) {
+                        context.getString(R.string.gemini_region_unsupported)
+                    } else {
+                        error.message?.takeIf(String::isNotBlank)
+                    }
+                    ModelListing.Failed(message, error.isKeyRejection())
+                },
             )
         if (listing is ModelListing.Loaded && keyEdited && agentApiKey.isNotBlank() && !currentModeEnabled) {
             currentModeEnabledChange(true)
@@ -1235,11 +1245,19 @@ private sealed interface ModelListing {
     data class Failed(val message: String?, val keyRejected: Boolean) : ModelListing
 }
 
-/** Providers answer a bad key with 400 (Gemini), 401 or 403; anything else may be the network or the endpoint. */
+/**
+ * Providers answer a bad key with 401 or 403, Gemini with a 400 that names the key. Gemini's other
+ * 400s (an unsupported region, a malformed request) are not the key's fault, nor is the network.
+ */
 private fun Throwable.isKeyRejection(): Boolean {
-    val code = Regex("""\((\d{3})\)""").find(message.orEmpty())?.groupValues?.get(1)?.toIntOrNull()
-    return code == 400 || code == 401 || code == 403
+    if (this !is ProviderHttpException) return false
+    return code == 401 || code == 403 || (code == 400 && detail.orEmpty().contains("api key", ignoreCase = true)) ||
+        (code == 400 && detail.orEmpty().contains("API_KEY"))
 }
+
+/** Gemini is not offered where the request comes from: a network question, not the key's. */
+private fun Throwable.isRegionRejection(): Boolean =
+    this is ProviderHttpException && detail.orEmpty().contains("location is not supported", ignoreCase = true)
 
 /** A status light under the key: a spinner while checking, then a green or red dot with a short line. */
 @Composable
@@ -1374,10 +1392,7 @@ private fun ModelSelectorField(
     }
 }
 
-/**
- * Gemini model picker: the recommended lite model first, then the text models the user's key can
- * reach, loaded live so new Gemini releases show up without an app update.
- */
+/** Gemini model picker: the two Flash-Lite models, as on iOS, the recommended one first. */
 @Composable
 private fun GeminiModelSelector(
     listing: ModelListing,
@@ -1385,18 +1400,13 @@ private fun GeminiModelSelector(
     onValueChange: (String) -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
-    val liveModels = remember(listing) { (listing as? ModelListing.Loaded)?.models.orEmpty().geminiTextModels() }
-    // The list is the result, and the key check reports failures; only a missing key needs a note.
+    // The key check reports failures; only a missing key needs a note.
     val loadStatus = if (listing == ModelListing.Idle) stringResource(R.string.gemini_need_key) else ""
 
     val recommended = AgentDefaults.DEFAULT_GEMINI_MODEL
-    val items = buildList {
-        add(PickerItem(id = recommended, title = recommended, subtitle = stringResource(R.string.gemini_recommended_subtitle)))
-        liveModels.filter { it.id != recommended }.forEach { add(PickerItem(id = it.id, title = it.id, subtitle = it.name)) }
-        // Keep a Lite model chosen earlier visible even if the live list does not offer it.
-        if (value != recommended && none { it.id == value } && KeyboardSettings.isGeminiLiteModel(value)) {
-            add(PickerItem(id = value, title = value))
-        }
+    val recommendedSubtitle = stringResource(R.string.gemini_recommended_subtitle)
+    val items = AgentDefaults.GEMINI_MODELS.map { id ->
+        PickerItem(id = id, title = id, subtitle = if (id == recommended) recommendedSubtitle else null)
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {

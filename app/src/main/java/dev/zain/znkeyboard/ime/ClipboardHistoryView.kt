@@ -36,6 +36,7 @@ internal class ClipboardHistoryListView @JvmOverloads constructor(
     interface Callback {
         fun onClipboardHistoryItemSelected(text: String)
         fun onClipboardHistoryItemDeleted(text: String)
+        fun onClipboardHistoryItemKept(text: String)
     }
 
     var callback: Callback? = null
@@ -64,6 +65,7 @@ internal class ClipboardHistoryListView @JvmOverloads constructor(
         context = context,
         onSelected = { text -> callback?.onClipboardHistoryItemSelected(text) },
         onDeleted = { text -> callback?.onClipboardHistoryItemDeleted(text) },
+        onKept = { text -> callback?.onClipboardHistoryItemKept(text) },
     )
 
     init {
@@ -173,6 +175,7 @@ internal class ClipboardHistoryListView @JvmOverloads constructor(
         private val context: Context,
         private val onSelected: (String) -> Unit,
         private val onDeleted: (String) -> Unit,
+        private val onKept: (String) -> Unit,
     ) : BaseAdapter() {
         private val packageManager = context.packageManager
         private val appIconCache = mutableMapOf<String, Drawable?>()
@@ -213,6 +216,7 @@ internal class ClipboardHistoryListView @JvmOverloads constructor(
                     ?: ClipboardLinkPreviewState.Idle,
                 onSelected = onSelected,
                 onDeleted = onDeleted,
+                onKept = onKept,
                 onPreviewRequested = ::requestPreview,
             )
             return row
@@ -239,7 +243,9 @@ internal class ClipboardHistoryListView @JvmOverloads constructor(
     }
 
     private class SwipeRevealHistoryRow(context: Context) : FrameLayout(context) {
-        private val revealWidthPx = dp(96)
+        // Two actions under the row: keep as a phrase, and delete.
+        private val actionWidthPx = dp(96)
+        private val revealWidthPx = actionWidthPx * 2
         private val lockThresholdPx = revealWidthPx * 0.45f
         private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
         private var downX = 0f
@@ -251,6 +257,7 @@ internal class ClipboardHistoryListView @JvmOverloads constructor(
         private var boundPreviewUrl: String? = null
         private var onSelected: ((String) -> Unit)? = null
         private var onDeleted: ((String) -> Unit)? = null
+        private var onKept: ((String) -> Unit)? = null
         private var onPreviewRequested: ((String) -> Unit)? = null
 
         private val timestamp = TextView(context).apply {
@@ -377,6 +384,27 @@ internal class ClipboardHistoryListView @JvmOverloads constructor(
                 }
             }
         }
+        private val keepAction = TextView(context).apply {
+            setText(dev.zain.znkeyboard.R.string.ime_clipboard_save_phrase)
+            gravity = Gravity.CENTER
+            includeFontPadding = false
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(ImeColors.ACCENT)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = dp(8).toFloat()
+                setColor(PALETTE.function)
+            }
+            isClickable = true
+            isFocusable = false
+            setOnClickListener {
+                boundEntry?.text?.let { text ->
+                    close(animated = false)
+                    onKept?.invoke(text)
+                }
+            }
+        }
         private val headerRow = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
@@ -424,9 +452,12 @@ internal class ClipboardHistoryListView @JvmOverloads constructor(
 
         init {
             clipChildren = true
-            background = deleteBackground()
             addView(
-                deleteAction,
+                LinearLayout(context).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    addView(keepAction, LinearLayout.LayoutParams(actionWidthPx - dp(4), LinearLayout.LayoutParams.MATCH_PARENT).apply { marginEnd = dp(4) })
+                    addView(deleteAction, LinearLayout.LayoutParams(actionWidthPx, LinearLayout.LayoutParams.MATCH_PARENT))
+                },
                 LayoutParams(revealWidthPx, LayoutParams.MATCH_PARENT, Gravity.END),
             )
             addView(
@@ -444,12 +475,14 @@ internal class ClipboardHistoryListView @JvmOverloads constructor(
             previewState: ClipboardLinkPreviewState,
             onSelected: (String) -> Unit,
             onDeleted: (String) -> Unit,
+            onKept: (String) -> Unit,
             onPreviewRequested: (String) -> Unit,
         ) {
             boundEntry = entry
             boundPreviewUrl = previewUrl
             this.onSelected = onSelected
             this.onDeleted = onDeleted
+            this.onKept = onKept
             this.onPreviewRequested = onPreviewRequested
             this.timestamp.text = timestamp
             body.text = entry.text

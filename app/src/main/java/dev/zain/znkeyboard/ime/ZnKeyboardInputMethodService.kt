@@ -65,7 +65,10 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     ClipboardSearchView.Callback,
     AgentReviewView.Callback,
     PinyinCandidateBar.Callback,
-    ReadingCardView.Callback {
+    ReadingCardView.Callback,
+    SavedTextPanel.Callback,
+    PhrasesPanelView.Callback,
+    HelpPanelView.Callback {
     private var keyboardView: ZnKeyboardView? = null
     private var pinyinBar: PinyinCandidateBar? = null
     private var pinyinModeEnabled = false
@@ -141,6 +144,8 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     private var inputRoot: LinearLayout? = null
     private var keyboardContainer: FrameLayout? = null
     private var clipboardPanelView: ClipboardPanelView? = null
+    private var phrasesPanelView: PhrasesPanelView? = null
+    private var helpPanelView: HelpPanelView? = null
     private var clipboardSearchView: ClipboardSearchView? = null
     private var agentReviewView: AgentReviewView? = null
     private var currentEditorInfo: EditorInfo? = null
@@ -475,6 +480,80 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         showKeyboardPanel()
     }
 
+    override fun onPhrasesPanelRequested() = showPhrasesPanel()
+
+    override fun onHelpPanelRequested() = showHelpPanel()
+
+    override fun onSavedTextPanelClosed() = showKeyboardPanel()
+
+    override fun onSavedTextTabSelected(tab: SavedTextTab) {
+        when (tab) {
+            SavedTextTab.Clipboard -> showClipboardPanel()
+            SavedTextTab.Phrases -> showPhrasesPanel()
+            SavedTextTab.Help -> showHelpPanel()
+        }
+    }
+
+    override fun onPhraseSelected(text: String) {
+        showKeyboardPanel()
+        currentInputConnection?.let { inputConnection ->
+            noteOwnEdit()
+            inputConnection.commitText(text, 1)
+        }
+    }
+
+    override fun onPhraseDeleted(text: String) {
+        dev.zain.znkeyboard.PhrasesStore.remove(this, text)
+        phrasesPanelView?.submitPhrases(dev.zain.znkeyboard.PhrasesStore.read(this))
+    }
+
+    override fun onClipboardHistoryItemKept(text: String) {
+        val added = dev.zain.znkeyboard.PhrasesStore.add(this, text)
+        Toast.makeText(this, if (added) R.string.ime_phrase_saved else R.string.ime_phrase_exists, Toast.LENGTH_SHORT).show()
+    }
+
+    /** Help's button: translates what is on the clipboard now, or says how to copy something first. */
+    override fun onTranslateClipboardRequested() {
+        showKeyboardPanel()
+        val text = readPrimaryPlainClipboardText(inferSourceApp = false)?.text?.trim()
+        when {
+            text.isNullOrEmpty() -> showPinyinHint(getString(R.string.ime_read_clipboard_empty))
+            !isWorthReading(text, KeyboardSettings.readReadingTarget(this)) -> showPinyinHint(getString(R.string.ime_read_clipboard_not_needed))
+            else -> {
+                dismissReadingOffer()
+                readingSource = text
+                startReading()
+            }
+        }
+    }
+
+    private fun showPhrasesPanel() {
+        hideClipboardSearchView()
+        val panel = phrasesPanelView ?: PhrasesPanelView(this).also { view ->
+            phrasesPanelView = view
+            view.panelCallback = this
+            view.callback = this
+        }
+        panel.setHeightScale(KeyboardSettings.readHeightScale(this))
+        panel.submitPhrases(dev.zain.znkeyboard.PhrasesStore.read(this))
+        activeSurface = KeyboardSurface.Phrases
+        swapKeyboardSurface(panel)
+        renderSecondRow()
+    }
+
+    private fun showHelpPanel() {
+        hideClipboardSearchView()
+        val panel = helpPanelView ?: HelpPanelView(this).also { view ->
+            helpPanelView = view
+            view.panelCallback = this
+            view.callback = this
+        }
+        panel.setHeightScale(KeyboardSettings.readHeightScale(this))
+        activeSurface = KeyboardSurface.Help
+        swapKeyboardSurface(panel)
+        renderSecondRow()
+    }
+
     override fun onClipboardSearchRequested() {
         showClipboardSearchPanel()
     }
@@ -521,6 +600,8 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     }
 
     override fun onKeyboardSettingsRequested() = openSettings(ai = false)
+
+    override fun onToolsSettingsRequested() = openSettings(ai = false)
 
     override fun onToolsMenuRequested() {
         pinyinBar?.renderToolsMenu()
@@ -670,6 +751,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         val panel = clipboardPanelView ?: ClipboardPanelView(this).also { view ->
             clipboardPanelView = view
             view.callback = this
+            view.onTabSelected = ::onSavedTextTabSelected
         }
         panel.setHeightScale(KeyboardSettings.readHeightScale(this))
         panel.submitClipboardHistory(ClipboardHistoryStore.read(this))
@@ -2914,6 +2996,8 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     private enum class KeyboardSurface {
         Keyboard,
         Clipboard,
+        Phrases,
+        Help,
         ClipboardSearch,
         Review,
     }

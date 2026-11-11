@@ -15,6 +15,8 @@ object AgentDefaults {
     const val DEEPSEEK_API_BASE_URL = "https://api.deepseek.com"
     const val GEMINI_API_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai"
     const val DEFAULT_GEMINI_MODEL = "gemini-3.5-flash-lite"
+    /** The Gemini models offered, as on iOS: Flash-Lite only, since larger models cost many times more. */
+    val GEMINI_MODELS = listOf(DEFAULT_GEMINI_MODEL, "gemini-3.1-flash-lite")
     const val DEFAULT_DEEPSEEK_MODEL = "deepseek-flash"
 
     // Long enough for an email; a full-length Chinese answer still fits MAX_REWRITE_LLM_TOKENS.

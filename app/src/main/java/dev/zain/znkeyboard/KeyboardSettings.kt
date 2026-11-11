@@ -604,20 +604,10 @@ object KeyboardSettings {
             ?.trim()
             ?.takeIf { it.isNotBlank() }
             ?: return default
-        // Gemini is limited to Flash-Lite; a larger model saved earlier or restored from a backup
+        // Gemini offers two Flash-Lite models; any other saved earlier or restored from a backup
         // falls back to the default instead of spending far more per request.
-        return if (providerType == AgentProviderType.Gemini && !isGeminiLiteModel(stored)) default else stored
+        return if (providerType == AgentProviderType.Gemini && stored !in AgentDefaults.GEMINI_MODELS) default else stored
     }
-
-    /** Gemini Flash-Lite 2.5 or newer, e.g. gemini-3.5-flash-lite or gemini-4-flash-lite-preview. */
-    fun isGeminiLiteModel(modelId: String): Boolean {
-        val match = GEMINI_LITE_MODEL.matchEntire(modelId.trim().lowercase(java.util.Locale.US)) ?: return false
-        val version = match.groupValues[1].toDoubleOrNull() ?: return false
-        return version >= MIN_GEMINI_LITE_VERSION
-    }
-
-    private val GEMINI_LITE_MODEL = Regex("""gemini-(\d+(?:\.\d+)?)-flash-lite(?:-[a-z0-9-]+)?""")
-    private const val MIN_GEMINI_LITE_VERSION = 2.5
 
     fun saveAgentModel(
         context: Context,
