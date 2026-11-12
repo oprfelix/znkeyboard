@@ -3,10 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ZnKeyboard · 选中文字，一键润色或翻译</title>
-<meta name="description" content="ZnKeyboard：带 AI 润色和翻译的拼音输入法，另有 iPhone 测试版和 macOS、Windows 版。选中文字，一键改通顺或翻译成 14 种语言；看外文时划词翻译、截图翻译。">
-<meta property="og:title" content="ZnKeyboard · 选中文字，一键润色或翻译">
-<meta property="og:description" content="Android 输入法 · iPhone 测试版 · macOS · Windows。用 AI 把文字改通顺，或翻译成 14 种语言。">
+<title>ZnKeyboard · 选中文字，一键翻译</title>
+<meta name="description" content="ZnKeyboard：带 AI 翻译和 AI 整句排序的拼音输入法，另有 iPhone 测试版和 macOS、Windows 版。中文写好，一键翻译成 14 种语言的地道外文；看外文时划词翻译、截图翻译。">
+<meta property="og:title" content="ZnKeyboard · 选中文字，一键翻译">
+<meta property="og:description" content="Android 输入法 · iPhone 测试版 · macOS · Windows。用 AI 把中文翻译成 14 种语言的地道外文。">
 <meta property="og:image" content="https://zn.2amz.com/assets/og.png">
 <meta property="og:url" content="https://zn.2amz.com/">
 <!-- zn.2amz.com is the main site; znkeyboard.2amz.com serves it too, and oprfelix.github.io/znkeyboard mirrors it. -->
@@ -233,7 +233,6 @@ nav .wrap { display: flex; align-items: center; gap: 24px; height: 60px; }
 .copy-pop { align-self: flex-start; margin: -4px 0 0 8px; padding: 4px 12px; font-size: 12px; color: #fff; background: #2b2f3a; border-radius: 8px; opacity: 0; transition: opacity .2s, transform .15s; }
 .copy-pop.show { opacity: 1; }
 .copy-pop.press { transform: scale(.9); }
-#tool-polish { flex: none; padding: 0 13px; }
 #tool-translate { flex: none; gap: 5px; padding: 0 6px 0 9px; white-space: nowrap; }
 .tool.icon { flex: none; width: 30px; background: transparent; border-color: transparent; font-size: 15px; }
 .tool.gap { flex: 1; visibility: hidden; }
@@ -537,8 +536,8 @@ footer .links a { margin-right: 18px; }
 <header class="hero" id="top">
   <div class="wrap">
     <div>
-      <span class="eyebrow"><svg class="spark"><use href="#spark"/></svg><span data-en="AI polish &amp; translate">AI 润色与翻译</span></span>
-      <h1 data-en="Select text.<br><em>Polish or translate</em> in one tap.">选中文字，<br><em>一键润色或翻译</em></h1>
+      <span class="eyebrow"><svg class="spark"><use href="#spark"/></svg><span data-en="AI translate">AI 翻译</span></span>
+      <h1 data-en="Select text.<br><em>Translate</em> in one tap.">选中文字，<br><em>一键翻译</em></h1>
       <p class="sub" data-en="Replies to overseas customers that sound natural, in one tap. Foreign text you can't read, translated from a selection, a copy or a screenshot. 14 languages on Android, iPhone, Mac and Windows.">给海外客户的回复，一点就地道；看不懂的外文，选中、复制或截图就能翻译。支持 14 种语言，Android、iPhone、Mac、Windows 都能用。</p>
       <div class="cta">
         <a class="btn" id="hero-btn" href="#download">
@@ -585,7 +584,6 @@ footer .links a { margin-right: 18px; }
           <div class="kb">
             <div class="demo-offer" id="demo-offer"></div>
             <div class="toolbar" id="demo-toolbar">
-              <div class="tool" id="tool-polish" data-en="Polish">润色</div>
               <div class="tool wide" id="tool-translate"><span data-en="Translate to">翻译为</span><span class="chip">ES ▾</span></div>
               <div class="tool gap"></div>
               <div class="tool icon" aria-hidden="true">⚙</div>
@@ -594,7 +592,7 @@ footer .links a { margin-right: 18px; }
               <div class="row"><div class="k">q</div><div class="k">w</div><div class="k">e</div><div class="k">r</div><div class="k">t</div><div class="k">y</div><div class="k">u</div><div class="k">i</div><div class="k">o</div><div class="k">p</div></div>
               <div class="row"><div class="k">a</div><div class="k">s</div><div class="k">d</div><div class="k">f</div><div class="k">g</div><div class="k">h</div><div class="k">j</div><div class="k">k</div><div class="k">l</div></div>
               <div class="row"><div class="k fn">⇧</div><div class="k">z</div><div class="k">x</div><div class="k">c</div><div class="k">v</div><div class="k">b</div><div class="k">n</div><div class="k">m</div><div class="k fn">⌫</div></div>
-              <div class="row"><div class="k fn">123</div><div class="k fn">中</div><div class="k space" data-en="Hold to talk">按住说话</div><div class="k fn">。</div><div class="k fn">↵</div></div>
+              <div class="row"><div class="k fn">123</div><div class="k fn">中</div><div class="k space" data-en="space">拼音</div><div class="k fn">。</div><div class="k fn">↵</div></div>
             </div>
           </div>
         </div>
@@ -637,7 +635,7 @@ footer .links a { margin-right: 18px; }
           </div>
           <div class="wd-out" id="wd-out"></div>
         </div>
-        <div class="pill wd-wpill" id="wd-wpill"><span id="wd-polish"><svg class="spark" style="color:var(--blue)"><use href="#spark"/></svg><span id="wd-polish-label"></span></span><span id="wd-translate"><span id="wd-translate-label"></span><span class="chip" id="wd-chip"></span></span></div>
+        <div class="pill wd-wpill" id="wd-wpill"><span id="wd-translate"><span id="wd-translate-label"></span><span class="chip" id="wd-chip"></span></span></div>
         <div class="wd-bar"><span class="wd-input"><mark id="wd-input"></mark></span></div>
       </div>
     </div>
@@ -655,12 +653,12 @@ footer .links a { margin-right: 18px; }
       <div class="who-item">
         <h3 data-en="Overseas customer support">海外客服</h3>
         <p data-en="Messages in many languages, and endless copying between phone and computer.">多语言消息多，手机和电脑之间来回复制。</p>
-        <p class="fix" data-en="Translate and polish right in the text box, without switching apps.">就在输入框里翻译和润色，不用切换 App。</p>
+        <p class="fix" data-en="Read the translation and write the reply right in the text box, without switching apps.">就在输入框里看译文、写外文回复，不用切换 App。</p>
       </div>
       <div class="who-item">
         <h3 data-en="Anyone who reads and writes in another language">经常读写外文的人</h3>
         <p data-en="Foreign web pages and PDFs are slow going, and you're never sure about what you write.">看外文网页、PDF 吃力，写外文又没把握。</p>
-        <p class="fix" data-en="Select text on a computer, or copy it on your phone, to see the translation; polish what you write before you send it.">电脑上划词、手机上复制就能看译文，写完先润色再发。</p>
+        <p class="fix" data-en="Select text on a computer, or copy it on your phone, to see the translation; write in Chinese and send it as natural foreign text.">电脑上划词、手机上复制就能看译文；写好中文，一键译成地道外文再发。</p>
       </div>
     </div>
   </div>
@@ -673,19 +671,19 @@ footer .links a { margin-right: 18px; }
     <div class="grid feat">
       <h3 class="feat-group" data-en="Reply to customers">回复客户</h3>
       <div class="card feature">
-        <div class="top"><div class="ico"><svg><use href="#spark"/></svg></div></div>
-        <h3 data-en="AI polish">AI 润色</h3>
-        <p data-en="Turn a quick note into a clear, polite message.">把随手写的话改得通顺得体。</p>
-      </div>
-      <div class="card feature">
         <div class="top"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h9M8.5 3v2m2.5 0c-.6 3.6-3 6.6-6.5 8.5M6.5 8.5c1 2 2.6 3.6 4.5 4.6"/><path d="m12 21 4.5-10L21 21m-7.5-3h6"/></svg></div></div>
         <h3 data-en="Translate to 14 languages">14 种语言翻译</h3>
         <p data-en="Reads like a native wrote it, not word for word.">像母语者写的，不是生硬直译。</p>
       </div>
-      <div class="card feature span-tablet">
+      <div class="card feature">
         <div class="top"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></svg></div><span class="plat">Android</span></div>
         <h3 data-en="AI voice input">AI 语音输入</h3>
-        <p data-en="Hold space and talk; it comes out tidy.">按住空格说话，自动整理成文字。</p>
+        <p data-en="Hold the microphone in the toolbar and talk; it comes out tidy. Needs a Gemini key.">按住工具栏的麦克风说话，自动整理成文字。需要 Gemini Key。</p>
+      </div>
+      <div class="card feature span-tablet">
+        <div class="top"><div class="ico"><svg><use href="#spark"/></svg></div><span class="plat">Android · iPhone</span></div>
+        <h3 data-en="AI sentence ranking">AI 整句排序</h3>
+        <p data-en="A small model on the phone ranks whole-sentence candidates, so long sentences, initials and slips come out right more often. Nothing goes online.">手机上的小模型给整句候选排序，长句、简拼、手误更容易一次打对，不联网。</p>
       </div>
       <h3 class="feat-group" data-en="Read foreign text">看懂外文</h3>
       <div class="card feature">
@@ -714,7 +712,7 @@ footer .links a { margin-right: 18px; }
     <h2 data-en="On your computer, too">电脑上也一样</h2>
     <p class="lead" data-en="Mac and Windows apps live in the menu bar or tray and work in any app.">Mac 和 Windows 版常驻菜单栏或托盘，在任何软件里都能用。</p>
     <div class="tabs"><div role="tablist" aria-label="Scenes">
-      <button role="tab" id="tab-write" aria-controls="scene-write" aria-selected="true" data-en="Polish &amp; translate">润色与翻译</button>
+      <button role="tab" id="tab-write" aria-controls="scene-write" aria-selected="true" data-en="AI translate">AI 翻译</button>
       <button role="tab" id="tab-read" aria-controls="scene-read" aria-selected="false" data-en="Translate selection">划词翻译</button>
       <button role="tab" id="tab-shot" aria-controls="scene-shot" aria-selected="false" data-en="Screenshot translate">截图翻译</button>
     </div></div>
@@ -724,7 +722,7 @@ footer .links a { margin-right: 18px; }
           <div class="window">
             <div class="bar"><i></i><i></i><i></i></div>
             <div class="body">
-              <div class="pill write"><span><svg class="spark" style="color:var(--blue)"><use href="#spark"/></svg><span data-en="Polish">润色</span></span><span><span data-en="Translate to">AI 翻译为</span><span class="chip" data-en="ES">EN</span></span></div>
+              <div class="pill write"><span><span data-en="Translate to">AI 翻译为</span><span class="chip" data-en="ES">EN</span></span></div>
               <div class="label-sm" data-en="Reply to customer">回复客户</div>
               <div class="field"><mark data-en="hi, the order shipped yesterday, should arrive in 3 days, any problem tell me">你好 订单昨天发出去了 大概三天能到 有问题再跟我说</mark></div>
             </div>
@@ -735,7 +733,7 @@ footer .links a { margin-right: 18px; }
             <div class="actions"><span class="small-btn" data-en="Copy">复制</span><span class="small-btn primary" data-en="Replace ↵">替换 ↵</span></div>
           </div>
         </div>
-        <p class="scene-note" data-en="Select text in any text box and tap the pill, or press <kbd>⇧⌘E</kbd> polish · <kbd>⇧⌘R</kbd> translate (Windows: <kbd>Ctrl+Shift+E</kbd> · <kbd>R</kbd>).">在任何输入框里选中文字，点小胶囊，或按 <kbd>⇧⌘E</kbd> 润色 · <kbd>⇧⌘R</kbd> AI 翻译（Windows：<kbd>Ctrl+Shift+E</kbd> · <kbd>R</kbd>）。</p>
+        <p class="scene-note" data-en="Select text in any text box and tap <b>Translate to</b>, or press <kbd>⇧⌘E</kbd> on Mac. On Windows press <kbd>Ctrl+Shift+R</kbd>; the Windows app also polishes with <kbd>Ctrl+Shift+E</kbd>.">在任何输入框里选中文字，点「AI 翻译为」，Mac 上也可以按 <kbd>⇧⌘E</kbd>。Windows 上按 <kbd>Ctrl+Shift+R</kbd> 翻译，Windows 版另有 <kbd>Ctrl+Shift+E</kbd> 润色。</p>
       </div>
 
       <div class="scene" id="scene-read" role="tabpanel" aria-labelledby="tab-read" hidden>
@@ -755,7 +753,7 @@ footer .links a { margin-right: 18px; }
             <div class="actions"><span class="small-btn" data-en="Copy original">复制原文</span><span class="small-btn primary" data-en="Copy translation ↵">复制译文 ↵</span></div>
           </div>
         </div>
-        <p class="scene-note" data-en="Select text on a web page or in a document and tap <b>Translate</b>, or press <kbd>⇧⌘1</kbd> / <kbd>Ctrl+Shift+1</kbd>. Pin the card to keep it beside what you read. Turn the pill on in Settings → Usage.">在网页、文档里选中文字，点「翻译为」，或按 <kbd>⇧⌘1</kbd> / <kbd>Ctrl+Shift+1</kbd>；点图钉可以把卡片固定在旁边。小胶囊在 设置 →「使用」里打开。</p>
+        <p class="scene-note" data-en="Select text on a web page or in a document and tap <b>Translate</b>; on Mac, <kbd>⇧⌘E</kbd> does the same, on Windows <kbd>Ctrl+Shift+1</kbd>. Pin the card to keep it beside what you read. The pill is on by default on Mac; on Windows turn it on in Settings → Usage.">在网页、文档里选中文字，点「翻译为」；Mac 上按 <kbd>⇧⌘E</kbd> 也一样，Windows 上按 <kbd>Ctrl+Shift+1</kbd>。点图钉可以把卡片固定在旁边。Mac 版默认打开这个小胶囊，Windows 版在 设置 →「使用」里打开。</p>
       </div>
 
       <div class="scene" id="scene-shot" role="tabpanel" aria-labelledby="tab-shot" hidden>
@@ -792,10 +790,10 @@ footer .links a { margin-right: 18px; }
       <article class="card platform" data-platform="android">
         <header><img src="assets/icon-android.png" alt=""><div><h3>Android <span class="tag" data-en="Keyboard">输入法</span></h3><div class="kind" data-en="Pinyin + English keyboard">拼音 + 英文输入法</div></div></header>
         <ul>
-          <li data-en="Polish, translate and voice input in the toolbar">工具栏里润色、翻译和语音输入</li>
+          <li data-en="Translate and hold-to-talk voice input in the toolbar">工具栏里翻译，按住麦克风语音输入</li>
           <li data-en="Copy a message and reply while reading it">复制消息，边看译文边回复</li>
-          <li data-en="Whole-sentence pinyin, correction, 9-key and stroke">整句拼音、纠错、九宫格和笔画</li>
-          <li data-en="Requires Android 14 or later">需要 Android 14 及以上</li>
+          <li data-en="Whole-sentence pinyin with AI ranking, correction, 9-key and stroke">整句拼音（AI 排序）、纠错、九宫格和笔画</li>
+          <li data-en="Requires a 64-bit phone with Android 14 or later">需要 Android 14 及以上的 64 位手机</li>
         </ul>
         <a class="btn" data-repo="znkeyboard" data-ext=".apk" href="https://zn.2amz.com/download/android"><svg><use href="#i-download"/></svg><span data-en="Download APK">下载 APK</span></a>
         <div class="meta" data-meta="znkeyboard"></div>
@@ -803,9 +801,9 @@ footer .links a { margin-right: 18px; }
       <article class="card platform" data-platform="ios">
         <header><img src="assets/icon-ios.png" alt=""><div><h3>iPhone <span class="tag" data-en="Beta">测试版</span></h3><div class="kind" data-en="Pinyin + English keyboard">拼音 + 英文输入法</div></div></header>
         <ul>
-          <li data-en="Polish and translate in the toolbar">工具栏里润色和翻译</li>
+          <li data-en="Translate in the toolbar">工具栏里一键翻译</li>
           <li data-en="Copy a message and translate it">复制外文消息，一键翻译</li>
-          <li data-en="Whole-sentence pinyin, correction and 9-key">整句拼音、按键纠错和九宫格</li>
+          <li data-en="Whole-sentence pinyin with AI ranking, correction and 9-key">整句拼音（AI 排序）、按键纠错和九宫格</li>
           <li data-en="Requires iOS 16 or later">需要 iOS 16 及以上</li>
         </ul>
         <a class="btn" id="ios-link" target="_blank" rel="noopener"><svg><use href="#i-download"/></svg><span data-en="Install beta">安装测试版</span></a>
@@ -814,7 +812,7 @@ footer .links a { margin-right: 18px; }
       <article class="card platform" data-platform="mac">
         <header><img src="assets/icon-desktop.png" alt=""><div><h3>macOS <span class="tag" data-en="Menu bar">菜单栏</span></h3><div class="kind" data-en="Works in any app">在任何 App 里使用</div></div></header>
         <ul>
-          <li data-en="Select text to polish or translate">选中文字，润色或翻译</li>
+          <li data-en="Select text to translate it">选中文字，一键翻译</li>
           <li data-en="Translate a selection or a screenshot">划词翻译、截图翻译</li>
           <li data-en="For Apple silicon and Intel">适用于 Apple 芯片和 Intel 芯片</li>
           <li data-en="Requires macOS 14 or later">需要 macOS 14 及以上</li>
@@ -851,7 +849,7 @@ footer .links a { margin-right: 18px; }
         <h3 data-en="Get an API key">获取 API Key</h3>
         <div class="step-body" data-en="&lt;ul&gt;&lt;li&gt;&lt;b&gt;DeepSeek&lt;/b&gt; (fast in mainland China): create a key on the &lt;a href=&quot;https://platform.deepseek.com/api_keys&quot;&gt;DeepSeek platform&lt;/a&gt;. Pay as you go after a small top-up; a rewrite costs a tiny fraction of a cent.&lt;/li&gt;&lt;li&gt;&lt;b&gt;Gemini&lt;/b&gt; (free tier): create a key in &lt;a href=&quot;https://aistudio.google.com/apikey&quot;&gt;Google AI Studio&lt;/a&gt;. Needs a network that can reach Google.&lt;/li&gt;&lt;/ul&gt;&lt;p class=&quot;note&quot;&gt;&lt;a href=&quot;#key-guide&quot;&gt;First time? See the full steps&lt;/a&gt;&lt;/p&gt;">
         <ul>
-          <li><b>DeepSeek</b>（国内可直连）：登录 <a href="https://platform.deepseek.com/api_keys">DeepSeek 开放平台</a> 创建 Key。按用量付费，需要先充值，润色一次只要几厘钱。</li>
+          <li><b>DeepSeek</b>（国内可直连）：登录 <a href="https://platform.deepseek.com/api_keys">DeepSeek 开放平台</a> 创建 Key。按用量付费，需要先充值，翻译一次只要几厘钱。</li>
           <li><b>Gemini</b>（有免费额度）：登录 <a href="https://aistudio.google.com/apikey">Google AI Studio</a> 创建 Key。需要能访问 Google 的网络。</li>
         </ul>
         <p class="note"><a href="#key-guide">第一次申请？看详细步骤</a></p>
@@ -859,14 +857,14 @@ footer .links a { margin-right: 18px; }
       </div>
       <div class="card step">
         <h3 data-en="Paste and go">粘贴，开始用</h3>
-        <div class="step-body" data-en="&lt;p&gt;Open Settings (on Android, the “AI” tab; on iPhone, “API settings” on the Translate page of the app; on Mac and Windows, “Settings” in the menu bar or tray icon):&lt;/p&gt;&lt;ul&gt;&lt;li&gt;&lt;b&gt;DeepSeek&lt;/b&gt;: choose “DeepSeek” as the provider, then paste your key.&lt;/li&gt;&lt;li&gt;&lt;b&gt;Gemini&lt;/b&gt;: choose “Google Gemini”, then paste your key.&lt;/li&gt;&lt;/ul&gt;&lt;p&gt;When you see &lt;span class=&quot;ok&quot;&gt;&lt;span class=&quot;dot&quot;&gt;&lt;/span&gt;API key works&lt;/span&gt;, you&#x27;re all set.&lt;/p&gt;&lt;p class=&quot;note&quot;&gt;AI voice input (Android) currently needs a Gemini key.&lt;/p&gt;">
+        <div class="step-body" data-en="&lt;p&gt;Open Settings (on Android, the “AI” tab; on iPhone, “API settings” on the Translate page of the app; on Mac and Windows, “Settings” in the menu bar or tray icon):&lt;/p&gt;&lt;ul&gt;&lt;li&gt;&lt;b&gt;DeepSeek&lt;/b&gt;: choose “DeepSeek” as the provider, then paste your key.&lt;/li&gt;&lt;li&gt;&lt;b&gt;Gemini&lt;/b&gt;: choose “Google” (“Google Gemini” on Windows), then paste your key.&lt;/li&gt;&lt;/ul&gt;&lt;p&gt;When you see &lt;span class=&quot;ok&quot;&gt;&lt;span class=&quot;dot&quot;&gt;&lt;/span&gt;API key works&lt;/span&gt;, you&#x27;re all set.&lt;/p&gt;&lt;p class=&quot;note&quot;&gt;AI voice input (Android) needs a Gemini key: once it is set, a microphone appears in the toolbar.&lt;/p&gt;">
         <p>打开设置（Android 在底部的「AI」页，iPhone 在 App「翻译」页的「API 配置」，Mac 和 Windows 在菜单栏或托盘图标的「设置」里）：</p>
         <ul>
           <li><b>DeepSeek</b>：服务商选「DeepSeek」，粘贴 Key。</li>
-          <li><b>Gemini</b>：服务商选「Google Gemini」，粘贴 Key。</li>
+          <li><b>Gemini</b>：服务商选「Google」（Windows 版写作「Google Gemini」），粘贴 Key。</li>
         </ul>
         <p>看到 <span class="ok"><span class="dot"></span>API Key 可用</span> 就可以用了。</p>
-        <p class="note">AI 语音输入（Android）目前需要 Gemini Key。</p>
+        <p class="note">AI 语音输入（Android）需要 Gemini Key，填好后工具栏会出现麦克风。</p>
         </div>
       </div>
     </div>
@@ -924,12 +922,12 @@ footer .links a { margin-right: 18px; }
         </details>
         <details>
           <summary data-en="iPhone: install and turn on the keyboard">iPhone：安装和启用键盘</summary>
-          <div class="answer" data-en="<ol><li>Install <b>TestFlight</b> from the App Store and open it once.</li><li>Open <a href=&quot;https://testflight.apple.com/join/8YzSZYwx&quot;>the install link</a> in Safari. Inside WeChat the button may do nothing: use “Open in Safari”.</li><li>In TestFlight, tap <b>Accept</b>, then <b>Install</b>.</li><li>In Settings → General → Keyboard → Keyboards → Add New Keyboard, choose ZnKeyboard, tap it and turn on <b>Allow Full Access</b>. Polish and translate need it; plain typing doesn't.</li><li>In the ZnKeyboard app, choose a provider, paste your API key and test the connection.</li></ol>Updating: update ZnKeyboard in TestFlight. To type on 9 keys, open the app's Keyboard page and choose it under Chinese keyboard.">
+          <div class="answer" data-en="<ol><li>Install <b>TestFlight</b> from the App Store and open it once.</li><li>Open <a href=&quot;https://testflight.apple.com/join/8YzSZYwx&quot;>the install link</a> in Safari. Inside WeChat the button may do nothing: use “Open in Safari”.</li><li>In TestFlight, tap <b>Accept</b>, then <b>Install</b>.</li><li>In Settings → General → Keyboard → Keyboards → Add New Keyboard, choose ZnKeyboard, tap it and turn on <b>Allow Full Access</b>. Translate needs it; plain typing doesn't.</li><li>In the ZnKeyboard app, choose a provider, paste your API key and test the connection.</li></ol>Updating: update ZnKeyboard in TestFlight. To type on 9 keys, open the app's Keyboard page and choose it under Chinese keyboard.">
             <ol>
               <li>在 App Store 安装 <b>TestFlight</b>，并打开一次。</li>
               <li>用 Safari 打开<a href="https://testflight.apple.com/join/8YzSZYwx">安装链接</a>。在微信里打开时按钮可能没有反应，请选「在 Safari 中打开」。</li>
               <li>在 TestFlight 里点 <b>接受</b>，再点 <b>安装</b>。</li>
-              <li>打开「设置 → 通用 → 键盘 → 键盘 → 添加新键盘」，选择 ZnKeyboard，再点进去打开 <b>允许完全访问</b>。润色和翻译需要它，只打字不需要。</li>
+              <li>打开「设置 → 通用 → 键盘 → 键盘 → 添加新键盘」，选择 ZnKeyboard，再点进去打开 <b>允许完全访问</b>。翻译需要它，只打字不需要。</li>
               <li>打开 ZnKeyboard App，选择服务商，粘贴 API Key 并测试连接。</li>
             </ol>
             以后更新：在 TestFlight 里更新 ZnKeyboard。想用九宫格：在 App「键盘」页的「中文键盘」里选择。
@@ -965,19 +963,23 @@ footer .links a { margin-right: 18px; }
       <div class="qa">
         <details>
           <summary data-en="Is it free?">要花钱吗？</summary>
-          <div class="answer" data-en="The apps are free. AI requests are billed by your provider to your own key. <b>DeepSeek</b> is pay as you go after a small top-up; a polish or translation costs a tiny fraction of a cent. <b>Google Gemini</b>'s free tier is plenty for everyday use, and ZnKeyboard uses its low-cost Flash-Lite models.">软件本身免费。AI 请求由服务商按你自己的 Key 计费：<b>DeepSeek</b> 按用量付费，需要先充值，润色或翻译一次只要几厘钱；<b>Google Gemini</b> 的免费额度足够日常使用，ZnKeyboard 默认用的也是它价格最低的 Flash-Lite 模型。</div>
+          <div class="answer" data-en="The apps are free. AI requests are billed by your provider to your own key. <b>DeepSeek</b> is pay as you go after a small top-up; a translation costs a tiny fraction of a cent. <b>Google Gemini</b>'s free tier is plenty for everyday use, and ZnKeyboard uses its low-cost Flash-Lite models.">软件本身免费。AI 请求由服务商按你自己的 Key 计费：<b>DeepSeek</b> 按用量付费，需要先充值，翻译一次只要几厘钱；<b>Google Gemini</b> 的免费额度足够日常使用，ZnKeyboard 默认用的也是它价格最低的 Flash-Lite 模型。</div>
         </details>
         <details>
           <summary data-en="Where does my text go?">我的文字会发到哪里？</summary>
-          <div class="answer" data-en="Only when you tap Polish or Translate (or use AI voice input), that text is sent directly to the AI provider you chose. There is no middleman server and no account. Once a day the apps send an anonymous count for the numbers on this site: a random ID, platform, version and how often you used it, never any text; turn it off in Settings (About &amp; updates on Android, General on Mac and Windows). The iPhone app sends no such count. For screenshot translate, the image is read on your computer and never uploaded; only the recognised text is sent. Your API key is stored on your device (Android Keystore, iOS and macOS Keychain, Windows Credential Manager). Ordinary typing never leaves the keyboard.">只有在你点「润色」「翻译」或使用 AI 语音输入时，那一段文字才会直接发给你选择的 AI 服务商。ZnKeyboard 没有中转服务器，也不需要注册。应用每天发送一次匿名统计，用于本站的用户数：只有随机编号、平台、版本和使用次数，不含任何文字，可在设置里关闭（Android 在「关于与更新」，Mac 和 Windows 在「通用」）；iPhone 版不发送统计。截图翻译时，截图只在你的电脑上识别，不会上传，只有识别出的文字会发给服务商。API Key 只保存在你的设备上（Android 密钥库、iOS 和 macOS 钥匙串、Windows 凭据管理器）。平时普通打字的内容不会离开键盘。</div>
+          <div class="answer" data-en="Only when you tap Translate (or Polish, on Windows) or use AI voice input, that text is sent directly to the AI provider you chose. There is no middleman server and no account. Once a day the apps send an anonymous count for the numbers on this site: a random ID, platform, version and how often you used it, never any text; turn it off in Settings (About &amp; updates on Android, General on Mac and Windows). The iPhone app sends no such count. For screenshot translate, the image is read on your computer and never uploaded; only the recognised text is sent. Your API key is stored on your device (Android Keystore, iOS and macOS Keychain, Windows Credential Manager). Ordinary typing never leaves the keyboard, and AI sentence ranking runs on the phone itself.">只有在你点「翻译」（Windows 版还有「润色」）或使用 AI 语音输入时，那一段文字才会直接发给你选择的 AI 服务商。ZnKeyboard 没有中转服务器，也不需要注册。应用每天发送一次匿名统计，用于本站的用户数：只有随机编号、平台、版本和使用次数，不含任何文字，可在设置里关闭（Android 在「关于与更新」，Mac 和 Windows 在「通用」）；iPhone 版不发送统计。截图翻译时，截图只在你的电脑上识别，不会上传，只有识别出的文字会发给服务商。API Key 只保存在你的设备上（Android 密钥库、iOS 和 macOS 钥匙串、Windows 凭据管理器）。平时普通打字的内容不会离开键盘，AI 整句排序也在手机上完成。</div>
         </details>
         <details>
           <summary data-en="How do I turn on Translate selection?">划词翻译怎么打开？</summary>
-          <div class="answer" data-en="On Mac and Windows, open Settings → Usage and turn on &lt;b&gt;On web pages and documents&lt;/b&gt;. Then select text while reading and tap &lt;b&gt;Translate&lt;/b&gt;. Without the pill, select text and press &lt;kbd&gt;⇧⌘1&lt;/kbd&gt; / &lt;kbd&gt;Ctrl+Shift+1&lt;/kbd&gt;. It translates into the language set under &lt;b&gt;Reading and screenshots to&lt;/b&gt;, the same one screenshot translate uses.">在 Mac 或 Windows 版的 设置 →「使用」里打开 <b>网页和文档</b>，之后看网页、文档时选中文字，点「翻译为」就行。不想要小胶囊的话，选中后按 <kbd>⇧⌘1</kbd> / <kbd>Ctrl+Shift+1</kbd> 也可以。翻译成的语言在「划词和截图翻译成」里设置，和截图翻译共用。</div>
+          <div class="answer" data-en="On Mac it is on from the start: select text while reading and tap &lt;b&gt;Translate&lt;/b&gt;, or press &lt;kbd&gt;⇧⌘E&lt;/kbd&gt;, which translates a selection in a text box in place and shows a translation for anything you read. Turn the pill off under Settings → Usage → &lt;b&gt;On web pages and documents&lt;/b&gt;. On Windows, turn that switch on, or select text and press &lt;kbd&gt;Ctrl+Shift+1&lt;/kbd&gt;. It translates into the language set under &lt;b&gt;Reading and screenshots to&lt;/b&gt;, the same one screenshot translate uses.">Mac 版默认已打开：看网页、文档时选中文字，点「翻译为」就行；也可以按 <kbd>⇧⌘E</kbd>，输入框里的文字会直接翻译替换，网页和文档里的文字则弹出译文。不想要小胶囊，可在 设置 →「使用」里关掉 <b>网页和文档</b>。Windows 版要在同一处打开，或者选中后按 <kbd>Ctrl+Shift+1</kbd>。翻译成的语言在「划词和截图翻译成」里设置，和截图翻译共用。</div>
         </details>
         <details>
           <summary data-en="Can I change the shortcuts?">快捷键可以改吗？</summary>
-          <div class="answer" data-en="Yes, in Settings → Shortcuts: click one and press the new keys. The defaults are &lt;kbd&gt;⇧⌘1&lt;/kbd&gt; translate selection, &lt;kbd&gt;⇧⌘2&lt;/kbd&gt; screenshot, &lt;kbd&gt;⇧⌘E&lt;/kbd&gt; polish and &lt;kbd&gt;⇧⌘R&lt;/kbd&gt; translate on Mac, and the same with &lt;kbd&gt;Ctrl+Shift&lt;/kbd&gt; on Windows.">可以，在 设置 →「快捷键」里点一下快捷键，再按新的组合键即可。默认是 Mac 上 <kbd>⇧⌘1</kbd> 划词翻译、<kbd>⇧⌘2</kbd> 截图翻译、<kbd>⇧⌘E</kbd> 润色、<kbd>⇧⌘R</kbd> AI 翻译，Windows 上把 ⇧⌘ 换成 <kbd>Ctrl+Shift</kbd>。</div>
+          <div class="answer" data-en="Yes, in Settings → Shortcuts: click one and press the new keys. On Mac there are two: &lt;kbd&gt;⇧⌘E&lt;/kbd&gt; translate (in place in a text box, as a card for what you read) and &lt;kbd&gt;⇧⌘2&lt;/kbd&gt; screenshot. On Windows the defaults are &lt;kbd&gt;Ctrl+Shift+1&lt;/kbd&gt; translate selection, &lt;kbd&gt;Ctrl+Shift+2&lt;/kbd&gt; screenshot, &lt;kbd&gt;Ctrl+Shift+E&lt;/kbd&gt; polish and &lt;kbd&gt;Ctrl+Shift+R&lt;/kbd&gt; translate.">可以，在 设置 →「快捷键」里点一下快捷键，再按新的组合键即可。Mac 上只有两个：<kbd>⇧⌘E</kbd> AI 翻译（输入框里直接替换，网页和文档里弹出译文）、<kbd>⇧⌘2</kbd> 截图翻译。Windows 上默认是 <kbd>Ctrl+Shift+1</kbd> 划词翻译、<kbd>Ctrl+Shift+2</kbd> 截图翻译、<kbd>Ctrl+Shift+E</kbd> 润色、<kbd>Ctrl+Shift+R</kbd> AI 翻译。</div>
+        </details>
+        <details>
+          <summary data-en="What is AI sentence ranking?">AI 整句排序是什么？</summary>
+          <div class="answer" data-en="On Android and iPhone, a small language model on the phone looks over the keyboard's best guesses for a whole sentence and moves the likeliest one first, so long sentences, initials and slips of the finger come out right more often. It needs no API key, sends nothing anywhere and is on by default; turn it off under Settings → Keyboard (Chinese pinyin on Android, Input on iPhone), where it also shows how long each keystroke took.">Android 和 iPhone 上，手机里的一个小型语言模型会给键盘猜出的几种整句重新排序，把最通顺的放在第一位，长句、简拼和手误更容易一次打对。它不需要 API Key，也不联网，默认开启；可在 设置 →「键盘」里关闭（Android 在「中文拼音」，iPhone 在「输入」），那里也会显示每次按键花了多少毫秒。</div>
         </details>
         <details>
           <summary data-en="Are the downloads the same on GitHub?">官网和 GitHub 的安装包有什么区别？</summary>
@@ -989,7 +991,7 @@ footer .links a { margin-right: 18px; }
         </details>
         <details>
           <summary data-en="Is there an iPhone version?">有 iPhone 版吗？</summary>
-          <div class="answer" data-en="Yes, as a beta through Apple's TestFlight. Install TestFlight from the App Store, then open <a href=&quot;https://testflight.apple.com/join/8YzSZYwx&quot;>the install link</a> in Safari; inside WeChat the button may do nothing. Polish and translate need your own API key and Full Access. There's no voice input or screenshot translate on iPhone.">有，目前是测试版，通过苹果的 TestFlight 安装。先在 App Store 安装 TestFlight，再用 Safari 打开<a href="https://testflight.apple.com/join/8YzSZYwx">安装链接</a>；在微信里打开时按钮可能没有反应。润色和翻译需要你自己的 API Key，并打开完全访问。iPhone 版没有语音输入和截图翻译。</div>
+          <div class="answer" data-en="Yes, as a beta through Apple's TestFlight. Install TestFlight from the App Store, then open <a href=&quot;https://testflight.apple.com/join/8YzSZYwx&quot;>the install link</a> in Safari; inside WeChat the button may do nothing. Translate needs your own API key and Full Access; AI sentence ranking works without either. There's no voice input or screenshot translate on iPhone.">有，目前是测试版，通过苹果的 TestFlight 安装。先在 App Store 安装 TestFlight，再用 Safari 打开<a href="https://testflight.apple.com/join/8YzSZYwx">安装链接</a>；在微信里打开时按钮可能没有反应。翻译需要你自己的 API Key，并打开完全访问；AI 整句排序不需要。iPhone 版没有语音输入和截图翻译。</div>
         </details>
         <details>
           <summary data-en="Is it open source?">是开源的吗？</summary>
@@ -1032,7 +1034,7 @@ footer .links a { margin-right: 18px; }
     document.documentElement.lang = lang === 'en' ? 'en' : 'zh-CN';
     nodes.forEach(function (n) { n.innerHTML = lang === 'en' ? n.dataset.en : n.dataset.zh; });
     langBtn.textContent = lang === 'en' ? '中文' : 'EN';
-    document.title = t('ZnKeyboard · 选中文字，一键润色或翻译', 'ZnKeyboard · Polish or translate in one tap');
+    document.title = t('ZnKeyboard · 选中文字，一键翻译', 'ZnKeyboard · Translate in one tap');
     renderDownloads();
     renderStats();
     restartDemo();
@@ -1060,11 +1062,11 @@ footer .links a { margin-right: 18px; }
       code: 'JA', out: '大変申し訳ございません。すぐに再送いたします。' },
     { label: ['选中文字 · 法语', 'Selected text · French'], in: 'Retours gratuits sous 30 jours après réception.',
       tr: ['收货后 30 天内免费退货。', 'Free returns within 30 days of delivery.'],
-      draft: ['can i return it after 30 day', 'can i return it after 30 day'],
-      code: '', out: 'Can I still return it after 30 days?' }
+      draft: ['30 天后还能退吗', 'Can I still return it after 30 days?'],
+      code: 'FR', out: 'Puis-je encore le retourner après 30 jours ?' }
   ];
   var whoEl = {};
-  ['label', 'in', 'in-box', 'tr', 'tr-row', 'rpill', 'rseg', 'rlabel', 'rchip', 'out', 'input', 'wpill', 'polish', 'polish-label', 'translate', 'translate-label', 'chip'].forEach(function (k) { whoEl[k] = document.getElementById('wd-' + k); });
+  ['label', 'in', 'in-box', 'tr', 'tr-row', 'rpill', 'rseg', 'rlabel', 'rchip', 'out', 'input', 'wpill', 'translate', 'translate-label', 'chip'].forEach(function (k) { whoEl[k] = document.getElementById('wd-' + k); });
   var whoItems = Array.prototype.slice.call(document.querySelectorAll('.who-item'));
   var whoTimers = [], whoIndex = 0, whoInView = false;
   function whoLater(ms, fn) { whoTimers.push(setTimeout(fn, ms)); }
@@ -1080,7 +1082,7 @@ footer .links a { margin-right: 18px; }
   function whoPlay(i) {
     whoStop();
     whoIndex = i;
-    var s = whoScenes[i], l = lang === 'en' ? 1 : 0, seg = s.code ? whoEl.translate : whoEl.polish;
+    var s = whoScenes[i], l = lang === 'en' ? 1 : 0, seg = whoEl.translate;
     whoItems.forEach(function (item, j) { item.classList.toggle('on', j === i); });
     whoEl.label.textContent = s.label[l];
     whoEl.in.textContent = s.in;
@@ -1089,11 +1091,10 @@ footer .links a { margin-right: 18px; }
     whoEl.input.textContent = '';
     whoEl.rlabel.textContent = t('翻译为', 'Translate to');
     whoEl.rchip.textContent = t('ZH', 'EN');
-    whoEl['polish-label'].textContent = t('润色', 'Polish');
     whoEl['translate-label'].textContent = t('AI 翻译为', 'Translate to');
-    whoEl.chip.textContent = s.code || 'EN';
+    whoEl.chip.textContent = s.code;
     [whoEl.in, whoEl.input].forEach(function (el) { el.classList.remove('sel'); });
-    [whoEl.rseg, whoEl.polish, whoEl.translate].forEach(function (el) { el.classList.remove('on'); });
+    [whoEl.rseg, whoEl.translate].forEach(function (el) { el.classList.remove('on'); });
     [whoEl.rpill, whoEl.wpill].forEach(function (el) { whoShow(el, false); });
     [whoEl['in-box'], whoEl['tr-row'], whoEl.out].forEach(function (el) { whoShow(el, reduce); });
     if (reduce) return;
