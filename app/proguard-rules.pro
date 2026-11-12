@@ -1,1 +1,2 @@
-# Keep empty until release shrinking rules are needed.
+# ONNX Runtime calls back into its Java classes from native code by name.
+-keep class ai.onnxruntime.** { *; }

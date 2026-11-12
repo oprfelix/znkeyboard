@@ -324,4 +324,7 @@
     <string name="languages_reply_short">My replies</string>
     <string name="languages_received_short">Messages I receive</string>
     <string name="action_close">Close</string>
+    <string name="pinyin_rerank">AI sentence ranking (experimental)</string>
+    <string name="pinyin_rerank_desc">An on-device language model reorders whole-sentence candidates. Nothing leaves the phone; uses more memory and battery.</string>
+    <string name="pinyin_rerank_stats">%1$d keystrokes scored, %2$.1f ms on average</string>
 </resources>

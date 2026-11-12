@@ -90,6 +90,9 @@ object KeyboardSettings {
     private const val KEY_SECOND_ROW_CLIPBOARD_MIGRATED = "second_row_clipboard_migrated"
     private const val KEY_SECOND_ROW_TOOLS_MIGRATED = "second_row_tools_migrated"
     private const val KEY_VOICE_INPUT_ENABLED = "voice_input_enabled"
+    private const val KEY_NEURAL_RERANK_ENABLED = "neural_rerank_enabled"
+    private const val KEY_NEURAL_RERANK_CALLS = "neural_rerank_calls"
+    private const val KEY_NEURAL_RERANK_MILLIS = "neural_rerank_millis"
     // Removed providers and profiles; kept only so the migration can read and clear them.
     private const val LEGACY_PROVIDER_OPENROUTER = "openrouter"
     private const val LEGACY_PROVIDER_NANBEIGE = "nanbeige_llama_cpp"
@@ -479,6 +482,33 @@ object KeyboardSettings {
             prefs.edit().remove(KEY_SECOND_ROW_BUTTONS).apply()
         }
         prefs.edit().putBoolean(KEY_SECOND_ROW_TOOLS_MIGRATED, true).apply()
+    }
+
+    /** AI 整句排序 (experimental): the character model reorders the whole-input readings. Off by default. */
+    fun readNeuralRerankEnabled(context: Context): Boolean =
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).getBoolean(KEY_NEURAL_RERANK_ENABLED, false)
+
+    fun saveNeuralRerankEnabled(context: Context, enabled: Boolean) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
+            .putBoolean(KEY_NEURAL_RERANK_ENABLED, enabled)
+            .remove(KEY_NEURAL_RERANK_CALLS)
+            .remove(KEY_NEURAL_RERANK_MILLIS)
+            .apply()
+    }
+
+    /** How many keystrokes were scored since the setting was last changed, and in how many ms in all. */
+    fun readNeuralRerankStats(context: Context): Pair<Int, Float> {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return prefs.getInt(KEY_NEURAL_RERANK_CALLS, 0) to prefs.getFloat(KEY_NEURAL_RERANK_MILLIS, 0f)
+    }
+
+    fun addNeuralRerankStats(context: Context, calls: Int, millis: Double) {
+        if (calls <= 0) return
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit()
+            .putInt(KEY_NEURAL_RERANK_CALLS, prefs.getInt(KEY_NEURAL_RERANK_CALLS, 0) + calls)
+            .putFloat(KEY_NEURAL_RERANK_MILLIS, prefs.getFloat(KEY_NEURAL_RERANK_MILLIS, 0f) + millis.toFloat())
+            .apply()
     }
 
     fun readVoiceInputEnabled(context: Context): Boolean {
@@ -1374,7 +1404,7 @@ object KeyboardSettings {
         val fixedBaseUrl: String?,
     ) {
         DeepSeek("deepseek", "DeepSeek", AgentDefaults.DEEPSEEK_API_BASE_URL),
-        Gemini("gemini", "Google Gemini", AgentDefaults.GEMINI_API_BASE_URL),
+        Gemini("gemini", "Google", AgentDefaults.GEMINI_API_BASE_URL),
         OpenAiCompatible("openai_compatible", "OpenAI compatible", null),
     }
 

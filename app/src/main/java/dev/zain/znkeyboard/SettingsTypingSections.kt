@@ -264,6 +264,8 @@ internal fun PinyinSection() {
     var rules by remember { mutableStateOf(KeyboardSettings.readPinyinFuzzyRules(context)) }
     var learning by remember { mutableStateOf(KeyboardSettings.readPinyinLearningEnabled(context)) }
     var predictions by remember { mutableStateOf(KeyboardSettings.readPinyinPredictionsEnabled(context)) }
+    var rerank by remember { mutableStateOf(KeyboardSettings.readNeuralRerankEnabled(context)) }
+    val rerankStats = remember(rerank) { KeyboardSettings.readNeuralRerankStats(context) }
     var confirmingReset by remember { mutableStateOf(false) }
 
     if (confirmingReset) {
@@ -323,6 +325,16 @@ internal fun PinyinSection() {
             description = stringResource(R.string.pinyin_predict_desc),
             checked = predictions,
             onCheckedChange = { predictions = it; KeyboardSettings.savePinyinPredictionsEnabled(context, it) },
+        )
+        SettingsSwitchRow(
+            title = stringResource(R.string.pinyin_rerank),
+            description = if (rerank && rerankStats.first > 0) {
+                stringResource(R.string.pinyin_rerank_stats, rerankStats.first, rerankStats.second / rerankStats.first)
+            } else {
+                stringResource(R.string.pinyin_rerank_desc)
+            },
+            checked = rerank,
+            onCheckedChange = { rerank = it; KeyboardSettings.saveNeuralRerankEnabled(context, it) },
         )
         OutlinedButton(onClick = { confirmingReset = true }) { Text(stringResource(R.string.pinyin_reset)) }
     }

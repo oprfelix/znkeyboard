@@ -23,13 +23,18 @@ android {
         applicationId = "dev.zain.znkeyboard"
         minSdk = 34
         targetSdk = 36
-        versionCode = 76
-        versionName = "1.9.41"
+        versionCode = 77
+        versionName = "1.9.42"
+        // ONNX Runtime's native library (18 MB) for 64-bit ARM only: every phone this minSdk runs on.
+        ndk {
+            abiFilters += listOf("arm64-v8a")
+        }
     }
 
     androidResources {
-        // pinyin/lm.bin is memory-mapped straight from the APK, which needs it stored uncompressed.
-        noCompress += "bin"
+        // pinyin/lm.bin and the sentence scorer's model are memory-mapped straight from the APK,
+        // which needs them stored uncompressed.
+        noCompress += listOf("bin", "onnx")
     }
 
     signingConfigs {
@@ -78,6 +83,7 @@ dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.recyclerview)
+    implementation(libs.onnxruntime.android)
     implementation(libs.glide)
 
     debugImplementation(libs.androidx.compose.ui.tooling)

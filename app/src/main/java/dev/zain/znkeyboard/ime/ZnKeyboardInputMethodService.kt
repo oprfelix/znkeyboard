@@ -144,6 +144,10 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     private var inputRoot: LinearLayout? = null
     private var keyboardContainer: FrameLayout? = null
     private var clipboardPanelView: ClipboardPanelView? = null
+    /** AI 整句排序 (experimental): set once the model has loaded while the setting is on. */
+    private var sentenceScorer: NeuralSentenceScorer? = null
+    private var sentenceScorerLoading = false
+
     /** The leaf menu's keyboard choice, over the keys below the candidate strip while open. */
     private var keyboardPicker: KeyboardPickerView? = null
     private var phrasesPanelView: PhrasesPanelView? = null
@@ -371,6 +375,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         dismissPinyinPredictions()
         typingEngine.save()
         savePinyinLearning()
+        saveSentenceScorerStats()
         keyboardView?.clearLatchedModifiers()
         keyboardView?.resetToLetters()
         resetAgentState(returnToKeyboard = true)
@@ -378,6 +383,8 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     }
 
     override fun onDestroy() {
+        saveSentenceScorerStats()
+        sentenceScorer?.close()
         cancelVoiceInput()
         requestGeneration++
         mainHandler.removeCallbacks(readingOfferExpiry)
@@ -752,6 +759,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         refreshRewriteLabel()
         setChineseKeyboard(KeyboardSettings.readChineseKeyboard(this), save = false)
         if (pinyinWanted()) ensurePinyinDictionary()
+        syncSentenceScorer()
         pinyinPredictionsEnabled = KeyboardSettings.readPinyinPredictionsEnabled(this)
         val heightScale = KeyboardSettings.readHeightScale(this)
         typingEngine.adaptiveEnabled = KeyboardSettings.readAdaptiveTouchEnabled(this)
@@ -1220,6 +1228,33 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         }.start()
     }
 
+    /** Loads the character model off the main thread while AI 整句排序 is on; drops it once off. */
+    private fun syncSentenceScorer() {
+        if (!KeyboardSettings.readNeuralRerankEnabled(this)) {
+            sentenceScorer?.close()
+            sentenceScorer = null
+            return
+        }
+        if (sentenceScorer != null || sentenceScorerLoading) return
+        sentenceScorerLoading = true
+        val appContext = applicationContext
+        Thread {
+            val started = SystemClock.elapsedRealtime()
+            val loaded = NeuralSentenceScorer.load(appContext)
+            Log.i(TAG, "sentence scorer ${if (loaded == null) "unavailable" else "loaded"} in ${SystemClock.elapsedRealtime() - started} ms")
+            mainHandler.post {
+                sentenceScorerLoading = false
+                if (KeyboardSettings.readNeuralRerankEnabled(appContext)) sentenceScorer = loaded else loaded?.close()
+            }
+        }.start()
+    }
+
+    /** Adds the scorer's timings since the last time to the setting's summary. */
+    private fun saveSentenceScorerStats() {
+        val (calls, millis) = sentenceScorer?.takeStats() ?: return
+        KeyboardSettings.addNeuralRerankStats(this, calls, millis)
+    }
+
     /**
      * The sentence model, memory-mapped from the APK (stored uncompressed, see build.gradle.kts)
      * so it costs no heap; null if it is missing or unreadable, and sentences rank as before.
@@ -1448,7 +1483,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
             composing.isEmpty() -> emptyList()
             chineseKeyboard == KeyboardSettings.ChineseKeyboard.NineKeyPinyin -> NineKeyEngine.candidates(composing, dictionary)
             chineseKeyboard == KeyboardSettings.ChineseKeyboard.NineKeyStroke -> strokeIndex?.candidates(composing, dictionary).orEmpty()
-            else -> PinyinEngine.candidates(composing, dictionary, pinyinTaps, pinyinLearner.context ?: pinyinFieldContext).let { found ->
+            else -> PinyinEngine.candidates(composing, dictionary, pinyinTaps, pinyinLearner.context ?: pinyinFieldContext, sentenceScorer).let { found ->
                 englishWords?.merge(composing, found, dictionary) ?: found
             }
         }

@@ -322,4 +322,7 @@
     <string name="languages_reply_short">我的回复</string>
     <string name="languages_received_short">收到的消息</string>
     <string name="action_close">关闭</string>
+    <string name="pinyin_rerank">AI 整句排序（实验）</string>
+    <string name="pinyin_rerank_desc">用手机上的语言模型给整句候选重新排序，不联网；会多占一些内存和电量。</string>
+    <string name="pinyin_rerank_stats">已排序 %1$d 次按键，平均每次 %2$.1f 毫秒</string>
 </resources>

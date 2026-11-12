@@ -40,6 +40,19 @@ object PinyinEngine {
     private const val SINGLE_SYLLABLE_LIMIT = 40
     /** Readings of the whole input to offer: the best, and others that stay close to it. */
     const val MAX_SENTENCES = 3
+    /**
+     * With a [SentenceScorer], the decoder's best this many readings are scored and reordered by
+     * -cost + RERANK_MODEL_WEIGHT × ln P + RERANK_CHAR_BONUS × characters (the language model
+     * favours short readings). Tuned on the benchmark's even half (tools/pinyin/charlm).
+     */
+    const val RERANK_READINGS = 8
+    private const val RERANK_MODEL_WEIGHT = 0.5f
+    private const val RERANK_CHAR_BONUS = 3f
+
+    /** Scores whole-input readings: ln P of each as a clause, or null to leave them as decoded. */
+    fun interface SentenceScorer {
+        fun score(texts: List<String>): FloatArray?
+    }
     /** Other ways to split the input: only for inputs this short, at most this many splits, their
      * best words, placed after the first few candidates. */
     private const val MAX_SPLIT_LETTERS = 8
@@ -125,23 +138,30 @@ object PinyinEngine {
      * slip, or the language model prefers another word than the dictionary's first), then the
      * words for its leading part, with the next best sentences after the words that read it all.
      */
-    /** [before] is the word committed just before, so the sentence reads on from it. */
+    /**
+     * [before] is the word committed just before, so the sentence reads on from it. [scorer], when
+     * given, reorders the readings of the whole input (see [RERANK_READINGS]).
+     */
     fun candidates(
         input: String,
         dictionary: PinyinDictionary,
         taps: SentenceDecoder.Taps? = null,
         before: SentenceDecoder.Context? = null,
-    ): List<Candidate> = withOtherSplits(input, rankedCandidates(input, dictionary, taps, before), dictionary)
+        scorer: SentenceScorer? = null,
+    ): List<Candidate> = withOtherSplits(input, rankedCandidates(input, dictionary, taps, before, scorer), dictionary)
 
     private fun rankedCandidates(
         input: String,
         dictionary: PinyinDictionary,
         taps: SentenceDecoder.Taps?,
         before: SentenceDecoder.Context?,
+        scorer: SentenceScorer?,
     ): List<Candidate> {
         val words = wordCandidates(input, dictionary)
-        val limit = if (dictionary.languageModel == null) 1 else MAX_SENTENCES
-        val sentences = SentenceDecoder.decodeAll(input, dictionary, taps, before, limit)
+        val rerank = scorer != null && dictionary.languageModel != null
+        val limit = if (dictionary.languageModel == null) 1 else if (rerank) RERANK_READINGS else MAX_SENTENCES
+        val decoded = SentenceDecoder.decodeAll(input, dictionary, taps, before, limit)
+        val sentences = if (rerank && decoded.size > 1) reranked(decoded, scorer!!).take(MAX_SENTENCES) else decoded
         val sentence = sentences.firstOrNull() ?: return withInitialWords(input, words, dictionary, before)
         val typed = input.replace(SEPARATOR.toString(), "")
         val corrected = sentence.spelling.replace(" ", "") != typed
@@ -149,6 +169,14 @@ object PinyinEngine {
             return withInitialWords(input, words, dictionary, before)
         }
         return withInitialWords(input, withSentences(sentences.map { wholeInput(it, input.length) }, words, input.length), dictionary, before)
+    }
+
+    /** [sentences] reordered with [scorer]'s ln P, or as they are when it gives none. */
+    private fun reranked(sentences: List<SentenceDecoder.Sentence>, scorer: SentenceScorer): List<SentenceDecoder.Sentence> {
+        val scores = scorer.score(sentences.map { it.text })?.takeIf { it.size == sentences.size } ?: return sentences
+        return sentences.indices
+            .sortedByDescending { -sentences[it].cost + RERANK_MODEL_WEIGHT * scores[it] + RERANK_CHAR_BONUS * sentences[it].text.length }
+            .map { sentences[it] }
     }
 
     /** [sentence] as a candidate that reads all [length] characters. */
