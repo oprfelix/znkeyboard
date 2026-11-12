@@ -20,6 +20,9 @@
   --blue: #2a70ff;
   --blue-2: #76a8ff;
   --blue-soft: #eaf1ff;
+  /* The keyboard's 翻译 pill: 翻译 on the upper layer, the language under it. */
+  --tl-lower: #e1ebff;
+  --tl-upper: #c6dbff;
   --ink: #121c34;
   --muted: #5a6882;
   --bg: #ffffff;
@@ -40,6 +43,8 @@
     --blue: #5b93ff;
     --blue-2: #8db6ff;
     --blue-soft: #18233d;
+    --tl-lower: #1a2a47;
+    --tl-upper: #23426f;
     --ink: #eef2fb;
     --muted: #9aa7c0;
     --bg: #0d1220;
@@ -233,8 +238,17 @@ nav .wrap { display: flex; align-items: center; gap: 24px; height: 60px; }
 .copy-pop { align-self: flex-start; margin: -4px 0 0 8px; padding: 4px 12px; font-size: 12px; color: #fff; background: #2b2f3a; border-radius: 8px; opacity: 0; transition: opacity .2s, transform .15s; }
 .copy-pop.show { opacity: 1; }
 .copy-pop.press { transform: scale(.9); }
-#tool-translate { flex: none; gap: 5px; padding: 0 6px 0 9px; white-space: nowrap; }
-.tool.icon { flex: none; width: 30px; background: transparent; border-color: transparent; font-size: 15px; }
+#tool-translate { flex: none; gap: 0; padding: 0; border-radius: 999px; background: var(--tl-lower); box-shadow: none; white-space: nowrap; }
+/* The upper layer ends in a "/" and shadows the language beneath it, as in the apps. */
+#tool-translate .tl { height: 100%; filter: drop-shadow(2px 0 1.5px rgba(0,0,0,.22)); }
+#tool-translate .tl-face { height: 100%; display: flex; align-items: center; gap: 4px; padding: 0 15px 0 10px; background: var(--tl-upper); color: var(--blue); clip-path: polygon(0 0, 100% 0, calc(100% - 7px) 100%, 0 100%); transition: background .2s, color .2s; }
+#tool-translate .tl-face svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+#tool-translate .chip { border: 0; background: transparent; color: var(--blue); font-size: 12px; font-weight: 500; padding: 0 10px 0 3px; line-height: 34px; }
+#tool-translate.press { background: var(--tl-lower); color: inherit; }
+#tool-translate.press .tl-face { background: var(--blue); color: #fff; }
+#tool-translate.press .chip { background: transparent; color: var(--blue); }
+.tool.icon { flex: none; width: 24px; background: transparent; border-color: transparent; box-shadow: none; font-size: 15px; }
+.tool.icon svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .tool.gap { flex: 1; visibility: hidden; }
 .demo-offer { display: none; margin: 2px 2px 8px; padding: 7px 10px; font-size: 12px; background: var(--card); border: 1px solid var(--line); border-radius: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: transform .15s; }
 .demo-offer b { color: var(--blue); margin-right: 6px; }
@@ -584,9 +598,12 @@ footer .links a { margin-right: 18px; }
           <div class="kb">
             <div class="demo-offer" id="demo-offer"></div>
             <div class="toolbar" id="demo-toolbar">
-              <div class="tool wide" id="tool-translate"><span data-en="Translate to">翻译为</span><span class="chip">ES ▾</span></div>
+              <div class="tool icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3.5 7.5h9M17.5 7.5h3M15 5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 1 1 0-5zM3.5 16.5h3M11.5 16.5h9M9 14a2.5 2.5 0 1 1 0 5 2.5 2.5 0 1 1 0-5z"/></svg></div>
+              <div class="tool wide" id="tool-translate"><span class="tl"><span class="tl-face"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h9M8.5 3v2M11 5c-.8 3.8-3.4 6.6-6.5 8M6.5 8.5c1.2 2 3 3.6 5.2 4.6M13 21l4-9 4 9M14.4 18h5.2"/></svg><span data-en="Translate">翻译</span></span></span><span class="chip">西班牙语 ▾</span></div>
               <div class="tool gap"></div>
-              <div class="tool icon" aria-hidden="true">⚙</div>
+              <div class="tool icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6 7.6h7q1.6 0 1.6 1.6v10.2q0 1.6-1.6 1.6H6q-1.6 0-1.6-1.6V9.2Q4.4 7.6 6 7.6zM10.5 3h8Q20 3 20 4.5v11q0 1.5-1.5 1.5h-1.9"/></svg></div>
+              <div class="tool icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5.2 4h13.6Q21 4 21 6.2v8.2q0 2.2-2.2 2.2h-8.4L6.6 20v-3.4H5.2Q3 16.6 3 14.4V6.2Q3 4 5.2 4zM7.2 8.6h9.6M7.2 12.2h6.4"/></svg></div>
+              <div class="tool icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-18 0 9 9 0 1 1 18 0zM9.4 9.4q.2-2.5 2.6-2.5 2.6 0 2.6 2.4 0 1.6-1.8 2.4-.8.4-.8 1.7v.5M12 17h.01"/></svg></div>
             </div>
             <div class="rows" aria-hidden="true">
               <div class="row"><div class="k">q</div><div class="k">w</div><div class="k">e</div><div class="k">r</div><div class="k">t</div><div class="k">y</div><div class="k">u</div><div class="k">i</div><div class="k">o</div><div class="k">p</div></div>
@@ -673,7 +690,7 @@ footer .links a { margin-right: 18px; }
       <div class="card feature">
         <div class="top"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h9M8.5 3v2m2.5 0c-.6 3.6-3 6.6-6.5 8.5M6.5 8.5c1 2 2.6 3.6 4.5 4.6"/><path d="m12 21 4.5-10L21 21m-7.5-3h6"/></svg></div></div>
         <h3 data-en="Translate to 14 languages">14 种语言翻译</h3>
-        <p data-en="Reads like a native wrote it, not word for word.">像母语者写的，不是生硬直译。</p>
+        <p data-en="Reads like a native wrote it, not word for word. On the phone keyboards, tap the language beside Translate to switch; select text to translate just that.">像母语者写的，不是生硬直译。手机键盘上点「翻译」旁边的语言即可切换；选中一段文字就只翻译这段。</p>
       </div>
       <div class="card feature">
         <div class="top"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></svg></div><span class="plat">Android</span></div>
@@ -1373,7 +1390,7 @@ footer .links a { margin-right: 18px; }
       incoming: '¿Podrían enviarme el presupuesto antes del viernes?',
       reading: t('译文 · 简体中文 ▾', 'Translation · English ▾'),
       read: t('能在周五之前把报价单发给我吗？', 'Could you send me the quote by Friday?'),
-      chip: t('西班牙文', 'ES'),
+      chip: t('西班牙语', 'ES'),
       offer: t('翻译', 'Translate'),
       reply: t('可以，周三前发给您', 'Sure, I will send it by Wednesday'),
       sent: 'Sí, se lo enviaré antes del miércoles.',
@@ -1382,7 +1399,7 @@ footer .links a { margin-right: 18px; }
       c2: t('看不懂？长按 <b>复制</b>', 'Can\'t read it? Press and hold, then <b>Copy</b>'),
       c3: t('点键盘上的 <b>翻译</b>', 'Tap <b>Translate</b> on the keyboard'),
       c4: t('译文留在键盘上方，边看边回复', 'The translation stays above the keys while you reply'),
-      c5: t('用中文回复，点 <b>翻译为 西班牙文</b>', 'Reply in your language, then tap <b>Translate to ES</b>'),
+      c5: t('用中文回复，点 <b>翻译</b>，译成西班牙语', 'Reply in your language, then tap <b>Translate</b> (to ES)'),
       c6: t('客户收到的是地道的西班牙语', 'The customer gets natural Spanish')
     };
   }
