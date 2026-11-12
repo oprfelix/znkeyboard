@@ -25,6 +25,13 @@ class AgentReviewView @JvmOverloads constructor(
     var callback: Callback? = null
     private var showingError = false
 
+    /** What came back, as on iOS: "✓ 翻译 → 日语". */
+    private val titleText = TextView(context).apply {
+        setTextColor(PALETTE.mutedText)
+        setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
+        setPadding(dp(4), 0, dp(4), dp(6))
+        visibility = GONE
+    }
     private val suggestionText = TextView(context).apply {
         setTextColor(PALETTE.text)
         setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
@@ -65,6 +72,7 @@ class AgentReviewView @JvmOverloads constructor(
         isClickable = true
         importantForAutofill = IMPORTANT_FOR_AUTOFILL_NO
 
+        addView(titleText, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
         val scrollView = ScrollView(context).apply {
             isFillViewport = true
             overScrollMode = OVER_SCROLL_IF_CONTENT_SCROLLS
@@ -104,8 +112,10 @@ class AgentReviewView @JvmOverloads constructor(
     }
 
     /** [chinese] labels the buttons in Chinese, used while the keyboard is in pinyin mode. */
-    fun renderReview(text: String, chinese: Boolean = false) {
+    fun renderReview(text: String, chinese: Boolean = false, title: String? = null) {
         showingError = false
+        titleText.text = title
+        titleText.visibility = if (title == null) GONE else VISIBLE
         suggestionText.text = text
         suggestionText.setTextColor(PALETTE.text)
         primaryButton.setText(if (chinese) R.string.agent_action_apply_zh else R.string.agent_action_apply)
@@ -114,6 +124,7 @@ class AgentReviewView @JvmOverloads constructor(
 
     fun renderError(error: String, chinese: Boolean = false) {
         showingError = true
+        titleText.visibility = GONE
         suggestionText.text = error
         suggestionText.setTextColor(PALETTE.errorText)
         primaryButton.setText(if (chinese) R.string.agent_action_copy_zh else R.string.agent_action_copy)

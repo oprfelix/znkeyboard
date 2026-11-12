@@ -337,6 +337,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {
         super.onStartInputView(info, restarting)
         currentEditorInfo = info
+        info?.let { refreshTranslateState(it.initialSelStart, it.initialSelEnd) }
         // Local only, at most one write a day; the daily job sends the anonymous ping.
         dev.zain.znkeyboard.UsageStats.markUsed(this)
         val themeSignature = ImeColors.apply(this, KeyboardSettings.readKeyboardTheme(this))
@@ -406,6 +407,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         candidatesEnd: Int,
     ) {
         super.onUpdateSelection(oldSelStart, oldSelEnd, newSelStart, newSelEnd, candidatesStart, candidatesEnd)
+        refreshTranslateState(newSelStart, newSelEnd)
         if (SystemClock.uptimeMillis() - lastOwnEditAt > OWN_EDIT_SETTLE_MS) pendingOwnSelectionUpdates = 0
         if (pendingOwnSelectionUpdates > 0) {
             // Our own edit; a late report from an earlier commit must not drop a newer composition.
@@ -867,7 +869,12 @@ class ZnKeyboardInputMethodService : InputMethodService(),
             view.callback = this
         }
         reviewView.setHeightScale(KeyboardSettings.readHeightScale(this))
-        reviewView.renderReview(review.replacementText, chinese = pinyinModeEnabled)
+        val language = KeyboardSettings.readAgentTranslateTarget(this)
+        reviewView.renderReview(
+            review.replacementText,
+            chinese = pinyinModeEnabled,
+            title = if (rewriteTranslates) t("✓ 翻译 → ${language.chineseName}", "✓ Translated → ${language.name}") else null,
+        )
         activeSurface = KeyboardSurface.Review
         swapKeyboardSurface(reviewView)
         renderSecondRow()
@@ -2937,8 +2944,28 @@ class ZnKeyboardInputMethodService : InputMethodService(),
                 rewriteEnabled = visible && isRewriteAvailable(),
                 // A password field keeps the clipboard (pasting is common) but never offers AI.
                 aiVisible = !isSensitiveEditor(currentEditorInfo),
+                hasText = fieldHasText,
+                selection = fieldHasSelection,
             ),
         )
+    }
+
+    // What 翻译 shows: grey over an empty field, 翻译选中 over a selection. Read from the editor's
+    // selection reports; a running request selects the whole field itself, so it is left out.
+    private var fieldHasText = true
+    private var fieldHasSelection = false
+
+    private fun refreshTranslateState(selStart: Int, selEnd: Int) {
+        if (agentLoading) return
+        val ic = currentInputConnection ?: return
+        val selection = selStart != selEnd
+        val text = selection || pinyinComposing.isNotEmpty() ||
+            !ic.getTextBeforeCursor(1, 0).isNullOrEmpty() || !ic.getTextAfterCursor(1, 0).isNullOrEmpty()
+        if (text != fieldHasText || selection != fieldHasSelection) {
+            fieldHasText = text
+            fieldHasSelection = selection
+            renderSecondRow()
+        }
     }
 
     private fun isRewriteAvailable(): Boolean {

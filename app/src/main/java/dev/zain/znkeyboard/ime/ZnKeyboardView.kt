@@ -139,28 +139,13 @@ class ZnKeyboardView @JvmOverloads constructor(
     private var secondRowButtonIds = KeyboardSettings.DEFAULT_SECOND_ROW_BUTTON_IDS
     private var keyboardRowOrder = KeyboardSettings.DEFAULT_KEYBOARD_ROW_ORDER
     private var shortcutRowState = ShortcutRowState(secondRowVisible = true)
-    private val leafIconPath = Path().apply {
-        val leaf = Path().apply {
-            moveTo(3.5f, 3.5f)
-            lineTo(7f, 3.5f)
-            quadTo(10.8f, 3.5f, 10.8f, 7.3f)
-            lineTo(10.8f, 10.8f)
-            lineTo(7.3f, 10.8f)
-            quadTo(3.5f, 10.8f, 3.5f, 7f)
-            close()
-        }
-        val turn = Matrix()
-        repeat(4) { quarter ->
-            turn.setRotate(quarter * 90f, 12f, 12f)
-            addPath(leaf, turn)
-        }
-    }
     private val clipboardIconStroke = PathParser.createPathFromPathData(ToolbarIconPaths.CLIPBOARD_STROKE)
     private val clipboardIconFill = PathParser.createPathFromPathData(ToolbarIconPaths.CLIPBOARD_FILL)
     private val phrasesIconStroke = PathParser.createPathFromPathData(ToolbarIconPaths.PHRASES_STROKE)
     private val helpIconStroke = PathParser.createPathFromPathData(ToolbarIconPaths.HELP_STROKE)
     private val micIconStroke = PathParser.createPathFromPathData(ToolbarIconPaths.MIC_STROKE)
     private val helpIconFill = PathParser.createPathFromPathData(ToolbarIconPaths.HELP_FILL)
+    private val toolsIconStroke = PathParser.createPathFromPathData(ToolbarIconPaths.TOOLS_STROKE)
     private val settingsIconPath = Path().apply {
         repeat(SETTINGS_ICON_TEETH) { tooth ->
             val angle = tooth * 2.0 * Math.PI / SETTINGS_ICON_TEETH
@@ -211,9 +196,7 @@ class ZnKeyboardView @JvmOverloads constructor(
     private val mergedKeyBounds = RectF()
     private val mergedLabelBounds = RectF()
     // 翻译 over its language, drawn as two layers (as on iOS).
-    private val layerCapsulePath = Path()
-    private val layerTopPath = Path()
-    private val layerShadowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
+    private val translateLayers = TranslateLayers(resources.displayMetrics.density)
     private var keyHapticsEnabled = true
     private var keyPreviewEnabled = true
     private var autoShiftActive = false
@@ -1132,7 +1115,7 @@ class ZnKeyboardView @JvmOverloads constructor(
         val drawBackground = when {
             // The language is the lower layer of 翻译's capsule, drawn with it; pressed, it shades.
             key.chip && toolbar -> pressed
-            layered && !rewriteLoading -> false
+            layered -> false
             pressed || selected || rewriteLoading || isSpace || key.chip -> true
             // Shortcut rows read as a quiet toolbar: content only, with a pill on press / latch.
             toolbar -> key.intent == KeyIntent.AgentRewrite || key.intent == KeyIntent.AgentPolishOnly
@@ -1153,7 +1136,7 @@ class ZnKeyboardView @JvmOverloads constructor(
         }
         val contentColor = when {
             key.chip && toolbar -> translateInk()
-            layered && !rewriteLoading -> translateInk()
+            layered -> translateInk()
             key.chip -> ImeColors.ON_TRANSLATE_BADGE
             rewriteLoading -> PALETTE.text
             selected -> PALETTE.onSelected
@@ -1177,27 +1160,35 @@ class ZnKeyboardView @JvmOverloads constructor(
             }
         }
 
-        if (layered && !rewriteLoading && next != null) {
-            drawLayeredTranslate(canvas, backgroundBounds, next.visualBounds.left, pressed, keyAlpha)
+        // 翻译 greys out over an empty field, as on iOS; its language stays as it is.
+        val dimmed = layered && !rewriteLoading && !shortcutRowState.hasText
+        if (layered && next != null) {
+            translateLayers.draw(canvas, backgroundBounds, next.visualBounds.left, pressed, keyAlpha, dimmed)
         } else if (drawBackground) {
             canvas.drawRoundRect(backgroundBounds, radius, radius, keyPaint)
         }
 
-        if (rewriteLoading) {
+        if (rewriteLoading && !layered) {
             drawRewriteLoadingWash(canvas, backgroundBounds, radius)
         }
 
-        val contentAlpha = if (key.enabled || key.emphasizedWhenDisabled) 255 else DISABLED_CONTENT_ALPHA
+        val contentAlpha = when {
+            dimmed -> DIMMED_TRANSLATE_ALPHA
+            key.enabled || key.emphasizedWhenDisabled -> 255
+            else -> DISABLED_CONTENT_ALPHA
+        }
         // A pill that runs on under a round badge centers its label in the space left of the badge.
         val labelBounds = if (key.mergesWithNext && next?.key?.chip == true) {
-            val chipLeft = if (layered) next.visualBounds.left - dp(LAYER_SLANT_DP) else next.visualBounds.left + dp(ImeDimensions.TRANSLATE_CHIP_INSET_DP)
+            val chipLeft = if (layered) next.visualBounds.left - dp(TranslateLayers.SLANT_DP) else next.visualBounds.left + dp(ImeDimensions.TRANSLATE_CHIP_INSET_DP)
             mergedLabelBounds.set(bounds.left, bounds.top, chipLeft, bounds.bottom)
             mergedLabelBounds
         } else {
             bounds
         }
 
-        if (rewriteLoading) {
+        if (rewriteLoading && layered) {
+            drawTranslateFlow(canvas, labelBounds, contentColor)
+        } else if (rewriteLoading) {
             drawRewriteLoadingContent(canvas, key.label, labelBounds, contentColor, contentAlpha)
         } else if (key.chip) {
             drawLanguageChipContent(canvas, key.label, bounds, contentColor, contentAlpha)
@@ -1691,47 +1682,47 @@ class ZnKeyboardView @JvmOverloads constructor(
         textPaint.typeface = letterTypeface
     }
 
-    /** Text and icons on 翻译's capsule: the same blue as on iOS, in every theme. */
-    private fun translateInk(): Int =
-        if (ColorUtils.calculateLuminance(ImeColors.BACKGROUND) > 0.5) Color.rgb(0, 110, 230) else Color.rgb(64, 156, 255)
+    private fun translateInk(): Int = TranslateLayers.ink()
 
-    /** The blue 翻译's two layers are washed with. */
-    private val translateBlue: Int
-        get() = if (ColorUtils.calculateLuminance(ImeColors.BACKGROUND) > 0.5) Color.rgb(0, 122, 255) else Color.rgb(10, 132, 255)
+    private val translateBlue: Int get() = TranslateLayers.blue()
 
     /**
-     * 翻译 and its language as two layers, as on iOS: a quiet accent capsule over [bounds] is the
-     * lower layer (the language), and 翻译 lies on it in a stronger tint whose right edge slants
-     * like "/" at [split], casting a soft shadow onto the language. The capsule's round ends
-     * follow the keyboard's corners.
+     * While translating, 翻译's place shows three dots lighting up left to right and then an
+     * arrowhead pointing at the language: on its way there. Redrawn every frame while loading.
      */
-    private fun drawLayeredTranslate(canvas: Canvas, bounds: RectF, split: Float, pressed: Boolean, alpha: Int) {
-        val light = ColorUtils.calculateLuminance(ImeColors.BACKGROUND) > 0.5
-        val radius = bounds.height() / 2f
-        val lower = ColorUtils.blendARGB(ImeColors.BACKGROUND, translateBlue, if (light) 0.10f else 0.16f)
-        var upper = ColorUtils.blendARGB(ImeColors.BACKGROUND, translateBlue, if (light) 0.22f else 0.36f)
-        if (pressed) upper = ImePressFeedback.contentStateLayer(upper, translateInk(), PRESSED_LAYER_OPACITY)
-        layerCapsulePath.reset()
-        layerCapsulePath.addRoundRect(bounds, radius, radius, Path.Direction.CW)
+    private fun drawTranslateFlow(canvas: Canvas, bounds: RectF, color: Int) {
+        val dot = dp(3f)
+        val gap = dp(5f)
+        val head = dp(5f)
+        val width = 3 * dot * 2 + 3 * gap + head
+        var x = bounds.centerX() - width / 2f + dot
+        val y = bounds.centerY()
+        val phase = (SystemClock.uptimeMillis() % TRANSLATE_FLOW_CYCLE_MS) / TRANSLATE_FLOW_CYCLE_MS.toFloat()
+        fun lit(index: Int): Int {
+            val start = index * 0.15f
+            val t = phase - start
+            val glow = if (t in 0f..0.35f) 1f - abs(t - 0.15f) / 0.2f else 0f
+            return (255 * (0.25f + 0.75f * glow.coerceIn(0f, 1f))).toInt()
+        }
         keyPaint.style = Paint.Style.FILL
-        keyPaint.color = lower
-        keyPaint.alpha = alpha
-        canvas.drawPath(layerCapsulePath, keyPaint)
-        val slant = dp(LAYER_SLANT_DP)
-        layerTopPath.reset()
-        layerTopPath.moveTo(bounds.left, bounds.top)
-        layerTopPath.lineTo(split + slant / 2f, bounds.top)
-        layerTopPath.lineTo(split - slant / 2f, bounds.bottom)
-        layerTopPath.lineTo(bounds.left, bounds.bottom)
-        layerTopPath.close()
-        canvas.save()
-        canvas.clipPath(layerCapsulePath)
-        layerShadowPaint.color = upper
-        layerShadowPaint.alpha = alpha
-        val shadow = Color.argb(((if (light) 0.25f else 0.5f) * alpha).toInt(), 0, 0, 0)
-        layerShadowPaint.setShadowLayer(dp(3f), dp(2f), 0f, shadow)
-        canvas.drawPath(layerTopPath, layerShadowPaint)
-        canvas.restore()
+        keyPaint.color = color
+        for (index in 0 until 3) {
+            keyPaint.alpha = lit(index)
+            canvas.drawCircle(x, y, dot, keyPaint)
+            x += dot * 2 + gap
+        }
+        val left = x - dot
+        chipChevronPath.reset()
+        chipChevronPath.moveTo(left, y - head)
+        chipChevronPath.lineTo(left + head, y)
+        chipChevronPath.lineTo(left, y + head)
+        keyPaint.style = Paint.Style.STROKE
+        keyPaint.strokeWidth = dp(2f)
+        keyPaint.strokeCap = Paint.Cap.ROUND
+        keyPaint.strokeJoin = Paint.Join.ROUND
+        keyPaint.alpha = lit(3)
+        canvas.drawPath(chipChevronPath, keyPaint)
+        keyPaint.style = Paint.Style.FILL
     }
 
     private fun toolbarPill(bounds: RectF): RectF {
@@ -2067,7 +2058,7 @@ class ZnKeyboardView @JvmOverloads constructor(
             KeyIcon.Phrases -> drawToolbarIcon(canvas, phrasesIconStroke, null)
             KeyIcon.Help -> drawToolbarIcon(canvas, helpIconStroke, helpIconFill)
             KeyIcon.Mic -> drawToolbarIcon(canvas, micIconStroke, null)
-            KeyIcon.Leaf -> canvas.drawPath(leafIconPath, iconPaint)
+            KeyIcon.Tools -> drawToolbarIcon(canvas, toolsIconStroke, null)
             KeyIcon.Settings -> canvas.drawPath(settingsIconPath, iconPaint)
         }
         canvas.restore()
@@ -2715,7 +2706,7 @@ class ZnKeyboardView @JvmOverloads constructor(
     }
 
     /**
-     * Leaf and 翻译 start the row and the other keys end it, each at a fixed width, with the
+     * Tools and 翻译 start the row and the other keys end it, each at a fixed width, with the
      * space left over between them. Weights are in dp so that the row adds up to the screen.
      */
     private fun fixedToolbarKeys(keys: MutableList<KeySpec>): List<KeySpec> {
@@ -2725,6 +2716,7 @@ class ZnKeyboardView @JvmOverloads constructor(
                 weight = when {
                     key.intent == KeyIntent.AgentPolishOnly -> ImeDimensions.TOOLBAR_POLISH_KEY_DP
                     key.intent == KeyIntent.AgentRewrite && latin -> ImeDimensions.TOOLBAR_TRANSLATE_LABEL_EN_DP
+                    key.intent == KeyIntent.AgentRewrite && shortcutRowState.selection -> ImeDimensions.TOOLBAR_TRANSLATE_SELECTION_LABEL_DP
                     key.intent == KeyIntent.AgentRewrite -> ImeDimensions.TOOLBAR_TRANSLATE_LABEL_DP
                     key.intent == KeyIntent.ChooseTranslateLanguage && latin -> ImeDimensions.TOOLBAR_LANGUAGE_CHIP_EN_DP
                     key.intent == KeyIntent.ChooseTranslateLanguage -> ImeDimensions.TOOLBAR_LANGUAGE_CHIP_DP
@@ -2733,7 +2725,7 @@ class ZnKeyboardView @JvmOverloads constructor(
             )
         }
         if (shortcutRowState.aiVisible) {
-            fixed.add(0, KeySpec("second_tools", "Tools", KeyIntent.OpenTools, ImeDimensions.TOOLBAR_ICON_KEY_DP, KeyRole.Function, icon = KeyIcon.Leaf))
+            fixed.add(0, KeySpec("second_tools", "Tools", KeyIntent.OpenTools, ImeDimensions.TOOLBAR_ICON_KEY_DP, KeyRole.Function, icon = KeyIcon.Tools))
         }
         // Clipboard, phrases and help end the row, as on iOS; settings moved into the tools menu.
         fixed.removeAll { it.intent == KeyIntent.OpenClipboard }
@@ -2780,6 +2772,8 @@ class ZnKeyboardView @JvmOverloads constructor(
             "rewrite" -> KeySpec(
                 id = id,
                 label = when {
+                    !shortcutRowState.loading && shortcutRowState.selection && pinyinModeEnabled && translateLanguageCode != null ->
+                        AgentDefaults.TRANSLATE_SELECTION_LABEL
                     !shortcutRowState.loading -> rewriteLabel
                     translateLanguageCode != null && pinyinModeEnabled -> AgentDefaults.TRANSLATE_REWRITE_LOADING_LABEL
                     translateLanguageCode != null -> AgentDefaults.TRANSLATE_REWRITE_LOADING_LABEL_EN
@@ -3284,7 +3278,7 @@ class ZnKeyboardView @JvmOverloads constructor(
         Phrases,
         Help,
         Mic,
-        Leaf,
+        Tools,
         Settings,
     }
 
@@ -3428,6 +3422,10 @@ class ZnKeyboardView @JvmOverloads constructor(
         val loading: Boolean = false,
         val rewriteEnabled: Boolean = false,
         val aiVisible: Boolean = true,
+        /** Something to translate is in the field; without it 翻译 greys out (a tap still says why). */
+        val hasText: Boolean = true,
+        /** Text is selected: only that is translated, and the key says 翻译选中. */
+        val selection: Boolean = false,
     )
 
     private companion object {
@@ -3493,8 +3491,9 @@ class ZnKeyboardView @JvmOverloads constructor(
         const val PHONE_PAD_SUB_LABEL_ALPHA_FRACTION = 0.78f
         const val SLIDE_HYSTERESIS_PITCH_FRACTION = 0.55f
         const val PRESSED_LAYER_OPACITY = 0.2f
-        /** How far 翻译's "/" edge leans, top to bottom. */
-        const val LAYER_SLANT_DP = 10f
+        /** 翻译 over an empty field, as on iOS. */
+        const val DIMMED_TRANSLATE_ALPHA = 102
+        const val TRANSLATE_FLOW_CYCLE_MS = 1200L
         const val PREVIEW_WIDTH_FACTOR = 1.28f
         const val PREVIEW_HEIGHT_FACTOR = 1.18f
         const val PREVIEW_MIN_WIDTH_DP = 44f

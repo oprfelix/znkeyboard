@@ -64,6 +64,8 @@ object AgentDefaults {
     val DEFAULT_TRANSLATE_LANGUAGE = TRANSLATE_LANGUAGES.first()
     // Shortcut-row labels follow the input mode: Chinese in 中, English in EN.
     const val TRANSLATE_REWRITE_LABEL = "翻译"
+    /** The key's label while text is selected: only that is translated. */
+    const val TRANSLATE_SELECTION_LABEL = "翻译选中"
     const val TRANSLATE_REWRITE_LABEL_EN = "Translate"
     const val TRANSLATE_REWRITE_LOADING_LABEL = "处理中…"
     const val TRANSLATE_REWRITE_LOADING_LABEL_EN = "Working…"

@@ -1,6 +1,8 @@
 package dev.zain.znkeyboard.ime
 
 import android.content.Context
+import android.graphics.Canvas
+import android.graphics.RectF
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.InsetDrawable
@@ -147,7 +149,7 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
             LayoutParams(context.dp(OFFER_CLOSE_WIDTH_DP), context.dp(34)).apply { marginStart = context.dp(6) },
         )
     }
-    private val toolsLeaf = toolIcon(R.drawable.ic_leaf_24, R.string.key_keyboard_tools) { callback?.onToolsMenuClosed() }
+    private val toolsLeaf = toolIcon(R.drawable.ic_toolbar_tools_24, R.string.key_keyboard_tools) { callback?.onToolsMenuClosed() }
     private val toolsKeyboard = toolIcon(R.drawable.ic_keyboard_24, R.string.key_switch_keyboard) {
         callback?.onChineseKeyboardMenuRequested()
     }
@@ -165,7 +167,7 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
         addView(toolsSettings, LayoutParams(0, context.dp(34), 1f))
     }
     // The keyboard choice's header: the leaf (lit, as the menu is open), the title, and close.
-    private val pickerLeaf = toolIcon(R.drawable.ic_leaf_24, R.string.key_keyboard_tools) { callback?.onToolsMenuClosed() }
+    private val pickerLeaf = toolIcon(R.drawable.ic_toolbar_tools_24, R.string.key_keyboard_tools) { callback?.onToolsMenuClosed() }
     private val pickerTitle = TextView(context).apply {
         gravity = Gravity.CENTER_VERTICAL
         textSize = 15f
@@ -195,27 +197,38 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
     private val translateLabel = TextView(context).apply {
         gravity = Gravity.CENTER
         textSize = 14f
-        setPadding(context.dp(12), 0, context.dp(6), 0)
+        typeface = Typeface.create(Typeface.DEFAULT, 600, false)
+        setPadding(context.dp(12), 0, context.dp(10f + TranslateLayers.SLANT_DP).roundToInt(), 0)
         compoundDrawablePadding = context.dp(ImeDimensions.TOOLBAR_LABEL_ICON_GAP_DP).roundToInt()
     }
+    /** The lower layer of 翻译's capsule: no badge of its own, as on iOS. */
     private val languageBadge = TextView(context).apply {
         gravity = Gravity.CENTER
-        textSize = 12f
-        typeface = Typeface.create(Typeface.DEFAULT, 500, false)
-        setTextColor(ImeColors.ON_TRANSLATE_BADGE)
-        setPadding(context.dp(9), 0, context.dp(8), 0)
-        background = GradientDrawable().apply {
-            cornerRadius = context.dp(13f)
-            setColor(ImeColors.TRANSLATE_BADGE)
-        }
+        textSize = 14f
+        setPadding(context.dp(8), 0, context.dp(12), 0)
         setOnClickListener { callback?.onTranslateLanguageMenuRequested() }
     }
-    private val translateButton = LinearLayout(context).apply {
+    private val translateButton = object : LinearLayout(context) {
+        private val layers = TranslateLayers(resources.displayMetrics.density)
+        private val box = RectF()
+
+        init { setWillNotDraw(false) }
+
+        // 翻译 on top, its "/" edge where the language begins.
+        override fun onDraw(canvas: Canvas) {
+            box.set(0f, 0f, width.toFloat(), height.toFloat())
+            layers.draw(canvas, box, languageBadge.left.toFloat(), pressed = isPressed)
+        }
+
+        override fun drawableStateChanged() {
+            super.drawableStateChanged()
+            invalidate()
+        }
+    }.apply {
         orientation = HORIZONTAL
         gravity = Gravity.CENTER_VERTICAL
-        setPadding(0, 0, context.dp(4), 0)
         addView(translateLabel, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.MATCH_PARENT))
-        addView(languageBadge, LayoutParams(LayoutParams.WRAP_CONTENT, context.dp(26)))
+        addView(languageBadge, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.MATCH_PARENT))
         setOnClickListener { callback?.onAgentRewriteRequested() }
         setOnLongClickListener {
             callback?.onTranslateLanguageMenuRequested()
@@ -303,12 +316,14 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
         offerClose.background = toolBackground()
         composingLabel.setTextColor(ImeColors.DISABLED_TEXT)
         polishButton.setTextColor(ImeColors.TEXT)
-        translateLabel.setTextColor(ImeColors.TEXT)
+        translateLabel.setTextColor(TranslateLayers.ink())
+        languageBadge.setTextColor(TranslateLayers.ink())
         // The icons iOS shows on 润色 and 翻译, before the label.
         polishButton.setCompoundDrawablesRelative(labelIcon(R.drawable.ic_auto_fix_high_24), null, null, null)
-        translateLabel.setCompoundDrawablesRelative(labelIcon(R.drawable.ic_translate_24), null, null, null)
+        translateLabel.setCompoundDrawablesRelative(labelIcon(R.drawable.ic_translate_24, TranslateLayers.ink()), null, null, null)
         polishButton.background = toolBackground()
-        translateButton.background = toolBackground()
+        translateButton.background = null
+        translateButton.invalidate()
         candidateViews.forEachIndexed { index, view -> styleCandidate(view, index == highlightedIndex) }
     }
 
@@ -424,7 +439,7 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
         translateButton.alpha = alpha
     }
 
-    private fun labelIcon(icon: Int) = context.tintedDrawable(icon, ImeColors.TEXT)?.apply {
+    private fun labelIcon(icon: Int, tint: Int = ImeColors.TEXT) = context.tintedDrawable(icon, tint)?.apply {
         val size = context.dp(ImeDimensions.TOOLBAR_LABEL_ICON_DP).roundToInt()
         setBounds(0, 0, size, size)
     }

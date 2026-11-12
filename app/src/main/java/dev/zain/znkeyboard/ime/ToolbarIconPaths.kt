@@ -14,4 +14,6 @@ internal object ToolbarIconPaths {
     const val MIC_STROKE = "M12,3.5Q15,3.5 15,6.5V11.5Q15,14.5 12,14.5Q9,14.5 9,11.5V6.5Q9,3.5 12,3.5Z M5.5,11Q5.5,17.5 12,17.5Q18.5,17.5 18.5,11 M12,17.5V21"
     const val HELP_STROKE = "M21,12A9,9 0 1,1 3,12A9,9 0 1,1 21,12Z M9.4,9.4Q9.6,6.9 12,6.9Q14.6,6.9 14.6,9.3Q14.6,10.9 12.8,11.7Q12,12.1 12,13.4V13.9"
     const val HELP_FILL = "M13,17A1,1 0 1,1 11,17A1,1 0 1,1 13,17Z"
+    /** The tools menu (switch keyboard, share, settings): two sliders, like slider.horizontal.3. */
+    const val TOOLS_STROKE = "M3.5,7.5H12.5 M17.5,7.5H20.5 M15,5A2.5,2.5 0 1,1 15,10A2.5,2.5 0 1,1 15,5Z M3.5,16.5H6.5 M11.5,16.5H20.5 M9,14A2.5,2.5 0 1,1 9,19A2.5,2.5 0 1,1 9,14Z"
 }
