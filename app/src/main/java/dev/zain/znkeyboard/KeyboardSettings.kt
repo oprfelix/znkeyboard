@@ -523,6 +523,14 @@ object KeyboardSettings {
             .getBoolean(KEY_VOICE_INPUT_ENABLED, true)
     }
 
+    /** Whether the one-time "tap to record, hold to talk" hint under the microphone was seen. */
+    fun readVoiceTipShown(context: Context): Boolean =
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).getBoolean("voice_tip_shown", false)
+
+    fun saveVoiceTipShown(context: Context) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit().putBoolean("voice_tip_shown", true).apply()
+    }
+
     fun saveVoiceInputEnabled(context: Context, enabled: Boolean) {
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .edit()

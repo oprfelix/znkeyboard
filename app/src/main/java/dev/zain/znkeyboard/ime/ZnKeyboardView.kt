@@ -7,10 +7,12 @@ import android.graphics.LinearGradient
 import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.Path
+import android.graphics.PointF
 import android.graphics.Rect
 import android.graphics.RectF
 import android.graphics.Shader
 import android.graphics.drawable.Drawable
+import androidx.core.graphics.ColorUtils
 import androidx.core.graphics.PathParser
 import android.os.Handler
 import android.os.Looper
@@ -66,6 +68,10 @@ class ZnKeyboardView @JvmOverloads constructor(
         /** Hold-space voice input; false when it can't start (the service shows why). */
         fun onVoiceInputStarted(): Boolean
         fun onVoiceInputFinished(cancelled: Boolean)
+        /** Drops the recording, or the transcription still on its way. */
+        fun onVoiceInputCancelled() {}
+        /** The first-use hint under the microphone has been seen. */
+        fun onVoiceTipShown() {}
     }
 
     /** What the space key shows for voice input. */
@@ -176,9 +182,18 @@ class ZnKeyboardView @JvmOverloads constructor(
     private var voiceIndicator: VoiceIndicator? = null
     private var voiceInputEnabled = true
     private var voiceCancelArmed = false
+    /** A tap on the microphone records hands-free, with 取消 / 完成 / 重说 buttons on the panel. */
+    private var voicePanel = false
+    private var voicePanelPressed = -1
+    private val voicePanelButtons = Array(3) { RectF() }
+    private var voiceHeardSpeech = false
+    private var voiceQuietSinceMs = 0L
+    private var voiceTipVisible = false
+    private val voiceTipRect = RectF()
     // Reused on every frame and finger move while recording, so drawing allocates nothing.
     private val voiceOverlayRect = RectF()
     private val voiceWavePath = Path()
+    private val voiceCancelPoint = PointF()
     private var voiceDisplayLevel = 0f
     private var voiceTimerSeconds = -1L
     private var voiceTimerText = ""
@@ -433,7 +448,38 @@ class ZnKeyboardView @JvmOverloads constructor(
     fun setVoiceIndicator(indicator: VoiceIndicator?) {
         if (voiceIndicator != indicator) {
             if (indicator !is VoiceIndicator.Recording) voiceCancelArmed = false
+            if (indicator == null || indicator is VoiceIndicator.Message) {
+                voicePanel = false
+                voicePanelPressed = -1
+            }
             voiceIndicator = indicator
+            invalidate()
+        }
+        if (indicator is VoiceIndicator.Recording && voicePanel) checkVoiceSilence(indicator.level)
+    }
+
+    /** Hands-free, a pause after speaking finishes the recording, as 完成 would. */
+    private fun checkVoiceSilence(level: Float) {
+        val now = SystemClock.uptimeMillis()
+        when {
+            level > VOICE_SPEECH_LEVEL -> {
+                voiceHeardSpeech = true
+                voiceQuietSinceMs = 0L
+            }
+            !voiceHeardSpeech || level >= VOICE_QUIET_LEVEL -> Unit
+            voiceQuietSinceMs == 0L -> voiceQuietSinceMs = now
+            now - voiceQuietSinceMs >= VOICE_SILENCE_DONE_MS -> {
+                voiceQuietSinceMs = 0L
+                voiceHeardSpeech = false
+                post { if (voicePanel && voiceIndicator is VoiceIndicator.Recording) callback?.onVoiceInputFinished(cancelled = false) }
+            }
+        }
+    }
+
+    /** The one-time hint under the microphone: tap to record, hold to talk. */
+    fun setVoiceTipVisible(visible: Boolean) {
+        if (voiceTipVisible != visible) {
+            voiceTipVisible = visible
             invalidate()
         }
     }
@@ -508,7 +554,11 @@ class ZnKeyboardView @JvmOverloads constructor(
         if (keyPreviewEnabled) {
             drawKeyPreviews(canvas)
         }
-        (voiceIndicator as? VoiceIndicator.Recording)?.let { drawVoiceOverlay(canvas, it) }
+        when (val indicator = voiceIndicator) {
+            is VoiceIndicator.Recording -> if (voicePanel) drawVoicePanel(canvas, indicator) else drawVoiceOverlay(canvas, indicator)
+            VoiceIndicator.Processing -> if (voicePanel) drawVoicePanel(canvas, null)
+            else -> if (voiceTipVisible && voiceInputEnabled) drawVoiceTip(canvas)
+        }
         if (shortcutRowState.loading || voiceIndicator == VoiceIndicator.Processing) {
             postInvalidateOnAnimation()
         }
@@ -528,6 +578,15 @@ class ZnKeyboardView @JvmOverloads constructor(
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
+        if (voicePanel && (voiceIndicator is VoiceIndicator.Recording || voiceIndicator == VoiceIndicator.Processing)) {
+            handleVoicePanelTouch(event)
+            return true
+        }
+        if (event.actionMasked == MotionEvent.ACTION_DOWN && voiceTipVisible) {
+            voiceTipVisible = false
+            callback?.onVoiceTipShown()
+            invalidate()
+        }
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 cancelActiveTouches()
@@ -647,7 +706,8 @@ class ZnKeyboardView @JvmOverloads constructor(
             val y = event.getY(pointerIndex)
             touch.voice?.let { voice ->
                 // Sliding into the overlay's cancel zone arms cancel; back down re-arms sending.
-                val armed = y < (voiceCancelBoundaryY() ?: (voice.startY - dp(VOICE_CANCEL_SLIDE_DP)))
+                val armed = y < (voiceCancelBoundaryY() ?: (voice.startY - dp(VOICE_CANCEL_SLIDE_DP))) ||
+                    voiceCancelTarget()?.let { hypot(x - it.x, y - it.y) < dp(VOICE_CANCEL_TARGET_DP + 14f) } == true
                 if (armed != voiceCancelArmed) {
                     voiceCancelArmed = armed
                     if (keyHapticsEnabled) performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
@@ -816,6 +876,8 @@ class ZnKeyboardView @JvmOverloads constructor(
             activeTouches.remove(nextPointerId)
             finishBackspaceGesture(touch)
             finishSpaceCursorDrag(touch)
+            // The microphone lifted: send, cancel, or (a quick tap) keep recording hands-free.
+            finishVoiceTouch(touch, cancelled = false)
             cancelLongPressFor(nextPointerId)
             cancelBackspaceRepeatFor(nextPointerId)
             if (
@@ -867,14 +929,20 @@ class ZnKeyboardView @JvmOverloads constructor(
         if (callback?.onVoiceInputStarted() != true) return
         // Once recording, the finger only arms cancel; it no longer moves the cursor.
         touch.spaceCursorDrag = null
-        touch.voice = VoiceTouch(startY = touch.downY)
+        touch.voice = VoiceTouch(startY = touch.downY, startedAt = SystemClock.uptimeMillis())
+        voiceTipVisible = false
         voiceCancelArmed = false
         performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
     }
 
     private fun finishVoiceTouch(touch: ActiveTouch?, cancelled: Boolean) {
-        touch?.voice ?: return
+        val voice = touch?.voice ?: return
         touch.voice = null
+        // A quick tap keeps recording, hands-free, until 完成 / 取消 on the panel.
+        if (!cancelled && !voiceCancelArmed && SystemClock.uptimeMillis() - voice.startedAt < VOICE_TAP_MS) {
+            openVoicePanel()
+            return
+        }
         val cancel = cancelled || voiceCancelArmed
         voiceCancelArmed = false
         callback?.onVoiceInputFinished(cancelled = cancel)
@@ -1218,7 +1286,11 @@ class ZnKeyboardView @JvmOverloads constructor(
         val inset = dp(VOICE_OVERLAY_INSET_DP)
         val top = mic.visualBounds.bottom + inset
         if (height - inset - top < dp(VOICE_OVERLAY_MIN_HEIGHT_DP)) return null
-        voiceOverlayRect.set(inset, top, width - inset, height - inset)
+        // Down to the last key row, clear of the bottom padding and the system's IME buttons.
+        var keysBottom = 0f
+        for (target in hitTargets) keysBottom = max(keysBottom, target.visualBounds.bottom)
+        val bottom = if (keysBottom > top) keysBottom else height - inset
+        voiceOverlayRect.set(inset, top, width - inset, bottom)
         return voiceOverlayRect
     }
 
@@ -1321,15 +1393,246 @@ class ZnKeyboardView @JvmOverloads constructor(
         drawOverlayText(canvas, formatVoiceTime(recording.elapsedMs), centerX, bounds.top + bounds.height() * 0.74f, dp(18f), textColor)
         drawOverlayText(
             canvas,
-            if (chinese) "松开发送 · 上滑取消" else "Release to send · slide up to cancel",
+            if (chinese) "松开发送 · 滑到 ✕ 取消" else "Release to send · slide to ✕ to cancel",
             centerX,
             bounds.top + bounds.height() * 0.88f,
             dp(15f),
             PALETTE.mutedText,
         )
+        voiceCancelTarget()?.let { target ->
+            val r = dp(VOICE_CANCEL_TARGET_DP)
+            iconPaint.style = Paint.Style.FILL
+            iconPaint.color = PALETTE.function
+            iconPaint.alpha = 255
+            canvas.drawCircle(target.x, target.y, r, iconPaint)
+            drawCross(canvas, target.x, target.y, r * 0.36f, PALETTE.text)
+        }
         textPaint.typeface = letterTypeface
         // Keep moving while recording.
         postInvalidateOnAnimation()
+    }
+
+    /** Hold-to-talk: a round ✕ just under the microphone; sliding the finger onto it cancels. */
+    private fun voiceCancelTarget(): PointF? {
+        val bounds = voiceOverlayBounds() ?: return null
+        val mic = hitTargets.firstOrNull { it.key.intent == KeyIntent.VoiceInput } ?: return null
+        val r = dp(VOICE_CANCEL_TARGET_DP)
+        val x = mic.visualBounds.centerX().coerceIn(bounds.left + r + dp(8f), bounds.right - r - dp(8f))
+        voiceCancelPoint.set(x, bounds.top + r + dp(14f))
+        return voiceCancelPoint
+    }
+
+    private fun drawCross(canvas: Canvas, cx: Float, cy: Float, half: Float, color: Int) {
+        iconPaint.style = Paint.Style.STROKE
+        iconPaint.color = color
+        iconPaint.alpha = 255
+        iconPaint.strokeWidth = dp(2.5f)
+        val cap = iconPaint.strokeCap
+        iconPaint.strokeCap = Paint.Cap.ROUND
+        canvas.drawLine(cx - half, cy - half, cx + half, cy + half, iconPaint)
+        canvas.drawLine(cx + half, cy - half, cx - half, cy + half, iconPaint)
+        iconPaint.strokeCap = cap
+    }
+
+    private fun openVoicePanel() {
+        voicePanel = true
+        voicePanelPressed = -1
+        voiceHeardSpeech = false
+        voiceQuietSinceMs = 0L
+        if (keyHapticsEnabled) performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+        invalidate()
+    }
+
+    /** The panel takes every touch: its three buttons, and the microphone again as 完成. */
+    private fun handleVoicePanelTouch(event: MotionEvent) {
+        val x = event.getX(event.actionIndex)
+        val y = event.getY(event.actionIndex)
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                voicePanelPressed = voicePanelButtonAt(x, y)
+                invalidate()
+            }
+            MotionEvent.ACTION_MOVE -> if (voicePanelPressed >= 0 && voicePanelButtonAt(x, y) != voicePanelPressed) {
+                voicePanelPressed = -1
+                invalidate()
+            }
+            MotionEvent.ACTION_UP -> {
+                val button = voicePanelPressed.takeIf { it >= 0 && voicePanelButtonAt(x, y) == it }
+                voicePanelPressed = -1
+                invalidate()
+                if (button != null) pressVoicePanelButton(button)
+            }
+            MotionEvent.ACTION_CANCEL -> {
+                voicePanelPressed = -1
+                invalidate()
+            }
+        }
+    }
+
+    private fun voicePanelButtonAt(x: Float, y: Float): Int {
+        val processing = voiceIndicator == VoiceIndicator.Processing
+        val index = voicePanelButtons.indexOfFirst { it.contains(x, y) }
+        if (index >= 0) return if (processing && index != VOICE_BUTTON_CANCEL) -1 else index
+        val mic = hitTargets.firstOrNull { it.key.intent == KeyIntent.VoiceInput }
+        return if (!processing && mic?.visualBounds?.contains(x, y) == true) VOICE_BUTTON_DONE else -1
+    }
+
+    private fun pressVoicePanelButton(button: Int) {
+        if (keyHapticsEnabled) performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+        when (button) {
+            VOICE_BUTTON_CANCEL -> callback?.onVoiceInputCancelled()
+            VOICE_BUTTON_DONE -> callback?.onVoiceInputFinished(cancelled = false)
+            VOICE_BUTTON_RETRY -> {
+                callback?.onVoiceInputCancelled()
+                if (callback?.onVoiceInputStarted() == true) openVoicePanel()
+            }
+        }
+    }
+
+    /**
+     * Hands-free recording over the keys: what is happening and the time on top, the microphone
+     * and its ripple in the middle, then 取消 / 完成 / 重说. [recording] null is transcribing,
+     * where only 取消 still works.
+     */
+    private fun drawVoicePanel(canvas: Canvas, recording: VoiceIndicator.Recording?) {
+        val bounds = voiceOverlayBounds() ?: return
+        val chinese = pinyinModeEnabled
+        keyPaint.style = Paint.Style.FILL
+        keyPaint.color = PALETTE.background
+        keyPaint.alpha = 255
+        // Square and edge to edge, so no key corner shows around it.
+        canvas.drawRect(0f, bounds.top - dp(VOICE_OVERLAY_INSET_DP), width.toFloat(), bounds.bottom + dp(VOICE_OVERLAY_INSET_DP), keyPaint)
+        textPaint.typeface = labelTypeface
+        val side = dp(16f)
+
+        // Header: a red dot and 正在聆听, or 识别中; the time on the right.
+        val headerY = bounds.top + dp(20f)
+        val title = when {
+            recording == null -> if (chinese) "已停止录音" else "Stopped"
+            else -> if (chinese) "正在聆听" else "Listening"
+        }
+        var titleX = bounds.left + side
+        if (recording != null) {
+            iconPaint.style = Paint.Style.FILL
+            iconPaint.color = ImeColors.VOICE_RECORDING
+            iconPaint.alpha = 255
+            canvas.drawCircle(titleX + dp(4f), headerY, dp(4f), iconPaint)
+            titleX += dp(16f)
+        }
+        textPaint.textAlign = Paint.Align.LEFT
+        drawOverlayText(canvas, title, titleX, headerY, dp(15f), if (recording != null) PALETTE.text else PALETTE.mutedText)
+        recording?.let {
+            textPaint.textAlign = Paint.Align.RIGHT
+            drawOverlayText(canvas, formatVoiceTime(it.elapsedMs), bounds.right - side, headerY, dp(15f), PALETTE.mutedText)
+        }
+        textPaint.textAlign = Paint.Align.CENTER
+
+        // Buttons along the bottom: 取消 | 完成 (wider, accent) | 重说.
+        val buttonHeight = dp(48f)
+        val gap = dp(10f)
+        val buttonsTop = bounds.bottom - dp(12f) - buttonHeight
+        val unit = (bounds.width() - 2 * side - 2 * gap) / 3.5f
+        var left = bounds.left + side
+        for (i in 0 until 3) {
+            val w = if (i == VOICE_BUTTON_DONE) unit * 1.5f else unit
+            voicePanelButtons[i].set(left, buttonsTop, left + w, buttonsTop + buttonHeight)
+            left += w + gap
+        }
+        for (i in 0 until 3) {
+            val rect = voicePanelButtons[i]
+            val enabled = recording != null || i == VOICE_BUTTON_CANCEL
+            val main = i == VOICE_BUTTON_DONE
+            keyPaint.color = when {
+                main && recording == null -> ColorUtils.blendARGB(ImeColors.ACCENT, PALETTE.background, 0.55f)
+                main -> ImeColors.ACCENT
+                else -> PALETTE.function
+            }
+            keyPaint.alpha = if (enabled || main) 255 else 110
+            if (i == voicePanelPressed) keyPaint.color = ColorUtils.blendARGB(keyPaint.color, PALETTE.text, 0.18f)
+            canvas.drawRoundRect(rect, dp(14f), dp(14f), keyPaint)
+            val label = when (i) {
+                VOICE_BUTTON_CANCEL -> if (chinese) "✕  取消" else "✕  Cancel"
+                VOICE_BUTTON_DONE -> if (recording == null) (if (chinese) "识别中…" else "Transcribing…") else (if (chinese) "✓  完成" else "✓  Done")
+                else -> if (chinese) "↺  重说" else "↺  Redo"
+            }
+            val color = if (main) ImeColors.ON_ACTION else PALETTE.text
+            drawOverlayText(canvas, label, rect.centerX(), rect.centerY(), dp(15.5f), color)
+            if (!enabled && !main) {
+                // Dim the label with the button.
+                keyPaint.color = PALETTE.background
+                keyPaint.alpha = 130
+                canvas.drawRoundRect(rect, dp(14f), dp(14f), keyPaint)
+            }
+        }
+
+        // The microphone and ripple between header and buttons; a hint just above the buttons.
+        val hintY = buttonsTop - dp(16f)
+        val centerX = bounds.centerX()
+        val centerY = (headerY + dp(14f) + hintY - dp(10f)) / 2f
+        val micRadius = dp(24f)
+        if (recording != null) {
+            voiceDisplayLevel += (recording.level - voiceDisplayLevel) * VOICE_LEVEL_EASING
+            val time = SystemClock.uptimeMillis() / 1000f
+            val reach = min(bounds.width() / 2f, (hintY - headerY) * 0.6f)
+            iconPaint.style = Paint.Style.STROKE
+            iconPaint.color = ImeColors.VOICE_RECORDING
+            iconPaint.strokeWidth = dp(2f)
+            for (ring in 0 until VOICE_RINGS) {
+                val phase = ((time / VOICE_RING_PERIOD_S) + ring / VOICE_RINGS.toFloat()) % 1f
+                val r = micRadius + (reach - micRadius) * phase * (0.6f + 0.4f * voiceDisplayLevel)
+                iconPaint.alpha = ((1f - phase) * 150).toInt()
+                canvas.drawCircle(centerX, centerY, r, iconPaint)
+            }
+        }
+        iconPaint.style = Paint.Style.FILL
+        iconPaint.color = if (recording != null) ImeColors.VOICE_RECORDING else PALETTE.function
+        iconPaint.alpha = 255
+        canvas.drawCircle(centerX, centerY, micRadius * (1f + 0.12f * (if (recording != null) voiceDisplayLevel else 0f)), iconPaint)
+        canvas.save()
+        val glyph = dp(24f)
+        canvas.translate(centerX - glyph / 2f, centerY - glyph / 2f)
+        canvas.scale(glyph / ImeLayout.ICON_VIEWPORT, glyph / ImeLayout.ICON_VIEWPORT)
+        iconPaint.style = Paint.Style.STROKE
+        iconPaint.color = if (recording != null) ImeColors.ON_VOICE_RECORDING else PALETTE.mutedText
+        iconPaint.strokeWidth = TOOLBAR_ICON_STROKE
+        canvas.drawPath(micIconStroke, iconPaint)
+        canvas.restore()
+        val hint = if (recording != null) {
+            if (chinese) "说完停顿 3 秒自动完成 · 返回键取消" else "Pause 3 s to finish · Back to cancel"
+        } else {
+            if (chinese) "识别完成后自动上屏" else "The text goes in when it's ready"
+        }
+        drawOverlayText(canvas, hint, centerX, hintY, dp(12.5f), PALETTE.mutedText)
+        textPaint.typeface = letterTypeface
+        postInvalidateOnAnimation()
+    }
+
+    /** A bubble under the microphone, once: how tap and hold differ. */
+    private fun drawVoiceTip(canvas: Canvas) {
+        val mic = hitTargets.firstOrNull { it.key.intent == KeyIntent.VoiceInput } ?: return
+        val text = if (pinyinModeEnabled) "轻点开始录音 · 按住说话松开发送" else "Tap to record · hold to talk"
+        textPaint.typeface = labelTypeface
+        textPaint.textSize = dp(13f)
+        val padX = dp(12f)
+        val w = textPaint.measureText(text) + 2 * padX
+        val h = dp(34f)
+        val arrow = dp(6f)
+        val top = mic.visualBounds.bottom + arrow + dp(2f)
+        val left = (mic.visualBounds.centerX() - w / 2f).coerceIn(dp(6f), width - dp(6f) - w)
+        voiceTipRect.set(left, top, left + w, top + h)
+        keyPaint.style = Paint.Style.FILL
+        keyPaint.color = ImeColors.ACCENT
+        keyPaint.alpha = 255
+        canvas.drawRoundRect(voiceTipRect, dp(10f), dp(10f), keyPaint)
+        voiceWavePath.rewind()
+        val ax = mic.visualBounds.centerX()
+        voiceWavePath.moveTo(ax - arrow, top)
+        voiceWavePath.lineTo(ax, top - arrow)
+        voiceWavePath.lineTo(ax + arrow, top)
+        voiceWavePath.close()
+        canvas.drawPath(voiceWavePath, keyPaint)
+        drawOverlayText(canvas, text, voiceTipRect.centerX(), voiceTipRect.centerY(), dp(13f), ImeColors.ON_ACTION)
+        textPaint.typeface = letterTypeface
     }
 
     /** Draws [text] centered on ([centerX], [centerY]). */
@@ -3001,7 +3304,7 @@ class ZnKeyboardView @JvmOverloads constructor(
         var swipedUp: Boolean = false,
     )
 
-    private class VoiceTouch(val startY: Float)
+    private class VoiceTouch(val startY: Float, val startedAt: Long)
 
     private data class BackspaceGestureTouch(
         val key: KeySpec,
@@ -3109,6 +3412,15 @@ class ZnKeyboardView @JvmOverloads constructor(
         const val SPACE_CURSOR_DRAG_MAX_CHARS = 120
         const val AI_LOADING_CYCLE_MS = 2200L
         const val VOICE_CANCEL_SLIDE_DP = 56f
+        const val VOICE_CANCEL_TARGET_DP = 26f
+        /** Up sooner than this, the microphone was tapped: record hands-free. */
+        const val VOICE_TAP_MS = 350L
+        const val VOICE_SPEECH_LEVEL = 0.08f
+        const val VOICE_QUIET_LEVEL = 0.03f
+        const val VOICE_SILENCE_DONE_MS = 3_000L
+        const val VOICE_BUTTON_CANCEL = 0
+        const val VOICE_BUTTON_DONE = 1
+        const val VOICE_BUTTON_RETRY = 2
         const val VOICE_OVERLAY_INSET_DP = 6f
         const val VOICE_OVERLAY_MIN_HEIGHT_DP = 120f
         const val VOICE_OVERLAY_RADIUS_DP = 20f

@@ -700,11 +700,38 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         commitPinyinWholeTop()
         voiceRecorder = recorder
         keyboardView?.setVoiceIndicator(ZnKeyboardView.VoiceIndicator.Recording(0f, 0L))
+        syncVoiceBack()
         return true
     }
 
     override fun onVoiceInputFinished(cancelled: Boolean) {
         finishVoiceInput(cancelled)
+    }
+
+    override fun onVoiceInputCancelled() {
+        cancelVoiceInput()
+    }
+
+    override fun onVoiceTipShown() {
+        KeyboardSettings.saveVoiceTipShown(this)
+    }
+
+    /** Back while recording or transcribing drops the voice input and keeps the keyboard up. */
+    private val voiceBackCallback = android.window.OnBackInvokedCallback { cancelVoiceInput() }
+    private var voiceBackRegistered = false
+
+    private fun syncVoiceBack() {
+        val busy = voiceRecorder != null || voiceProcessing
+        if (busy == voiceBackRegistered) return
+        val dispatcher = window?.window?.onBackInvokedDispatcher ?: return
+        runCatching {
+            if (busy) {
+                dispatcher.registerOnBackInvokedCallback(android.window.OnBackInvokedDispatcher.PRIORITY_OVERLAY, voiceBackCallback)
+            } else {
+                dispatcher.unregisterOnBackInvokedCallback(voiceBackCallback)
+            }
+            voiceBackRegistered = busy
+        }
     }
 
     override fun onAgentReviewApply() {
@@ -774,6 +801,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
             view.setKeyPreviewEnabled(KeyboardSettings.readKeyPreviewEnabled(this))
             view.setNumberRowVisible(KeyboardSettings.readNumberRowEnabled(this))
             view.setVoiceInputEnabled(KeyboardSettings.isVoiceInputAvailable(this))
+            view.setVoiceTipVisible(KeyboardSettings.isVoiceInputAvailable(this) && !KeyboardSettings.readVoiceTipShown(this))
             view.setUpperRowKeyIds(KeyboardSettings.readUpperRowKeyIds(this))
             view.setSecondRowButtonIds(KeyboardSettings.readSecondRowButtonIds(this))
             view.setKeyboardRowOrder(KeyboardSettings.readKeyboardRowOrder(this))
@@ -2433,11 +2461,13 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         if (cancelled) {
             recorder.cancel()
             keyboardView?.setVoiceIndicator(null)
+            syncVoiceBack()
             return
         }
         val clip = recorder.stop()
         if (clip.durationMs < AgentDefaults.MIN_VOICE_CLIP_MS) {
             keyboardView?.setVoiceIndicator(null)
+            syncVoiceBack()
             return
         }
 
@@ -2475,6 +2505,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
                 if (generation != voiceGeneration) return@post
                 voiceProcessing = false
                 keyboardView?.setVoiceIndicator(null)
+                syncVoiceBack()
                 result
                     .onSuccess { text ->
                         dev.zain.znkeyboard.UsageStats.recordUse(this)
@@ -2504,6 +2535,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         voiceHintRunnable?.let(mainHandler::removeCallbacks)
         voiceHintRunnable = null
         keyboardView?.setVoiceIndicator(null)
+        syncVoiceBack()
     }
 
     private fun commitVoiceText(text: String) {
