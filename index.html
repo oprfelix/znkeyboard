@@ -750,7 +750,7 @@ footer .links a { margin-right: 18px; }
             <div class="actions"><span class="small-btn" data-en="Copy">复制</span><span class="small-btn primary" data-en="Replace ↵">替换 ↵</span></div>
           </div>
         </div>
-        <p class="scene-note" data-en="Select text in any text box and tap <b>Translate to</b>, or press <kbd>⇧⌘E</kbd> on Mac. On Windows press <kbd>Ctrl+Shift+R</kbd>; the Windows app also polishes with <kbd>Ctrl+Shift+E</kbd>.">在任何输入框里选中文字，点「AI 翻译为」，Mac 上也可以按 <kbd>⇧⌘E</kbd>。Windows 上按 <kbd>Ctrl+Shift+R</kbd> 翻译，Windows 版另有 <kbd>Ctrl+Shift+E</kbd> 润色。</p>
+        <p class="scene-note" data-en="Select text in any text box and tap <b>Translate to</b>, or press <kbd>⇧⌘E</kbd> on Mac, <kbd>Ctrl+Shift+E</kbd> on Windows.">在任何输入框里选中文字，点「AI 翻译为」，或按快捷键：Mac 上 <kbd>⇧⌘E</kbd>，Windows 上 <kbd>Ctrl+Shift+E</kbd>。</p>
       </div>
 
       <div class="scene" id="scene-read" role="tabpanel" aria-labelledby="tab-read" hidden>
@@ -770,7 +770,7 @@ footer .links a { margin-right: 18px; }
             <div class="actions"><span class="small-btn" data-en="Copy original">复制原文</span><span class="small-btn primary" data-en="Copy translation ↵">复制译文 ↵</span></div>
           </div>
         </div>
-        <p class="scene-note" data-en="Select text on a web page or in a document and tap <b>Translate</b>; on Mac, <kbd>⇧⌘E</kbd> does the same, on Windows <kbd>Ctrl+Shift+1</kbd>. Pin the card to keep it beside what you read. The pill is on by default on Mac; on Windows turn it on in Settings → Usage.">在网页、文档里选中文字，点「翻译为」；Mac 上按 <kbd>⇧⌘E</kbd> 也一样，Windows 上按 <kbd>Ctrl+Shift+1</kbd>。点图钉可以把卡片固定在旁边。Mac 版默认打开这个小胶囊，Windows 版在 设置 →「使用」里打开。</p>
+        <p class="scene-note" data-en="Select text on a web page or in a document and tap <b>Translate</b>; the same shortcut does it too, <kbd>⇧⌘E</kbd> on Mac and <kbd>Ctrl+Shift+E</kbd> on Windows. Pin the card to keep it beside what you read. The pill is on by default.">在网页、文档里选中文字，点「翻译为」；用同一个快捷键也行：Mac 上 <kbd>⇧⌘E</kbd>，Windows 上 <kbd>Ctrl+Shift+E</kbd>。点图钉可以把卡片固定在旁边。这个小胶囊默认打开。</p>
       </div>
 
       <div class="scene" id="scene-shot" role="tabpanel" aria-labelledby="tab-shot" hidden>
@@ -840,7 +840,7 @@ footer .links a { margin-right: 18px; }
       <article class="card platform" data-platform="windows">
         <header><img src="assets/icon-desktop.png" alt=""><div><h3>Windows <span class="tag" data-en="Tray">托盘</span></h3><div class="kind" data-en="Works in any app">在任何软件里使用</div></div></header>
         <ul>
-          <li data-en="Select text to polish or translate">选中文字，润色或翻译</li>
+          <li data-en="Select text to translate it">选中文字，一键翻译</li>
           <li data-en="Translate a selection or a screenshot">划词翻译、截图翻译</li>
           <li data-en="Windows 10 / 11, 64-bit">Windows 10 / 11，64 位</li>
           <li data-en="Needs the free <a href=&quot;https://dotnet.microsoft.com/download/dotnet/10.0&quot;>.NET 10 Desktop Runtime</a>">需安装 <a href="https://dotnet.microsoft.com/download/dotnet/10.0">.NET 10 Desktop Runtime</a></li>
@@ -984,15 +984,15 @@ footer .links a { margin-right: 18px; }
         </details>
         <details>
           <summary data-en="Where does my text go?">我的文字会发到哪里？</summary>
-          <div class="answer" data-en="Only when you tap Translate (or Polish, on Windows) or use AI voice input, that text is sent directly to the AI provider you chose. There is no middleman server and no account. Once a day the apps send an anonymous count for the numbers on this site: a random ID, platform, version and how often you used it, never any text; turn it off in Settings (About &amp; updates on Android, General on Mac and Windows). The iPhone app sends no such count. For screenshot translate, the image is read on your computer and never uploaded; only the recognised text is sent. Your API key is stored on your device (Android Keystore, iOS and macOS Keychain, Windows Credential Manager). Ordinary typing never leaves the keyboard, and AI sentence ranking runs on the phone itself.">只有在你点「翻译」（Windows 版还有「润色」）或使用 AI 语音输入时，那一段文字才会直接发给你选择的 AI 服务商。ZnKeyboard 没有中转服务器，也不需要注册。应用每天发送一次匿名统计，用于本站的用户数：只有随机编号、平台、版本和使用次数，不含任何文字，可在设置里关闭（Android 在「关于与更新」，Mac 和 Windows 在「通用」）；iPhone 版不发送统计。截图翻译时，截图只在你的电脑上识别，不会上传，只有识别出的文字会发给服务商。API Key 只保存在你的设备上（Android 密钥库、iOS 和 macOS 钥匙串、Windows 凭据管理器）。平时普通打字的内容不会离开键盘，AI 整句排序也在手机上完成。</div>
+          <div class="answer" data-en="Only when you tap Translate or use AI voice input, that text is sent directly to the AI provider you chose. There is no middleman server and no account. Once a day the apps send an anonymous count for the numbers on this site: a random ID, platform, version and how often you used it, never any text; turn it off in Settings (About &amp; updates on Android, General on Mac and Windows). The iPhone app sends no such count. For screenshot translate, the image is read on your computer and never uploaded; only the recognised text is sent. Your API key is stored on your device (Android Keystore, iOS and macOS Keychain, Windows Credential Manager). Ordinary typing never leaves the keyboard, and AI sentence ranking runs on the phone itself.">只有在你点「翻译」或使用 AI 语音输入时，那一段文字才会直接发给你选择的 AI 服务商。ZnKeyboard 没有中转服务器，也不需要注册。应用每天发送一次匿名统计，用于本站的用户数：只有随机编号、平台、版本和使用次数，不含任何文字，可在设置里关闭（Android 在「关于与更新」，Mac 和 Windows 在「通用」）；iPhone 版不发送统计。截图翻译时，截图只在你的电脑上识别，不会上传，只有识别出的文字会发给服务商。API Key 只保存在你的设备上（Android 密钥库、iOS 和 macOS 钥匙串、Windows 凭据管理器）。平时普通打字的内容不会离开键盘，AI 整句排序也在手机上完成。</div>
         </details>
         <details>
           <summary data-en="How do I turn on Translate selection?">划词翻译怎么打开？</summary>
-          <div class="answer" data-en="On Mac it is on from the start: select text while reading and tap &lt;b&gt;Translate&lt;/b&gt;, or press &lt;kbd&gt;⇧⌘E&lt;/kbd&gt;, which translates a selection in a text box in place and shows a translation for anything you read. Turn the pill off under Settings → Usage → &lt;b&gt;On web pages and documents&lt;/b&gt;. On Windows, turn that switch on, or select text and press &lt;kbd&gt;Ctrl+Shift+1&lt;/kbd&gt;. It translates into the language set under &lt;b&gt;Reading and screenshots to&lt;/b&gt;, the same one screenshot translate uses.">Mac 版默认已打开：看网页、文档时选中文字，点「翻译为」就行；也可以按 <kbd>⇧⌘E</kbd>，输入框里的文字会直接翻译替换，网页和文档里的文字则弹出译文。不想要小胶囊，可在 设置 →「使用」里关掉 <b>网页和文档</b>。Windows 版要在同一处打开，或者选中后按 <kbd>Ctrl+Shift+1</kbd>。翻译成的语言在「划词和截图翻译成」里设置，和截图翻译共用。</div>
+          <div class="answer" data-en="It is on from the start on Mac and Windows: select text while reading and tap &lt;b&gt;Translate&lt;/b&gt;, or press &lt;kbd&gt;⇧⌘E&lt;/kbd&gt; on Mac or &lt;kbd&gt;Ctrl+Shift+E&lt;/kbd&gt; on Windows, which translates a selection in a text box in place and shows a translation for anything you read. Turn the pill off under Settings → Usage → &lt;b&gt;On web pages and documents&lt;/b&gt;. It translates into the language set under &lt;b&gt;Reading and screenshots to&lt;/b&gt;, the same one screenshot translate uses.">Mac 和 Windows 版都默认打开：看网页、文档时选中文字，点「翻译为」就行；也可以按快捷键（Mac 上 <kbd>⇧⌘E</kbd>，Windows 上 <kbd>Ctrl+Shift+E</kbd>），输入框里的文字会直接翻译替换，网页和文档里的文字则弹出译文。不想要小胶囊，可在 设置 →「使用」里关掉 <b>网页和文档</b>。翻译成的语言在「划词和截图翻译成」里设置，和截图翻译共用。</div>
         </details>
         <details>
           <summary data-en="Can I change the shortcuts?">快捷键可以改吗？</summary>
-          <div class="answer" data-en="Yes, in Settings → Shortcuts: click one and press the new keys. On Mac there are two: &lt;kbd&gt;⇧⌘E&lt;/kbd&gt; translate (in place in a text box, as a card for what you read) and &lt;kbd&gt;⇧⌘2&lt;/kbd&gt; screenshot. On Windows the defaults are &lt;kbd&gt;Ctrl+Shift+1&lt;/kbd&gt; translate selection, &lt;kbd&gt;Ctrl+Shift+2&lt;/kbd&gt; screenshot, &lt;kbd&gt;Ctrl+Shift+E&lt;/kbd&gt; polish and &lt;kbd&gt;Ctrl+Shift+R&lt;/kbd&gt; translate.">可以，在 设置 →「快捷键」里点一下快捷键，再按新的组合键即可。Mac 上只有两个：<kbd>⇧⌘E</kbd> AI 翻译（输入框里直接替换，网页和文档里弹出译文）、<kbd>⇧⌘2</kbd> 截图翻译。Windows 上默认是 <kbd>Ctrl+Shift+1</kbd> 划词翻译、<kbd>Ctrl+Shift+2</kbd> 截图翻译、<kbd>Ctrl+Shift+E</kbd> 润色、<kbd>Ctrl+Shift+R</kbd> AI 翻译。</div>
+          <div class="answer" data-en="Yes, in Settings → Shortcuts: click one and press the new keys. There are two, on Mac and Windows alike: translate, &lt;kbd&gt;⇧⌘E&lt;/kbd&gt; / &lt;kbd&gt;Ctrl+Shift+E&lt;/kbd&gt; (in place in a text box, as a card for what you read), and screenshot, &lt;kbd&gt;⇧⌘2&lt;/kbd&gt; / &lt;kbd&gt;Ctrl+Shift+2&lt;/kbd&gt;.">可以，在 设置 →「快捷键」里点一下快捷键，再按新的组合键即可。Mac 和 Windows 都只有两个：AI 翻译 <kbd>⇧⌘E</kbd> / <kbd>Ctrl+Shift+E</kbd>（输入框里直接替换，网页和文档里弹出译文），截图翻译 <kbd>⇧⌘2</kbd> / <kbd>Ctrl+Shift+2</kbd>。</div>
         </details>
         <details>
           <summary data-en="What is AI sentence ranking?">AI 整句排序是什么？</summary>
