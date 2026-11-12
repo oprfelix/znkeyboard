@@ -210,6 +210,10 @@ class ZnKeyboardView @JvmOverloads constructor(
     private val chipChevronPath = Path()
     private val mergedKeyBounds = RectF()
     private val mergedLabelBounds = RectF()
+    // 翻译 over its language, drawn as two layers (as on iOS).
+    private val layerCapsulePath = Path()
+    private val layerTopPath = Path()
+    private val layerShadowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
     private var keyHapticsEnabled = true
     private var keyPreviewEnabled = true
     private var autoShiftActive = false
@@ -1124,7 +1128,11 @@ class ZnKeyboardView @JvmOverloads constructor(
         val isActionKey = key.role == KeyRole.Action && key.id == "enter"
         // Space is typed as often as letters; it shares their surface rather than looking like a modifier.
         val isSpace = key.id == "space" || key.id == "phone_space"
+        val layered = toolbar && key.mergesWithNext && next?.key?.chip == true
         val drawBackground = when {
+            // The language is the lower layer of 翻译's capsule, drawn with it; pressed, it shades.
+            key.chip && toolbar -> pressed
+            layered && !rewriteLoading -> false
             pressed || selected || rewriteLoading || isSpace || key.chip -> true
             // Shortcut rows read as a quiet toolbar: content only, with a pill on press / latch.
             toolbar -> key.intent == KeyIntent.AgentRewrite || key.intent == KeyIntent.AgentPolishOnly
@@ -1132,6 +1140,7 @@ class ZnKeyboardView @JvmOverloads constructor(
             else -> true
         }
         val containerColor = when {
+            key.chip && toolbar -> ColorUtils.blendARGB(ImeColors.BACKGROUND, translateBlue, 0.22f)
             key.chip -> ImeColors.TRANSLATE_BADGE
             rewriteLoading -> PALETTE.aiLoadingSurface
             selected -> PALETTE.selected
@@ -1143,6 +1152,8 @@ class ZnKeyboardView @JvmOverloads constructor(
             else -> PALETTE.key
         }
         val contentColor = when {
+            key.chip && toolbar -> translateInk()
+            layered && !rewriteLoading -> translateInk()
             key.chip -> ImeColors.ON_TRANSLATE_BADGE
             rewriteLoading -> PALETTE.text
             selected -> PALETTE.onSelected
@@ -1166,7 +1177,9 @@ class ZnKeyboardView @JvmOverloads constructor(
             }
         }
 
-        if (drawBackground) {
+        if (layered && !rewriteLoading && next != null) {
+            drawLayeredTranslate(canvas, backgroundBounds, next.visualBounds.left, pressed, keyAlpha)
+        } else if (drawBackground) {
             canvas.drawRoundRect(backgroundBounds, radius, radius, keyPaint)
         }
 
@@ -1177,7 +1190,7 @@ class ZnKeyboardView @JvmOverloads constructor(
         val contentAlpha = if (key.enabled || key.emphasizedWhenDisabled) 255 else DISABLED_CONTENT_ALPHA
         // A pill that runs on under a round badge centers its label in the space left of the badge.
         val labelBounds = if (key.mergesWithNext && next?.key?.chip == true) {
-            val chipLeft = next.visualBounds.left + dp(ImeDimensions.TRANSLATE_CHIP_INSET_DP)
+            val chipLeft = if (layered) next.visualBounds.left - dp(LAYER_SLANT_DP) else next.visualBounds.left + dp(ImeDimensions.TRANSLATE_CHIP_INSET_DP)
             mergedLabelBounds.set(bounds.left, bounds.top, chipLeft, bounds.bottom)
             mergedLabelBounds
         } else {
@@ -1676,6 +1689,49 @@ class ZnKeyboardView @JvmOverloads constructor(
         canvas.drawText(label, left + iconSize + gap, bounds.centerY() - (metrics.ascent + metrics.descent) / 2f, textPaint)
         textPaint.textAlign = Paint.Align.CENTER
         textPaint.typeface = letterTypeface
+    }
+
+    /** Text and icons on 翻译's capsule: the same blue as on iOS, in every theme. */
+    private fun translateInk(): Int =
+        if (ColorUtils.calculateLuminance(ImeColors.BACKGROUND) > 0.5) Color.rgb(0, 110, 230) else Color.rgb(64, 156, 255)
+
+    /** The blue 翻译's two layers are washed with. */
+    private val translateBlue: Int
+        get() = if (ColorUtils.calculateLuminance(ImeColors.BACKGROUND) > 0.5) Color.rgb(0, 122, 255) else Color.rgb(10, 132, 255)
+
+    /**
+     * 翻译 and its language as two layers, as on iOS: a quiet accent capsule over [bounds] is the
+     * lower layer (the language), and 翻译 lies on it in a stronger tint whose right edge slants
+     * like "/" at [split], casting a soft shadow onto the language. The capsule's round ends
+     * follow the keyboard's corners.
+     */
+    private fun drawLayeredTranslate(canvas: Canvas, bounds: RectF, split: Float, pressed: Boolean, alpha: Int) {
+        val light = ColorUtils.calculateLuminance(ImeColors.BACKGROUND) > 0.5
+        val radius = bounds.height() / 2f
+        val lower = ColorUtils.blendARGB(ImeColors.BACKGROUND, translateBlue, if (light) 0.10f else 0.16f)
+        var upper = ColorUtils.blendARGB(ImeColors.BACKGROUND, translateBlue, if (light) 0.22f else 0.36f)
+        if (pressed) upper = ImePressFeedback.contentStateLayer(upper, translateInk(), PRESSED_LAYER_OPACITY)
+        layerCapsulePath.reset()
+        layerCapsulePath.addRoundRect(bounds, radius, radius, Path.Direction.CW)
+        keyPaint.style = Paint.Style.FILL
+        keyPaint.color = lower
+        keyPaint.alpha = alpha
+        canvas.drawPath(layerCapsulePath, keyPaint)
+        val slant = dp(LAYER_SLANT_DP)
+        layerTopPath.reset()
+        layerTopPath.moveTo(bounds.left, bounds.top)
+        layerTopPath.lineTo(split + slant / 2f, bounds.top)
+        layerTopPath.lineTo(split - slant / 2f, bounds.bottom)
+        layerTopPath.lineTo(bounds.left, bounds.bottom)
+        layerTopPath.close()
+        canvas.save()
+        canvas.clipPath(layerCapsulePath)
+        layerShadowPaint.color = upper
+        layerShadowPaint.alpha = alpha
+        val shadow = Color.argb(((if (light) 0.25f else 0.5f) * alpha).toInt(), 0, 0, 0)
+        layerShadowPaint.setShadowLayer(dp(3f), dp(2f), 0f, shadow)
+        canvas.drawPath(layerTopPath, layerShadowPaint)
+        canvas.restore()
     }
 
     private fun toolbarPill(bounds: RectF): RectF {
@@ -3437,6 +3493,8 @@ class ZnKeyboardView @JvmOverloads constructor(
         const val PHONE_PAD_SUB_LABEL_ALPHA_FRACTION = 0.78f
         const val SLIDE_HYSTERESIS_PITCH_FRACTION = 0.55f
         const val PRESSED_LAYER_OPACITY = 0.2f
+        /** How far 翻译's "/" edge leans, top to bottom. */
+        const val LAYER_SLANT_DP = 10f
         const val PREVIEW_WIDTH_FACTOR = 1.28f
         const val PREVIEW_HEIGHT_FACTOR = 1.18f
         const val PREVIEW_MIN_WIDTH_DP = 44f

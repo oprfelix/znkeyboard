@@ -46,24 +46,24 @@ object AgentDefaults {
     // Ordered by how widely each is used internationally. Codes are two letters so the
     // keyboard chip keeps its width; TW is Traditional Chinese. Names go into the prompt.
     val TRANSLATE_LANGUAGES = listOf(
-        TranslateLanguage("EN", "English", "英文"),
+        TranslateLanguage("EN", "English", "英语"),
         TranslateLanguage("ZH", "Simplified Chinese", "简体中文"),
         TranslateLanguage("TW", "Traditional Chinese", "繁体中文"),
-        TranslateLanguage("ES", "Spanish", "西班牙文"),
-        TranslateLanguage("FR", "French", "法文"),
-        TranslateLanguage("AR", "Arabic", "阿拉伯文"),
-        TranslateLanguage("RU", "Russian", "俄文"),
-        TranslateLanguage("PT", "Portuguese", "葡萄牙文"),
-        TranslateLanguage("DE", "German", "德文"),
-        TranslateLanguage("JA", "Japanese", "日文"),
-        TranslateLanguage("KO", "Korean", "韩文"),
-        TranslateLanguage("ID", "Indonesian", "印尼文"),
-        TranslateLanguage("VI", "Vietnamese", "越南文"),
-        TranslateLanguage("TH", "Thai", "泰文"),
+        TranslateLanguage("ES", "Spanish", "西班牙语"),
+        TranslateLanguage("FR", "French", "法语"),
+        TranslateLanguage("AR", "Arabic", "阿拉伯语"),
+        TranslateLanguage("RU", "Russian", "俄语"),
+        TranslateLanguage("PT", "Portuguese", "葡萄牙语"),
+        TranslateLanguage("DE", "German", "德语"),
+        TranslateLanguage("JA", "Japanese", "日语"),
+        TranslateLanguage("KO", "Korean", "韩语"),
+        TranslateLanguage("ID", "Indonesian", "印尼语"),
+        TranslateLanguage("VI", "Vietnamese", "越南语"),
+        TranslateLanguage("TH", "Thai", "泰语"),
     )
     val DEFAULT_TRANSLATE_LANGUAGE = TRANSLATE_LANGUAGES.first()
     // Shortcut-row labels follow the input mode: Chinese in 中, English in EN.
-    const val TRANSLATE_REWRITE_LABEL = "翻译为"
+    const val TRANSLATE_REWRITE_LABEL = "翻译"
     const val TRANSLATE_REWRITE_LABEL_EN = "Translate"
     const val TRANSLATE_REWRITE_LOADING_LABEL = "处理中…"
     const val TRANSLATE_REWRITE_LOADING_LABEL_EN = "Working…"
