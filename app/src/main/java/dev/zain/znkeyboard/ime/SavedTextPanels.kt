@@ -213,7 +213,6 @@ class HelpPanelView(context: Context) : SavedTextPanel(context, SavedTextTab.Hel
         val column = LinearLayout(context).apply { orientation = VERTICAL }
         val cards = listOf(
             Triple(R.drawable.ic_toolbar_clipboard_24, R.string.ime_help_read_title, R.string.ime_help_read_body),
-            Triple(R.drawable.ic_auto_awesome_24, R.string.ime_help_polish_title, R.string.ime_help_polish_body),
             Triple(R.drawable.ic_translate_24, R.string.ime_help_translate_title, R.string.ime_help_translate_body),
         )
         cards.forEachIndexed { index, (icon, title, body) ->

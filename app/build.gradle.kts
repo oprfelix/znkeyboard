@@ -23,8 +23,8 @@ android {
         applicationId = "dev.zain.znkeyboard"
         minSdk = 34
         targetSdk = 36
-        versionCode = 77
-        versionName = "1.9.42"
+        versionCode = 78
+        versionName = "1.9.43"
         // ONNX Runtime's native library (18 MB) for 64-bit ARM only: every phone this minSdk runs on.
         ndk {
             abiFilters += listOf("arm64-v8a")

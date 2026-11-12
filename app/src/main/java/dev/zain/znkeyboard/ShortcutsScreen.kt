@@ -107,7 +107,6 @@ internal fun ShortcutsSummaryCard(onOpen: () -> Unit) {
                 ) {
                     keyIds.forEach { keyId ->
                         if (keyId == "rewrite") {
-                            MiniKey(label = stringResource(R.string.key_polish), modifier = Modifier.weight(1.2f))
                             MiniKey(label = stringResource(R.string.key_translate), modifier = Modifier.weight(1.6f))
                         } else {
                             MiniKey(label = shortcutKeyLabel(keyId), modifier = Modifier.weight(1f))

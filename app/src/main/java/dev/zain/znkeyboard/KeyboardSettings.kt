@@ -484,9 +484,9 @@ object KeyboardSettings {
         prefs.edit().putBoolean(KEY_SECOND_ROW_TOOLS_MIGRATED, true).apply()
     }
 
-    /** AI 整句排序 (experimental): the character model reorders the whole-input readings. Off by default. */
+    /** AI 整句排序 (experimental): the character model reorders the whole-input readings. On by default. */
     fun readNeuralRerankEnabled(context: Context): Boolean =
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).getBoolean(KEY_NEURAL_RERANK_ENABLED, false)
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).getBoolean(KEY_NEURAL_RERANK_ENABLED, true)
 
     fun saveNeuralRerankEnabled(context: Context, enabled: Boolean) {
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
@@ -510,6 +510,13 @@ object KeyboardSettings {
             .putFloat(KEY_NEURAL_RERANK_MILLIS, prefs.getFloat(KEY_NEURAL_RERANK_MILLIS, 0f) + millis.toFloat())
             .apply()
     }
+
+    /**
+     * Voice input can run: on (the default) and a Gemini key is set, since Gemini turns the
+     * speech into text. The keyboard shows its microphone only then.
+     */
+    fun isVoiceInputAvailable(context: Context): Boolean =
+        readVoiceInputEnabled(context) && readAgentApiKey(context, AgentProviderType.Gemini).isNotBlank()
 
     fun readVoiceInputEnabled(context: Context): Boolean {
         return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)

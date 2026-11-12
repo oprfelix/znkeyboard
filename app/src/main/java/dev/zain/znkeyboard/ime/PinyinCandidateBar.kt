@@ -226,13 +226,10 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
         orientation = HORIZONTAL
         gravity = Gravity.CENTER_VERTICAL
         setPadding(context.dp(6), 0, context.dp(8), 0)
-        addView(polishButton, LayoutParams(LayoutParams.WRAP_CONTENT, context.dp(34)))
-        addView(
-            translateButton,
-            LayoutParams(LayoutParams.WRAP_CONTENT, context.dp(34)).apply { marginStart = context.dp(6) },
-        )
+        // Only 翻译: polishing on its own is no longer offered.
+        addView(translateButton, LayoutParams(LayoutParams.WRAP_CONTENT, context.dp(34)))
     }
-    /** Candidates (or predictions) and, after a commit, the pinned 润色 | 翻译. */
+    /** Candidates (or predictions) and, after a commit, the pinned 翻译. */
     private val mainRow = LinearLayout(context).apply {
         orientation = HORIZONTAL
         gravity = Gravity.CENTER_VERTICAL

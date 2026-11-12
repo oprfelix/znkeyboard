@@ -902,6 +902,8 @@ private fun VoiceInputSection() {
     val context = LocalContext.current
     fun micGranted() = context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
     var enabled by remember { mutableStateOf(KeyboardSettings.readVoiceInputEnabled(context)) }
+    // Gemini turns speech into text, so voice input waits for its key.
+    var hasGeminiKey by remember { mutableStateOf(KeyboardSettings.readAgentApiKey(context, KeyboardSettings.AgentProviderType.Gemini).isNotBlank()) }
     var granted by remember { mutableStateOf(micGranted()) }
     // After "Don't allow" twice Android stops asking, so the switch alone can't turn voice on.
     var blocked by remember { mutableStateOf(false) }
@@ -917,6 +919,7 @@ private fun VoiceInputSection() {
     // The permission can be revoked in system settings while this screen is in the background.
     LifecycleResumeEffect(Unit) {
         granted = micGranted()
+        hasGeminiKey = KeyboardSettings.readAgentApiKey(context, KeyboardSettings.AgentProviderType.Gemini).isNotBlank()
         if (granted) blocked = false
         onPauseOrDispose {}
     }
@@ -928,7 +931,8 @@ private fun VoiceInputSection() {
             subtitle = stringResource(R.string.voice_subtitle),
             trailingContent = {
                 Switch(
-                    checked = enabled && granted,
+                    checked = enabled && granted && hasGeminiKey,
+                    enabled = hasGeminiKey,
                     onCheckedChange = { checked ->
                         if (checked && !granted) {
                             permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
@@ -940,6 +944,13 @@ private fun VoiceInputSection() {
                 )
             },
         )
+        if (!hasGeminiKey) {
+            Text(
+                text = stringResource(R.string.voice_needs_gemini),
+                color = ZnKeyboardColors.Warning,
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
         Text(
             text = stringResource(R.string.voice_desc),
             color = ZnKeyboardColors.Muted,

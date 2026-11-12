@@ -153,6 +153,7 @@ class ZnKeyboardView @JvmOverloads constructor(
     private val clipboardIconFill = PathParser.createPathFromPathData(ToolbarIconPaths.CLIPBOARD_FILL)
     private val phrasesIconStroke = PathParser.createPathFromPathData(ToolbarIconPaths.PHRASES_STROKE)
     private val helpIconStroke = PathParser.createPathFromPathData(ToolbarIconPaths.HELP_STROKE)
+    private val micIconStroke = PathParser.createPathFromPathData(ToolbarIconPaths.MIC_STROKE)
     private val helpIconFill = PathParser.createPathFromPathData(ToolbarIconPaths.HELP_FILL)
     private val settingsIconPath = Path().apply {
         repeat(SETTINGS_ICON_TEETH) { tooth ->
@@ -177,6 +178,8 @@ class ZnKeyboardView @JvmOverloads constructor(
     private var voiceCancelArmed = false
     // Reused on every frame and finger move while recording, so drawing allocates nothing.
     private val voiceOverlayRect = RectF()
+    private val voiceWavePath = Path()
+    private var voiceDisplayLevel = 0f
     private var voiceTimerSeconds = -1L
     private var voiceTimerText = ""
     private var rewriteLabel = "Rewrite"
@@ -599,8 +602,9 @@ class ZnKeyboardView @JvmOverloads constructor(
             "phone_star" -> scheduleLongPress(pointerId, "phone_star") {
                 handleKey(KeySpec("phone_slash_long_press", "/", KeyIntent.Dispatch(KeyboardAction.Text("/"))))
             }
+            // Held, space moves the cursor: the slide that follows needs no distance to start.
             "space" -> scheduleLongPress(pointerId, "space") {
-                startVoiceTouch(pointerId)
+                startSpaceCursorHold(pointerId)
             }
             PINYIN_MODE_KEY_ID -> scheduleLongPress(pointerId, PINYIN_MODE_KEY_ID) {
                 callback?.onInputMethodPickerRequested()
@@ -613,6 +617,8 @@ class ZnKeyboardView @JvmOverloads constructor(
                 handleKey(KeySpec("long_press_digit_$digit", "$digit", KeyIntent.Dispatch(KeyboardAction.Text("$digit"))))
             }
         }
+        // The toolbar's microphone: held, it records; up, it inserts; slid up, it cancels.
+        if (key?.intent == KeyIntent.VoiceInput) startVoiceTouch(pointerId)
         if (key?.id == "space") {
             touch.spaceCursorDrag = SpaceCursorDragTouch(
                 key = key,
@@ -751,7 +757,7 @@ class ZnKeyboardView @JvmOverloads constructor(
         val dy = y - gesture.startY
         val activationDistance = max(touchSlopPx, dp(SPACE_CURSOR_DRAG_ACTIVATION_DP))
         if (!gesture.active) {
-            if (abs(dx) < activationDistance || abs(dx) < abs(dy) * 1.2f) {
+            if (!gesture.held && (abs(dx) < activationDistance || abs(dx) < abs(dy) * 1.2f)) {
                 return false
             }
 
@@ -843,6 +849,17 @@ class ZnKeyboardView @JvmOverloads constructor(
         activeTouches.remove(pointerId)
         cancelLongPressFor(pointerId)
         cancelBackspaceRepeatFor(pointerId)
+    }
+
+    /** Space held still: the cursor follows the finger from here, as on iOS. */
+    private fun startSpaceCursorHold(pointerId: Int) {
+        val touch = activeTouches.get(pointerId) ?: return
+        val gesture = touch.spaceCursorDrag ?: return
+        if (gesture.active) return
+        gesture.held = true
+        touch.longPressConsumed = true
+        performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+        updateSpaceCursorDrag(pointerId, touch, gesture.startX, gesture.startY)
     }
 
     private fun startVoiceTouch(pointerId: Int) {
@@ -1148,7 +1165,6 @@ class ZnKeyboardView @JvmOverloads constructor(
             }
         }
         drawLongPressHint(canvas, key.longPressHint, bounds, contentColor, contentAlpha)
-        if (key.id == "space" && voiceInputEnabled) drawMicHint(canvas, bounds, contentColor, contentAlpha)
 
         if (key.id == "shift" && shiftState == ShiftState.Locked) {
             drawShiftLockIndicator(canvas, bounds, contentColor)
@@ -1196,37 +1212,40 @@ class ZnKeyboardView @JvmOverloads constructor(
      * Recording panel over the keys above the space row: the finger covers the space key, so the
      * hints live up here. Its top part is the cancel zone the finger slides into.
      */
+    /** Everything under the toolbar, where the microphone that started the recording sits. */
     private fun voiceOverlayBounds(): RectF? {
-        val space = hitTargets.firstOrNull { it.key.id == "space" } ?: return null
+        val mic = hitTargets.firstOrNull { it.key.intent == KeyIntent.VoiceInput } ?: return null
         val inset = dp(VOICE_OVERLAY_INSET_DP)
-        val bottom = space.visualBounds.top - inset
-        if (bottom - inset < dp(VOICE_OVERLAY_MIN_HEIGHT_DP)) return null
-        voiceOverlayRect.set(inset, inset, width - inset, bottom)
+        val top = mic.visualBounds.bottom + inset
+        if (height - inset - top < dp(VOICE_OVERLAY_MIN_HEIGHT_DP)) return null
+        voiceOverlayRect.set(inset, top, width - inset, height - inset)
         return voiceOverlayRect
     }
 
+    /** Sliding up off the keyboard, past the microphone, cancels. */
     private fun voiceCancelBoundaryY(): Float? {
-        val bounds = voiceOverlayBounds() ?: return null
-        return bounds.top + bounds.height() * VOICE_CANCEL_ZONE_FRACTION
+        val mic = hitTargets.firstOrNull { it.key.intent == KeyIntent.VoiceInput } ?: return null
+        return mic.visualBounds.top - dp(VOICE_CANCEL_SLIDE_DP)
     }
 
+    /**
+     * The recording over the whole keyboard: rings spreading from a red microphone and three
+     * waves across, their height following the voice, moving every frame; the timer and how to
+     * send or cancel below. Allocation-free: the waves reuse [voiceWavePath].
+     */
     private fun drawVoiceOverlay(canvas: Canvas, recording: VoiceIndicator.Recording) {
         val bounds = voiceOverlayBounds() ?: return
         val chinese = pinyinModeEnabled
         val armed = voiceCancelArmed
         val radius = dp(VOICE_OVERLAY_RADIUS_DP)
         keyPaint.style = Paint.Style.FILL
-        keyPaint.color = if (armed) ImeColors.VOICE_RECORDING else PALETTE.key
-        keyPaint.alpha = VOICE_OVERLAY_ALPHA
+        keyPaint.color = if (armed) ImeColors.VOICE_RECORDING else PALETTE.background
+        keyPaint.alpha = 250
         canvas.drawRoundRect(bounds, radius, radius, keyPaint)
-
-        val zoneBottom = bounds.top + bounds.height() * VOICE_CANCEL_ZONE_FRACTION
         val textColor = if (armed) ImeColors.ON_VOICE_RECORDING else PALETTE.text
         textPaint.typeface = labelTypeface
         textPaint.alpha = 255
-
         if (armed) {
-            // The whole panel says one thing: lifting now cancels.
             val centerY = bounds.centerY()
             iconPaint.style = Paint.Style.STROKE
             iconPaint.color = textColor
@@ -1241,53 +1260,76 @@ class ZnKeyboardView @JvmOverloads constructor(
             return
         }
 
-        // Cancel zone: a quieter band at the top with the slide-up hint.
-        keyPaint.color = PALETTE.function
-        keyPaint.alpha = VOICE_OVERLAY_ALPHA
-        canvas.save()
-        canvas.clipRect(bounds.left, bounds.top, bounds.right, zoneBottom)
-        canvas.drawRoundRect(bounds, radius, radius, keyPaint)
-        canvas.restore()
-        drawOverlayText(
-            canvas,
-            if (chinese) "↑ 上滑到这里取消" else "↑ Slide up here to cancel",
-            bounds.centerX(),
-            (bounds.top + zoneBottom) / 2f,
-            dp(15f),
-            PALETTE.mutedText,
-        )
+        // The voice's level eases towards the newest reading, so the waves swell and settle.
+        voiceDisplayLevel += (recording.level - voiceDisplayLevel) * VOICE_LEVEL_EASING
+        val time = SystemClock.uptimeMillis() / 1000f
+        val centerX = bounds.centerX()
+        val centerY = bounds.top + bounds.height() * 0.42f
 
-        // Main area: a large level meter with the timer, then the release hint.
-        val mainTop = zoneBottom
-        val meterY = mainTop + (bounds.bottom - mainTop) * 0.4f
-        val barWidth = dp(5f)
-        val gap = dp(5f)
-        val maxHeight = min(dp(44f), (bounds.bottom - mainTop) * 0.4f)
-        val barsWidth = VOICE_OVERLAY_BARS * barWidth + (VOICE_OVERLAY_BARS - 1) * gap
-        textPaint.textSize = dp(17f)
-        val timer = formatVoiceTime(recording.elapsedMs)
-        val timerWidth = textPaint.measureText(timer)
-        val groupLeft = bounds.centerX() - (barsWidth + dp(14f) + timerWidth) / 2f
+        // Rings: each spreads from the microphone and fades, a new one every third of a period.
+        iconPaint.style = Paint.Style.STROKE
+        iconPaint.color = ImeColors.VOICE_RECORDING
+        iconPaint.strokeWidth = dp(2f)
+        val micRadius = dp(26f)
+        val reach = min(bounds.width(), bounds.height()) * 0.55f
+        for (ring in 0 until VOICE_RINGS) {
+            val phase = ((time / VOICE_RING_PERIOD_S) + ring / VOICE_RINGS.toFloat()) % 1f
+            val r = micRadius + (reach - micRadius) * phase * (0.6f + 0.4f * voiceDisplayLevel)
+            iconPaint.alpha = ((1f - phase) * 150).toInt()
+            canvas.drawCircle(centerX, centerY, r, iconPaint)
+        }
+
+        // Waves across the keyboard, the front one strongest.
+        val amplitude = dp(6f) + bounds.height() * 0.22f * voiceDisplayLevel
+        for (layer in 0 until VOICE_WAVES) {
+            voiceWavePath.rewind()
+            val strength = 1f - layer * 0.3f
+            val speed = 2.2f + layer * 0.9f
+            val cycles = 1.6f + layer * 0.5f
+            var x = bounds.left
+            val step = dp(4f)
+            while (x <= bounds.right) {
+                val u = (x - bounds.left) / bounds.width()
+                // Tapered at both ends, so the waves rise out of the edges.
+                val envelope = kotlin.math.sin(Math.PI.toFloat() * u)
+                val y = centerY + amplitude * strength * envelope *
+                    kotlin.math.sin(2f * Math.PI.toFloat() * cycles * u + time * speed + layer * 1.7f)
+                if (x == bounds.left) voiceWavePath.moveTo(x, y) else voiceWavePath.lineTo(x, y)
+                x += step
+            }
+            iconPaint.strokeWidth = dp(if (layer == 0) 3f else 2f)
+            iconPaint.color = if (layer == 0) ImeColors.VOICE_RECORDING else PALETTE.mutedText
+            iconPaint.alpha = if (layer == 0) 230 else 90
+            canvas.drawPath(voiceWavePath, iconPaint)
+        }
+
+        // The microphone itself, on a red disc over the waves.
         iconPaint.style = Paint.Style.FILL
         iconPaint.color = ImeColors.VOICE_RECORDING
         iconPaint.alpha = 255
-        for (bar in 0 until VOICE_OVERLAY_BARS) {
-            val shape = VOICE_OVERLAY_SHAPE[bar]
-            val height = max(barWidth, maxHeight * (0.2f + 0.8f * recording.level) * shape)
-            val left = groupLeft + bar * (barWidth + gap)
-            canvas.drawRoundRect(left, meterY - height / 2f, left + barWidth, meterY + height / 2f, barWidth / 2f, barWidth / 2f, iconPaint)
-        }
+        canvas.drawCircle(centerX, centerY, micRadius * (1f + 0.12f * voiceDisplayLevel), iconPaint)
+        canvas.save()
+        val glyph = dp(26f)
+        canvas.translate(centerX - glyph / 2f, centerY - glyph / 2f)
+        canvas.scale(glyph / ImeLayout.ICON_VIEWPORT, glyph / ImeLayout.ICON_VIEWPORT)
         iconPaint.style = Paint.Style.STROKE
-        drawOverlayText(canvas, timer, groupLeft + barsWidth + dp(14f) + timerWidth / 2f, meterY, dp(17f), textColor)
+        iconPaint.color = ImeColors.ON_VOICE_RECORDING
+        iconPaint.strokeWidth = TOOLBAR_ICON_STROKE
+        canvas.drawPath(micIconStroke, iconPaint)
+        canvas.restore()
+
+        drawOverlayText(canvas, formatVoiceTime(recording.elapsedMs), centerX, bounds.top + bounds.height() * 0.74f, dp(18f), textColor)
         drawOverlayText(
             canvas,
-            if (chinese) "松开发送" else "Release to send",
-            bounds.centerX(),
-            mainTop + (bounds.bottom - mainTop) * 0.78f,
-            dp(20f),
-            textColor,
+            if (chinese) "松开发送 · 上滑取消" else "Release to send · slide up to cancel",
+            centerX,
+            bounds.top + bounds.height() * 0.88f,
+            dp(15f),
+            PALETTE.mutedText,
         )
         textPaint.typeface = letterTypeface
+        // Keep moving while recording.
+        postInvalidateOnAnimation()
     }
 
     /** Draws [text] centered on ([centerX], [centerY]). */
@@ -1504,23 +1546,6 @@ class ZnKeyboardView @JvmOverloads constructor(
         textPaint.textAlign = Paint.Align.CENTER
     }
 
-    /** The space bar's corner microphone: hold to talk. */
-    private fun drawMicHint(canvas: Canvas, bounds: RectF, color: Int, alpha: Int) {
-        val size = (sp(ImeDimensions.LONG_PRESS_HINT_TEXT_SIZE_SP) * MIC_HINT_SCALE)
-            .coerceAtMost(bounds.height() * ImeDimensions.LONG_PRESS_HINT_MAX_HEIGHT_FRACTION * MIC_HINT_SCALE)
-        iconPaint.color = color
-        iconPaint.alpha = min(alpha, LONG_PRESS_HINT_ALPHA)
-        iconPaint.strokeWidth = 2.2f
-        iconPaint.style = Paint.Style.STROKE
-        canvas.save()
-        canvas.translate(bounds.right - dp(5f) - size, bounds.top + dp(4f))
-        canvas.scale(size / ImeLayout.ICON_VIEWPORT, size / ImeLayout.ICON_VIEWPORT)
-        canvas.drawRoundRect(9f, 3f, 15f, 14f, 3f, 3f, iconPaint)
-        canvas.drawArc(5.5f, 4.5f, 18.5f, 17.5f, 0f, 180f, false, iconPaint)
-        canvas.drawLine(12f, 17.5f, 12f, 21f, iconPaint)
-        canvas.restore()
-    }
-
     /** 中/英 on the language key: the language typing now at full strength, the other faded. */
     private fun drawLanguageToggle(canvas: Canvas, bounds: RectF, color: Int, alpha: Int) {
         val chinese = pinyinModeEnabled
@@ -1682,6 +1707,7 @@ class ZnKeyboardView @JvmOverloads constructor(
             KeyIcon.Clipboard -> drawToolbarIcon(canvas, clipboardIconStroke, clipboardIconFill)
             KeyIcon.Phrases -> drawToolbarIcon(canvas, phrasesIconStroke, null)
             KeyIcon.Help -> drawToolbarIcon(canvas, helpIconStroke, helpIconFill)
+            KeyIcon.Mic -> drawToolbarIcon(canvas, micIconStroke, null)
             KeyIcon.Leaf -> canvas.drawPath(leafIconPath, iconPaint)
             KeyIcon.Settings -> canvas.drawPath(settingsIconPath, iconPaint)
         }
@@ -1905,6 +1931,8 @@ class ZnKeyboardView @JvmOverloads constructor(
             KeyIntent.OpenClipboard -> callback?.onClipboardPanelRequested()
             KeyIntent.OpenPhrases -> callback?.onPhrasesPanelRequested()
             KeyIntent.OpenHelp -> callback?.onHelpPanelRequested()
+            // Recording starts and ends with the touch itself (see startVoiceTouch).
+            KeyIntent.VoiceInput -> Unit
             KeyIntent.OpenTools -> callback?.onToolsMenuRequested()
             KeyIntent.None -> Unit
             KeyIntent.OpenSettings -> callback?.onKeyboardSettingsRequested()
@@ -2310,21 +2338,10 @@ class ZnKeyboardView @JvmOverloads constructor(
         val languageCode = translateLanguageCode
         val rewriteIndex = keys.indexOfFirst { it.intent == KeyIntent.AgentRewrite }
         if (languageCode != null && rewriteIndex >= 0) {
-            // 润色 | 翻译 (EN): the first only polishes, the second also translates. The language
-            // badge keeps its own tap target but sits inside the translate key.
+            // 翻译 (EN): translating is the AI key's one job now; the language badge keeps its own
+            // tap target but sits inside the translate key.
             keys.add(
-                rewriteIndex,
-                KeySpec(
-                    id = "second_polish_only",
-                    label = if (pinyinModeEnabled) AgentDefaults.POLISH_ONLY_LABEL else AgentDefaults.POLISH_ONLY_LABEL_EN,
-                    intent = KeyIntent.AgentPolishOnly,
-                    weight = ImeDimensions.TOOLBAR_POLISH_KEY_DP,
-                    role = KeyRole.Function,
-                    enabled = shortcutRowState.rewriteEnabled && !shortcutRowState.loading,
-                ),
-            )
-            keys.add(
-                rewriteIndex + 2,
+                rewriteIndex + 1,
                 KeySpec(
                     id = "second_translate_language",
                     label = languageCode,
@@ -2339,7 +2356,7 @@ class ZnKeyboardView @JvmOverloads constructor(
     }
 
     /**
-     * Leaf, 润色 and 翻译 start the row and the other keys end it, each at a fixed width, with the
+     * Leaf and 翻译 start the row and the other keys end it, each at a fixed width, with the
      * space left over between them. Weights are in dp so that the row adds up to the screen.
      */
     private fun fixedToolbarKeys(keys: MutableList<KeySpec>): List<KeySpec> {
@@ -2363,6 +2380,10 @@ class ZnKeyboardView @JvmOverloads constructor(
         fixed.removeAll { it.intent == KeyIntent.OpenClipboard }
         fixed.add(KeySpec("second_clipboard", "Clipboard", KeyIntent.OpenClipboard, ImeDimensions.TOOLBAR_ICON_KEY_DP, KeyRole.Function, icon = KeyIcon.Clipboard))
         fixed.add(KeySpec("second_phrases", "Phrases", KeyIntent.OpenPhrases, ImeDimensions.TOOLBAR_ICON_KEY_DP, KeyRole.Function, icon = KeyIcon.Phrases))
+        // Voice input, shown only while it can work (a Gemini key is set): hold to talk.
+        if (voiceInputEnabled) {
+            fixed.add(KeySpec("second_voice", "Voice", KeyIntent.VoiceInput, ImeDimensions.TOOLBAR_ICON_KEY_DP, KeyRole.Function, icon = KeyIcon.Mic))
+        }
         fixed.add(KeySpec("second_help", "Help", KeyIntent.OpenHelp, ImeDimensions.TOOLBAR_ICON_KEY_DP, KeyRole.Function, icon = KeyIcon.Help))
         val metrics = resources.displayMetrics
         val spare = metrics.widthPixels / metrics.density - fixed.sumOf { it.weight.toDouble() }.toFloat()
@@ -2903,6 +2924,7 @@ class ZnKeyboardView @JvmOverloads constructor(
         Clipboard,
         Phrases,
         Help,
+        Mic,
         Leaf,
         Settings,
     }
@@ -2987,6 +3009,8 @@ class ZnKeyboardView @JvmOverloads constructor(
         val startY: Float,
         val wordStepPx: Float,
         var active: Boolean = false,
+        /** Held still long enough: the cursor follows from here without a distance to cover. */
+        var held: Boolean = false,
         var consumedWithoutGesture: Boolean = false,
         var lastWordCount: Int = 0,
     )
@@ -2997,6 +3021,8 @@ class ZnKeyboardView @JvmOverloads constructor(
         val startY: Float,
         val stepPx: Float,
         var active: Boolean = false,
+        /** Held still long enough: the cursor follows from here without a distance to cover. */
+        var held: Boolean = false,
         var consumedWithoutGesture: Boolean = false,
         var lastCharacterDelta: Int = 0,
     )
@@ -3015,6 +3041,7 @@ class ZnKeyboardView @JvmOverloads constructor(
         data object OpenClipboard : KeyIntent()
         data object OpenPhrases : KeyIntent()
         data object OpenHelp : KeyIntent()
+        data object VoiceInput : KeyIntent()
         data object OpenTools : KeyIntent()
         data object None : KeyIntent()
         data object OpenSettings : KeyIntent()
@@ -3085,11 +3112,11 @@ class ZnKeyboardView @JvmOverloads constructor(
         const val VOICE_OVERLAY_INSET_DP = 6f
         const val VOICE_OVERLAY_MIN_HEIGHT_DP = 120f
         const val VOICE_OVERLAY_RADIUS_DP = 20f
-        const val VOICE_OVERLAY_ALPHA = 245
-        // The top share of the panel is the cancel zone.
-        const val VOICE_CANCEL_ZONE_FRACTION = 0.4f
-        const val VOICE_OVERLAY_BARS = 7
-        val VOICE_OVERLAY_SHAPE = floatArrayOf(0.35f, 0.6f, 0.85f, 1f, 0.85f, 0.6f, 0.35f)
+        /** Share of the gap to the newest level closed each frame. */
+        const val VOICE_LEVEL_EASING = 0.25f
+        const val VOICE_RINGS = 3
+        const val VOICE_RING_PERIOD_S = 1.8f
+        const val VOICE_WAVES = 3
         const val TWO_PI = 6.2831855f
         const val PHONE_PAD_PRIMARY_MAX_HEIGHT_FRACTION = 0.44f
         const val PHONE_PAD_SUB_LABEL_TEXT_SIZE_SP = 8f

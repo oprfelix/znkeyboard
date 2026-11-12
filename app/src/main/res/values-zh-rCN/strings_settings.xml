@@ -39,23 +39,23 @@
     <string name="nav_backup">备份</string>
     <string name="nav_backup_title">备份与关于</string>
     <string name="voice_title">AI 语音输入</string>
-    <string name="voice_subtitle">按住空格键说话，松开插入文字，上滑取消。</string>
+    <string name="voice_subtitle">按住工具栏的麦克风说话，松开插入文字，上滑取消。</string>
     <string name="voice_desc">中文模式整理成通顺的文字，英文模式直接翻译成目标语言。需要 Gemini API Key，录音不会保存。</string>
-    <string name="rewrite_title">AI 润色与翻译</string>
-    <string name="rewrite_subtitle">用 AI 把文字改通顺，或翻译成目标语言。</string>
+    <string name="rewrite_title">AI 翻译</string>
+    <string name="rewrite_subtitle">用 AI 把文字翻译成目标语言。</string>
     <string name="api_base_url">API 地址</string>
     <string name="provider_deepseek_desc">国内可直连</string>
     <string name="provider_gemini_desc">支持语音输入</string>
     <string name="provider_openai_compatible_desc">手动填写地址</string>
     <string name="api_key">API Key</string>
-    <string name="api_key_empty">填写服务商提供的 API Key。润色和翻译的文字会直接发给这个服务商。</string>
+    <string name="api_key_empty">填写服务商提供的 API Key。翻译的文字会直接发给这个服务商。</string>
     <string name="api_key_lock">锁定 API Key</string>
     <string name="api_key_unlock">解锁 API Key</string>
     <string name="api_key_checking">正在验证 API Key…</string>
     <string name="api_key_valid">API Key 可用</string>
     <string name="api_key_rejected">API Key 无效或没有权限，请检查是否复制完整、是否已过期。</string>
     <string name="api_key_check_failed">暂时无法验证 API Key：%1$s</string>
-    <string name="api_key_enabled">API Key 可用，已开启 AI 润色与翻译</string>
+    <string name="api_key_enabled">API Key 可用，已开启 AI 翻译</string>
     <string name="models_loading">正在加载模型…</string>
     <string name="models_need_base_url">填写 API 地址后才能加载模型。</string>
     <string name="models_none">没有返回模型。你仍然可以手动输入模型 ID。</string>
@@ -89,7 +89,7 @@
     <string name="reasoning_desc">各服务商支持情况不同，请按模型选择；不确定就选「关闭」。</string>
     <string name="reasoning_mode">推理模式</string>
     <string name="reasoning_off">关闭</string>
-    <string name="reasoning_off_desc">不请求推理。润色最快、最稳妥。</string>
+    <string name="reasoning_off_desc">不请求推理。翻译最快、最稳妥。</string>
     <string name="reasoning_auto">服务商默认</string>
     <string name="reasoning_auto_desc">由服务商决定。适合必须开启推理的模型。</string>
     <string name="reasoning_minimal">最低</string>
@@ -186,7 +186,7 @@
     <string name="shortcuts_symbols">符号</string>
     <string name="row_a">扩展按键行</string>
     <string name="row_b">工具栏</string>
-    <string name="key_rewrite">润色 / AI 翻译</string>
+    <string name="key_rewrite">AI 翻译</string>
     <string name="key_clipboard">剪贴板</string>
     <string name="key_keyboard_tools">键盘工具</string>
     <string name="key_switch_keyboard">键盘切换</string>
@@ -280,8 +280,6 @@
     <string name="ime_help_read_title">翻译复制的外文</string>
     <string name="ime_help_read_body">在聊天里长按对方的外文消息，点「复制」，回到输入框，点键盘上出现的「翻译」提示条。译文只给你看，不会打进输入框。提示条关掉了，也可以点下面的按钮翻译。</string>
     <string name="ime_help_read_button">翻译剪贴板里的外文</string>
-    <string name="ime_help_polish_title">润色</string>
-    <string name="ime_help_polish_body">打好中文，或选中一段文字，点「润色」。看过结果点「应用」，就会换掉原来的文字。</string>
     <string name="ime_help_translate_title">翻译</string>
     <string name="ime_help_translate_body">打好中文，点「翻译」（旁边是要翻译成的语言），看过译文点「应用」。点语言标记或长按「翻译」可以换语言。</string>
     <string name="ime_tools_settings">设置</string>
@@ -325,4 +323,5 @@
     <string name="pinyin_rerank">AI 整句排序（实验）</string>
     <string name="pinyin_rerank_desc">用手机上的语言模型给整句候选重新排序，不联网；会多占一些内存和电量。</string>
     <string name="pinyin_rerank_stats">已排序 %1$d 次按键，平均每次 %2$.1f 毫秒</string>
+    <string name="voice_needs_gemini">在「AI 服务」里填好 Gemini API Key 后自动开启。</string>
 </resources>

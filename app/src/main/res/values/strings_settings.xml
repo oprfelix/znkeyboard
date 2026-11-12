@@ -39,23 +39,23 @@
     <string name="nav_backup">Backup</string>
     <string name="nav_backup_title">Backup &amp; about</string>
     <string name="voice_title">AI voice input</string>
-    <string name="voice_subtitle">Hold the space bar to talk, release to insert. Slide up to cancel.</string>
+    <string name="voice_subtitle">Hold the microphone in the toolbar to talk, release to insert, slide up to cancel.</string>
     <string name="voice_desc">中 mode turns speech into clean text; EN mode translates it into your target language. Needs a Gemini API key; audio is never saved.</string>
-    <string name="rewrite_title">AI polish &amp; translate</string>
-    <string name="rewrite_subtitle">Use AI to smooth out your text, or translate it.</string>
+    <string name="rewrite_title">AI translate</string>
+    <string name="rewrite_subtitle">Use AI to translate your text into the target language.</string>
     <string name="api_base_url">API address</string>
     <string name="provider_deepseek_desc">Fast in mainland China</string>
     <string name="provider_gemini_desc">Supports voice input</string>
     <string name="provider_openai_compatible_desc">Type your own address</string>
     <string name="api_key">API key</string>
-    <string name="api_key_empty">Enter the API key from your provider. Text you polish or translate goes straight to that provider.</string>
+    <string name="api_key_empty">Enter the API key from your provider. Text you translate goes straight to that provider.</string>
     <string name="api_key_lock">Lock API key</string>
     <string name="api_key_unlock">Unlock API key</string>
     <string name="api_key_checking">Checking API key…</string>
     <string name="api_key_valid">API key works</string>
     <string name="api_key_rejected">This API key was rejected. Check it was copied in full and is still active.</string>
     <string name="api_key_check_failed">Couldn\'t check the API key: %1$s</string>
-    <string name="api_key_enabled">API key works. AI polish &amp; translate is on.</string>
+    <string name="api_key_enabled">API key works. AI translate is on.</string>
     <string name="models_loading">Loading models…</string>
     <string name="models_need_base_url">Enter an API address to load models.</string>
     <string name="models_none">No models returned. You can still type a custom model ID.</string>
@@ -89,7 +89,7 @@
     <string name="reasoning_desc">Support varies by provider, so set it for your model. If unsure, leave it Off.</string>
     <string name="reasoning_mode">Reasoning mode</string>
     <string name="reasoning_off">Off</string>
-    <string name="reasoning_off_desc">Do not request reasoning. Safest for fast rewrites.</string>
+    <string name="reasoning_off_desc">Do not request reasoning. Safest for fast translations.</string>
     <string name="reasoning_auto">Provider default</string>
     <string name="reasoning_auto_desc">Let the provider decide. Useful when the selected model requires reasoning.</string>
     <string name="reasoning_minimal">Minimal</string>
@@ -186,7 +186,7 @@
     <string name="shortcuts_symbols">Symbols</string>
     <string name="row_a">Extra keys row</string>
     <string name="row_b">Tools row</string>
-    <string name="key_rewrite">Polish / Translate</string>
+    <string name="key_rewrite">AI translate</string>
     <string name="key_clipboard">Clipboard</string>
     <string name="key_keyboard_tools">Keyboard tools</string>
     <string name="key_switch_keyboard">Keyboard switch</string>
@@ -282,8 +282,6 @@
     <string name="ime_help_read_title">Translate copied text</string>
     <string name="ime_help_read_body">Long-press a message in another language, tap Copy, come back to the text field and tap the Translate bar that appears. The translation is only shown to you, never typed. If the bar is gone, use the button below.</string>
     <string name="ime_help_read_button">Translate the clipboard</string>
-    <string name="ime_help_polish_title">Polish</string>
-    <string name="ime_help_polish_body">Type, or select some text, and tap Polish. Tap Apply on the result to replace the original.</string>
     <string name="ime_help_translate_title">Translate</string>
     <string name="ime_help_translate_body">Type and tap Translate (the language beside it is the target), then Apply. Tap the language badge or long-press Translate to change it.</string>
     <string name="ime_tools_settings">Settings</string>
@@ -327,4 +325,5 @@
     <string name="pinyin_rerank">AI sentence ranking (experimental)</string>
     <string name="pinyin_rerank_desc">An on-device language model reorders whole-sentence candidates. Nothing leaves the phone; uses more memory and battery.</string>
     <string name="pinyin_rerank_stats">%1$d keystrokes scored, %2$.1f ms on average</string>
+    <string name="voice_needs_gemini">Turns on by itself once a Gemini API key is set in AI service.</string>
 </resources>

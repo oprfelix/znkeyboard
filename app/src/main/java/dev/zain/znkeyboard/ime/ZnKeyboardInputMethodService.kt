@@ -678,7 +678,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     }
 
     override fun onVoiceInputStarted(): Boolean {
-        if (!KeyboardSettings.readVoiceInputEnabled(this) || voiceProcessing) return false
+        if (!KeyboardSettings.isVoiceInputAvailable(this) || voiceProcessing) return false
         voiceInputProblem()?.let { problem ->
             showVoiceHint(problem)
             return false
@@ -773,7 +773,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
             view.setKeyHapticsEnabled(KeyboardSettings.readKeyHapticsEnabled(this))
             view.setKeyPreviewEnabled(KeyboardSettings.readKeyPreviewEnabled(this))
             view.setNumberRowVisible(KeyboardSettings.readNumberRowEnabled(this))
-            view.setVoiceInputEnabled(KeyboardSettings.readVoiceInputEnabled(this))
+            view.setVoiceInputEnabled(KeyboardSettings.isVoiceInputAvailable(this))
             view.setUpperRowKeyIds(KeyboardSettings.readUpperRowKeyIds(this))
             view.setSecondRowButtonIds(KeyboardSettings.readSecondRowButtonIds(this))
             view.setKeyboardRowOrder(KeyboardSettings.readKeyboardRowOrder(this))
