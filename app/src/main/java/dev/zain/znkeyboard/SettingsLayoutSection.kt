@@ -4,6 +4,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -36,19 +37,15 @@ import androidx.compose.ui.unit.sp
 import dev.zain.znkeyboard.KeyboardSettings.ChineseKeyboard
 
 /**
- * 键盘布局, its own card as on iOS, folded with the current layout as its summary: the three
- * Chinese keyboards drawn as small keyboards, the chosen one outlined.
+ * 键盘布局 under its caption, always open as on iOS: the three Chinese keyboards drawn as small
+ * keyboards in true proportion, the chosen one outlined.
  */
 @Composable
 internal fun KeyboardLayoutSection() {
     val context = LocalContext.current
     var keyboard by remember { mutableStateOf(KeyboardSettings.readChineseKeyboard(context)) }
-    CollapsibleSettingsSection(
-        title = stringResource(R.string.chinese_keyboard_section),
-        iconResId = R.drawable.ic_keyboard_24,
-        summary = stringResource(layoutName(keyboard)),
-        verticalSpacing = 14.dp,
-    ) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        SettingsGroupLabel(stringResource(R.string.chinese_keyboard_section))
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
             for (option in ChineseKeyboard.entries) {
                 LayoutCard(
@@ -65,6 +62,7 @@ internal fun KeyboardLayoutSection() {
             text = stringResource(R.string.chinese_keyboard_desc),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 8.dp),
         )
     }
 }
@@ -78,39 +76,45 @@ private fun layoutName(option: ChineseKeyboard) = when (option) {
 @Composable
 private fun RowScope.LayoutCard(option: ChineseKeyboard, selected: Boolean, onClick: () -> Unit) {
     val accent = MaterialTheme.colorScheme.primary
-    val shape = RoundedCornerShape(16.dp)
+    val shape = RoundedCornerShape(18.dp)
     Surface(
         shape = shape,
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        color = MaterialTheme.colorScheme.surfaceContainer,
         border = BorderStroke(2.dp, if (selected) accent else Color.Transparent),
-        modifier = Modifier.weight(1f).clickable(onClick = onClick),
+        modifier = Modifier.weight(1f).clip(shape).clickable(onClick = onClick),
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(6.dp),
-            modifier = Modifier.padding(8.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+            modifier = Modifier.padding(start = 8.dp, end = 8.dp, top = 8.dp, bottom = 4.dp),
         ) {
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(64.dp)
-                    .background(MaterialTheme.colorScheme.surfaceContainerHighest, RoundedCornerShape(10.dp))
-                    .padding(6.dp),
+                    .height(PREVIEW_HEIGHT)
+                    .background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(10.dp))
+                    .padding(horizontal = 6.dp, vertical = 7.dp),
             ) {
-                LayoutPreview(option, if (selected) accent.copy(alpha = 0.55f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.45f))
+                LayoutPreview(
+                    option,
+                    if (selected) accent.copy(alpha = 0.5f) else MaterialTheme.colorScheme.surfaceContainerHighest,
+                )
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
-                RadioButton(selected = selected, onClick = onClick, modifier = Modifier.size(28.dp))
+                RadioButton(selected = selected, onClick = onClick, modifier = Modifier.size(32.dp))
                 Text(
                     text = stringResource(layoutName(option)),
                     style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
                 )
             }
         }
     }
 }
+
+/** A keyboard is about 1.6 times as wide as it is tall; the preview keeps that. */
+private val PREVIEW_HEIGHT = 56.dp
 
 /** Rows of keys for the full keyboard; a 3 × 3 grid for 9-key, its stroke keys marked; a wide space under both. */
 @Composable
@@ -134,7 +138,7 @@ private fun LayoutPreview(option: ChineseKeyboard, keyColor: Color) {
             else -> {
                 val strokes = listOf("一", "丨", "丿", "丶", "乛", "＊", "", "", "")
                 for (row in 0 until 3) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(3.dp), modifier = Modifier.weight(1f).width(78.dp).align(Alignment.CenterHorizontally)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(3.dp), modifier = Modifier.weight(1f).fillMaxWidth()) {
                         repeat(3) { column ->
                             key(label = strokes[row * 3 + column].takeIf { option == ChineseKeyboard.NineKeyStroke && it.isNotEmpty() })
                         }
@@ -145,7 +149,7 @@ private fun LayoutPreview(option: ChineseKeyboard, keyColor: Color) {
         Row(
             horizontalArrangement = Arrangement.spacedBy(if (option == ChineseKeyboard.Qwerty) 2.dp else 3.dp),
             modifier = Modifier.weight(1f).then(
-                if (option == ChineseKeyboard.Qwerty) Modifier.fillMaxWidth() else Modifier.width(78.dp).align(Alignment.CenterHorizontally),
+                Modifier.fillMaxWidth(),
             ),
         ) {
             key(1f)

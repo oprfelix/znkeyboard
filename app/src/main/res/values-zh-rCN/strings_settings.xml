@@ -311,4 +311,15 @@
     <string name="reading_open_settings">打开设置</string>
     <string name="reading_too_long">文字太长（最多 5000 字）。</string>
     <string name="reading_no_text">没有选中文字。</string>
+    <string name="group_input">输入</string>
+    <string name="group_feel">手感</string>
+    <string name="group_look">外观</string>
+    <string name="group_updates">更新与隐私</string>
+    <string name="group_data">数据</string>
+    <string name="group_links">链接</string>
+    <string name="setup_active_detail">当前输入法，随时可以切换</string>
+    <string name="languages_translate_to">翻译成</string>
+    <string name="languages_reply_short">我的回复</string>
+    <string name="languages_received_short">收到的消息</string>
+    <string name="action_close">关闭</string>
 </resources>

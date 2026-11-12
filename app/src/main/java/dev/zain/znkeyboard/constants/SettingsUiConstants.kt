@@ -17,21 +17,25 @@ object SettingsUiDimensions {
     val PROVIDER_PICKER_MAX_HEIGHT = 220.dp
     val REASONING_PICKER_MAX_HEIGHT = 260.dp
     val SKIN_TONE_PICKER_MAX_HEIGHT = 260.dp
-    val SECTION_CORNER_RADIUS = 12.dp
+    val SECTION_CORNER_RADIUS = 22.dp
+    val CARD_SHADOW = 6.dp
+    val ROW_HORIZONTAL_PADDING = 16.dp
+    val ROW_VERTICAL_PADDING = 12.dp
+    val ICON_TILE_SIZE = 34.dp
+    val ICON_TILE_RADIUS = 10.dp
+    val ICON_TILE_GLYPH = 19.dp
+    val ICON_TILE_GAP = 14.dp
     val COMPACT_ITEM_CORNER_RADIUS = 8.dp
     val PICKER_CORNER_RADIUS = 28.dp
 }
 
-/** Floating title pill and content clearance for the edge-to-edge settings shell. */
+/** The large page title and content clearance for the edge-to-edge settings shell. */
 object SettingsShellDimensions {
-    val TITLE_PILL_HEIGHT = 48.dp
-    val TITLE_PILL_HORIZONTAL_PADDING = 20.dp
-    val TITLE_PILL_START_MARGIN = 12.dp
-    val TITLE_PILL_TOP_GAP = 8.dp
-    /** Fade below the solid band behind the title pills. */
-    val TITLE_SCRIM_FADE = 20.dp
-    val TITLE_PILL_BORDER_WIDTH = 1.dp
     val CONTENT_HORIZONTAL_PADDING = 16.dp
+    /** Above the large page title, below the status bar. */
+    val TITLE_TOP_GAP = 28.dp
+    /** The tinted wash behind the title. */
+    val WASH_HEIGHT = 340.dp
 
     /** Extra space so the first and last items can scroll fully clear of the pills. */
     val CONTENT_CLEARANCE = 16.dp

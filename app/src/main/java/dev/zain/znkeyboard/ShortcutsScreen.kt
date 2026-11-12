@@ -79,9 +79,7 @@ internal fun ShortcutsSummaryCard(onOpen: () -> Unit) {
     val keyCount = rows.sumOf { it.second.size }
 
     SettingsSectionCard(
-        modifier = Modifier
-            .clip(RoundedCornerShape(SettingsUiDimensions.SECTION_CORNER_RADIUS))
-            .clickable(onClick = onOpen),
+        modifier = Modifier.clickable(onClick = onOpen),
     ) {
         SettingsSectionHeader(
             title = stringResource(R.string.shortcuts_card_title),
@@ -91,8 +89,8 @@ internal fun ShortcutsSummaryCard(onOpen: () -> Unit) {
                 Icon(
                     painter = painterResource(R.drawable.ic_chevron_left_24),
                     contentDescription = null,
-                    tint = ZnKeyboardColors.Muted,
-                    modifier = Modifier.rotate(180f),
+                    tint = ZnKeyboardColors.Muted.copy(alpha = 0.7f),
+                    modifier = Modifier.size(20.dp).rotate(180f),
                 )
             },
         )

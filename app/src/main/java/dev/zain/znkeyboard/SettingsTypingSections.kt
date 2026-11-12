@@ -33,6 +33,11 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.ui.graphics.Color
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -93,81 +98,67 @@ internal fun SetupStatusCard() {
     }
     val ready = status.enabled && status.selected
     if (ready) {
-        // Once set up, a single quiet line is enough; the full card is for the steps.
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(start = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(
-                painter = painterResource(R.drawable.ic_keyboard_24),
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(20.dp),
-            )
-            Text(
-                text = stringResource(R.string.setup_active),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.weight(1f).padding(start = 10.dp),
-            )
-            TextButton(onClick = {
-                context.getSystemService(InputMethodManager::class.java)?.showInputMethodPicker()
-            }) { Text(stringResource(R.string.action_switch)) }
+        // Once set up, a quiet status card: a green dot, and the system picker one tap away.
+        SettingsCard {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(start = 18.dp, end = 12.dp, top = 12.dp, bottom = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                val success = ZnKeyboardColors.Success
+                Box(
+                    modifier = Modifier
+                        .size(18.dp)
+                        .background(success.copy(alpha = 0.2f), CircleShape)
+                        .padding(4.dp)
+                        .background(success, CircleShape),
+                )
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                    Text(
+                        text = stringResource(R.string.setup_active),
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.Medium,
+                    )
+                    Text(
+                        text = stringResource(R.string.setup_active_detail),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = ZnKeyboardColors.Muted,
+                    )
+                }
+                FilledTonalButton(onClick = {
+                    context.getSystemService(InputMethodManager::class.java)?.showInputMethodPicker()
+                }) { Text(stringResource(R.string.action_switch)) }
+            }
         }
         return
     }
-    Surface(
-        color = if (ready) MaterialTheme.colorScheme.surfaceContainer else MaterialTheme.colorScheme.primaryContainer,
-        contentColor = if (ready) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onPrimaryContainer,
-        shape = MaterialTheme.shapes.large,
-        modifier = Modifier.fillMaxWidth(),
-    ) {
+    SettingsCard {
         Row(
-            modifier = Modifier.padding(horizontal = 18.dp, vertical = 16.dp),
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 16.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            Surface(
-                shape = CircleShape,
-                color = if (ready) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onPrimaryContainer,
-                modifier = Modifier.size(40.dp),
-            ) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_keyboard_24),
-                    contentDescription = null,
-                    tint = if (ready) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primaryContainer,
-                    modifier = Modifier.padding(8.dp),
-                )
-            }
+            SettingsIconTile(R.drawable.ic_keyboard_24)
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(
-                    text = when {
-                        !status.enabled -> stringResource(R.string.setup_turn_on)
-                        !status.selected -> stringResource(R.string.setup_switch)
-                        else -> stringResource(R.string.setup_active)
-                    },
-                    style = MaterialTheme.typography.titleMedium,
+                    text = if (!status.enabled) stringResource(R.string.setup_turn_on) else stringResource(R.string.setup_switch),
+                    style = MaterialTheme.typography.bodyLarge,
                     fontWeight = FontWeight.SemiBold,
                 )
                 Text(
-                    text = when {
-                        !status.enabled -> stringResource(R.string.setup_step1)
-                        !status.selected -> stringResource(R.string.setup_step2)
-                        else -> stringResource(R.string.setup_try)
-                    },
+                    text = if (!status.enabled) stringResource(R.string.setup_step1) else stringResource(R.string.setup_step2),
                     style = MaterialTheme.typography.bodySmall,
+                    color = ZnKeyboardColors.Muted,
                 )
             }
-            when {
-                !status.enabled -> Button(onClick = {
+            if (!status.enabled) {
+                Button(onClick = {
                     context.startActivity(Intent(Settings.ACTION_INPUT_METHOD_SETTINGS))
                 }) { Text(stringResource(R.string.action_enable)) }
-                !status.selected -> Button(onClick = {
+            } else {
+                Button(onClick = {
                     context.getSystemService(InputMethodManager::class.java)?.showInputMethodPicker()
                 }) { Text(stringResource(R.string.action_choose)) }
-                else -> TextButton(onClick = {
-                    context.getSystemService(InputMethodManager::class.java)?.showInputMethodPicker()
-                }) { Text(stringResource(R.string.action_switch)) }
             }
         }
     }
@@ -176,13 +167,21 @@ internal fun SetupStatusCard() {
 @Composable
 internal fun TryTypingField() {
     var text by rememberSaveable { mutableStateOf("") }
-    OutlinedTextField(
+    // A plain white field, like a card, so it sits with the groups below.
+    TextField(
         value = text,
         onValueChange = { text = it },
-        label = { Text(stringResource(R.string.try_it)) },
         placeholder = { Text(stringResource(R.string.try_it_placeholder)) },
         minLines = 2,
-        shape = MaterialTheme.shapes.medium,
+        shape = RoundedCornerShape(18.dp),
+        colors = TextFieldDefaults.colors(
+            focusedContainerColor = ZnKeyboardColors.Surface,
+            unfocusedContainerColor = ZnKeyboardColors.Surface,
+            focusedIndicatorColor = Color.Transparent,
+            unfocusedIndicatorColor = Color.Transparent,
+            unfocusedPlaceholderColor = ZnKeyboardColors.Muted,
+            focusedPlaceholderColor = ZnKeyboardColors.Muted,
+        ),
         modifier = Modifier.fillMaxWidth(),
     )
 }

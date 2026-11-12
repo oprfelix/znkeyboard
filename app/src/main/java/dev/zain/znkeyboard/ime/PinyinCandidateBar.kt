@@ -164,6 +164,27 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
         addView(toolsShare, LayoutParams(0, context.dp(34), 1f))
         addView(toolsSettings, LayoutParams(0, context.dp(34), 1f))
     }
+    // The keyboard choice's header: the leaf (lit, as the menu is open), the title, and close.
+    private val pickerLeaf = toolIcon(R.drawable.ic_leaf_24, R.string.key_keyboard_tools) { callback?.onToolsMenuClosed() }
+    private val pickerTitle = TextView(context).apply {
+        gravity = Gravity.CENTER_VERTICAL
+        textSize = 15f
+        typeface = Typeface.create(Typeface.DEFAULT, 700, false)
+        setPadding(context.dp(12), 0, 0, 0)
+    }
+    private val pickerClose = toolIcon(R.drawable.ic_close_24, R.string.action_close) { callback?.onToolsMenuClosed() }.apply {
+        scaleType = ImageView.ScaleType.FIT_CENTER
+        setPadding(context.dp(8), context.dp(8), context.dp(8), context.dp(8))
+    }
+    private val pickerHeader = LinearLayout(context).apply {
+        orientation = HORIZONTAL
+        gravity = Gravity.CENTER_VERTICAL
+        visibility = View.GONE
+        setPadding(context.dp(6), 0, context.dp(8), 0)
+        addView(pickerLeaf, LayoutParams(context.dp(TOOLS_LEAF_WIDTH_DP), context.dp(34)))
+        addView(pickerTitle, LayoutParams(0, LayoutParams.MATCH_PARENT, 1f))
+        addView(pickerClose, LayoutParams(context.dp(34), context.dp(34)))
+    }
     private val polishButton = TextView(context).apply {
         gravity = Gravity.CENTER
         textSize = 14f
@@ -236,6 +257,7 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
         mainRow.addView(offerRow, LayoutParams(0, LayoutParams.MATCH_PARENT, 1f))
         mainRow.addView(editScroller, LayoutParams(0, LayoutParams.MATCH_PARENT, 1f))
         mainRow.addView(toolsMenu, LayoutParams(0, LayoutParams.MATCH_PARENT, 1f))
+        mainRow.addView(pickerHeader, LayoutParams(0, LayoutParams.MATCH_PARENT, 1f))
         mainRow.addView(
             fixButton,
             LayoutParams(LayoutParams.WRAP_CONTENT, context.dp(34)).apply { marginStart = context.dp(4) },
@@ -267,6 +289,14 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
         toolsShare.setColorFilter(ImeColors.TEXT)
         toolsSettings.setColorFilter(ImeColors.TEXT)
         toolsLeaf.background = toolBackground()
+        pickerLeaf.setColorFilter(ImeColors.ACCENT)
+        pickerLeaf.background = toolBackground()
+        pickerTitle.setTextColor(ImeColors.TEXT)
+        pickerClose.setColorFilter(ImeColors.SECONDARY_TEXT)
+        pickerClose.background = GradientDrawable().apply {
+            shape = GradientDrawable.OVAL
+            setColor(ImeColors.FUNCTION)
+        }
         fixButton.setTextColor(ImeColors.TEXT)
         editButton.setTextColor(ImeColors.TEXT)
         editText.setTextColor(ImeColors.TEXT)
@@ -417,9 +447,18 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
         renderChoices(Choosing.ReadingLanguage, label, languages, selectedIndex)
     }
 
-    /** Lists the Chinese keyboards in place of candidates until one is picked. */
-    fun renderKeyboardChoices(label: String, names: List<String>, selectedIndex: Int) {
-        renderChoices(Choosing.Keyboard, label, names, selectedIndex)
+    /** The header over the keyboard picker, which covers the keys until a keyboard is picked. */
+    fun renderKeyboardPicker(title: String) {
+        choosing = Choosing.Keyboard
+        showTools(null)
+        fixButton.visibility = View.GONE
+        editButton.visibility = View.GONE
+        expandButton.visibility = View.GONE
+        show("", emptyList())
+        visibility = View.VISIBLE
+        scroller.visibility = View.GONE
+        pickerTitle.text = title
+        pickerHeader.visibility = View.VISIBLE
     }
 
     private fun renderChoices(kind: Choosing, label: String, items: List<String>, selectedIndex: Int) {
@@ -436,6 +475,7 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
         visibility = if (label.isEmpty() && items.isEmpty()) View.GONE else View.VISIBLE
         offerRow.visibility = View.GONE
         toolsMenu.visibility = View.GONE
+        pickerHeader.visibility = View.GONE
         editScroller.visibility = View.GONE
         scroller.visibility = View.VISIBLE
         composingLabel.text = label

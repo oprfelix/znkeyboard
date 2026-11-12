@@ -144,6 +144,8 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     private var inputRoot: LinearLayout? = null
     private var keyboardContainer: FrameLayout? = null
     private var clipboardPanelView: ClipboardPanelView? = null
+    /** The leaf menu's keyboard choice, over the keys below the candidate strip while open. */
+    private var keyboardPicker: KeyboardPickerView? = null
     private var phrasesPanelView: PhrasesPanelView? = null
     private var helpPanelView: HelpPanelView? = null
     private var clipboardSearchView: ClipboardSearchView? = null
@@ -265,6 +267,14 @@ class ZnKeyboardInputMethodService : InputMethodService(),
             )
             addView(candidateBar, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, 0))
             addView(candidatePanel, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, 0))
+            addView(
+                KeyboardPickerView(this@ZnKeyboardInputMethodService).also { picker ->
+                    keyboardPicker = picker
+                    picker.visibility = View.GONE
+                    picker.onPick = { index -> onChineseKeyboardSelected(index) }
+                },
+                FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, 0),
+            )
         }
         keyboard.onCandidateStripChanged = { top, bottom ->
             val params = candidateBar.layoutParams as FrameLayout.LayoutParams
@@ -635,11 +645,20 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     }
 
     override fun onChineseKeyboardMenuRequested() {
-        val current = KeyboardSettings.ChineseKeyboard.entries.indexOf(chineseKeyboard)
-        pinyinBar?.renderKeyboardChoices(
-            t("键盘", "Keyboard"),
+        val picker = keyboardPicker ?: return
+        val height = (keyboardView?.height ?: 0) - candidateStripBottom
+        if (height <= 0) return
+        val params = picker.layoutParams as FrameLayout.LayoutParams
+        if (params.topMargin != candidateStripBottom || params.height != height) {
+            params.topMargin = candidateStripBottom
+            params.height = height
+            picker.layoutParams = params
+        }
+        pinyinBar?.renderKeyboardPicker(t("选择键盘", "Choose keyboard"))
+        picker.show(
             listOf(t("全键", "26-key"), t("九键", "9-key"), t("笔画", "Stroke")),
-            current,
+            KeyboardSettings.ChineseKeyboard.entries.indexOf(chineseKeyboard),
+            t("英文始终用全键盘", "English always uses the full keyboard"),
         )
     }
 
@@ -837,6 +856,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     private fun swapKeyboardSurface(surface: View) {
         val container = keyboardContainer ?: return
         if (surface !== keyboardView) commitPinyinRaw()
+        keyboardPicker?.hide()
         if (surface === keyboardView) {
             renderPinyinBar()
         } else {
@@ -1619,6 +1639,8 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     }
 
     private fun renderPinyinBar() {
+        // Whatever the bar shows next, the keyboard picker is over: back to the keys.
+        keyboardPicker?.hide()
         // Every change to the composition ends here, so the spelling list follows it too.
         refreshNineKeySpellings()
         val bar = pinyinBar ?: return

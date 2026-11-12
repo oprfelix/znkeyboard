@@ -2,8 +2,10 @@ package dev.zain.znkeyboard
 
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
@@ -16,6 +18,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -24,6 +27,8 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -31,6 +36,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -41,29 +47,111 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.zain.znkeyboard.constants.SettingsUiDimensions
 
+/** True inside a [SettingsGroup]: sections then draw no card of their own and share the group's. */
+internal val LocalSettingsGrouped = staticCompositionLocalOf { false }
+
+/** Where a grouped row's divider starts: past the icon tile, under the text, as on iOS. */
+private val GROUP_DIVIDER_INSET = SettingsUiDimensions.ROW_HORIZONTAL_PADDING +
+    SettingsUiDimensions.ICON_TILE_SIZE + SettingsUiDimensions.ICON_TILE_GAP
+
+/** A small caption above a group of rows. */
+@Composable
+internal fun SettingsGroupLabel(text: String, modifier: Modifier = Modifier) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.labelLarge,
+        color = ZnKeyboardColors.Muted,
+        modifier = modifier.padding(start = 8.dp, top = 6.dp),
+    )
+}
+
+/**
+ * One white card holding several rows with hairlines between them, under an optional caption:
+ * the grouped list of the iOS app. Each item draws only its row; a section inside draws no card.
+ */
+@Composable
+internal fun SettingsGroup(label: String?, items: List<@Composable () -> Unit>) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        label?.let { SettingsGroupLabel(it) }
+        SettingsCard {
+            CompositionLocalProvider(LocalSettingsGrouped provides true) {
+                items.forEachIndexed { index, item ->
+                    if (index > 0) {
+                        HorizontalDivider(
+                            color = ZnKeyboardColors.Divider,
+                            modifier = Modifier.padding(start = GROUP_DIVIDER_INSET),
+                        )
+                    }
+                    item()
+                }
+            }
+        }
+    }
+}
+
+/** The white rounded card under every group, with a faint shadow. */
+@Composable
+internal fun SettingsCard(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
+    val shape = RoundedCornerShape(SettingsUiDimensions.SECTION_CORNER_RADIUS)
+    Surface(
+        color = ZnKeyboardColors.Surface,
+        shape = shape,
+        tonalElevation = 0.dp,
+        modifier = modifier
+            .fillMaxWidth()
+            .shadow(SettingsUiDimensions.CARD_SHADOW, shape, ambientColor = CARD_SHADOW_COLOR, spotColor = CARD_SHADOW_COLOR),
+    ) {
+        Column(content = content)
+    }
+}
+
+private val CARD_SHADOW_COLOR = Color(0x331E2A5A)
+
+/** A row's icon: the accent glyph on a pale accent tile. */
+@Composable
+internal fun SettingsIconTile(iconResId: Int, modifier: Modifier = Modifier) {
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = modifier
+            .size(SettingsUiDimensions.ICON_TILE_SIZE)
+            .background(ZnKeyboardColors.AccentSoft, RoundedCornerShape(SettingsUiDimensions.ICON_TILE_RADIUS)),
+    ) {
+        Icon(
+            painter = painterResource(iconResId),
+            contentDescription = null,
+            tint = ZnKeyboardColors.Accent,
+            modifier = Modifier.size(SettingsUiDimensions.ICON_TILE_GLYPH),
+        )
+    }
+}
+
+/** A section: its own card, or, inside a [SettingsGroup], a row of the group's card. */
 @Composable
 internal fun SettingsSectionCard(
     modifier: Modifier = Modifier,
     verticalSpacing: androidx.compose.ui.unit.Dp = 14.dp,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    Surface(
-        color = ZnKeyboardColors.Surface,
-        shape = RoundedCornerShape(SettingsUiDimensions.SECTION_CORNER_RADIUS),
-        tonalElevation = 0.dp,
-        modifier = modifier.fillMaxWidth(),
-    ) {
+    val body = @Composable {
         Column(
-            modifier = Modifier.padding(18.dp),
+            modifier = Modifier.padding(
+                horizontal = SettingsUiDimensions.ROW_HORIZONTAL_PADDING,
+                vertical = SettingsUiDimensions.ROW_VERTICAL_PADDING + 2.dp,
+            ),
             verticalArrangement = Arrangement.spacedBy(verticalSpacing),
             content = content,
         )
     }
+    if (LocalSettingsGrouped.current) {
+        Box(modifier.fillMaxWidth()) { body() }
+    } else {
+        SettingsCard(modifier) { body() }
+    }
 }
 
 /**
- * A section card that shows only its header until tapped. [summary] stands in for the hidden
- * settings while collapsed.
+ * A section that shows only its row until tapped, then opens in place. [summary] stands in for
+ * the hidden settings while closed.
  */
 @Composable
 internal fun CollapsibleSettingsSection(
@@ -74,43 +162,48 @@ internal fun CollapsibleSettingsSection(
     content: @Composable ColumnScope.() -> Unit,
 ) {
     var expanded by rememberSaveable(title) { mutableStateOf(false) }
-    val chevronRotation by animateFloatAsState(if (expanded) 90f else -90f, label = "chevron")
-    Surface(
-        color = ZnKeyboardColors.Surface,
-        shape = RoundedCornerShape(SettingsUiDimensions.SECTION_CORNER_RADIUS),
-        tonalElevation = 0.dp,
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Column(modifier = Modifier.animateContentSize()) {
+    // The chevron points right, as on iOS, and turns down once open.
+    val chevronRotation by animateFloatAsState(if (expanded) -90f else 180f, label = "chevron")
+    val body = @Composable {
+        Column(modifier = Modifier.fillMaxWidth().animateContentSize()) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clickable { expanded = !expanded }
-                    .padding(18.dp),
+                    .padding(
+                        horizontal = SettingsUiDimensions.ROW_HORIZONTAL_PADDING,
+                        vertical = SettingsUiDimensions.ROW_VERTICAL_PADDING,
+                    ),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 SettingsSectionHeader(
                     title = title,
                     iconResId = iconResId,
-                    subtitle = summary.takeUnless { expanded },
+                    subtitle = summary.takeUnless { expanded || it.isBlank() },
                     modifier = Modifier.weight(1f),
                 )
                 Icon(
                     painter = painterResource(R.drawable.ic_chevron_left_24),
                     contentDescription = stringResource(if (expanded) R.string.action_collapse else R.string.action_expand),
-                    tint = ZnKeyboardColors.Muted,
-                    modifier = Modifier.rotate(chevronRotation),
+                    tint = ZnKeyboardColors.Muted.copy(alpha = 0.7f),
+                    modifier = Modifier.size(20.dp).rotate(chevronRotation),
                 )
             }
             if (expanded) {
                 Column(
-                    modifier = Modifier.padding(start = 18.dp, end = 18.dp, bottom = 18.dp),
+                    modifier = Modifier.padding(
+                        start = SettingsUiDimensions.ROW_HORIZONTAL_PADDING,
+                        end = SettingsUiDimensions.ROW_HORIZONTAL_PADDING,
+                        top = 4.dp,
+                        bottom = 18.dp,
+                    ),
                     verticalArrangement = Arrangement.spacedBy(verticalSpacing),
                     content = content,
                 )
             }
         }
     }
+    if (LocalSettingsGrouped.current) body() else SettingsCard { body() }
 }
 
 @Composable
@@ -133,18 +226,14 @@ internal fun SettingsSectionHeader(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             iconResId?.let {
-                Icon(
-                    painter = painterResource(it),
-                    contentDescription = null,
-                    tint = ZnKeyboardColors.Accent,
-                )
-                Spacer(Modifier.width(10.dp))
+                SettingsIconTile(it)
+                Spacer(Modifier.width(SettingsUiDimensions.ICON_TILE_GAP))
             }
-            Column {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(
                     text = title,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Medium,
                 )
                 subtitle?.let {
                     Text(
@@ -156,11 +245,15 @@ internal fun SettingsSectionHeader(
             }
         }
 
-        trailingContent?.invoke(this) ?: trailingText?.let {
+        trailingContent?.let {
+            Spacer(Modifier.width(12.dp))
+            it(this)
+        } ?: trailingText?.let {
             Text(
                 text = it,
                 color = trailingColor,
-                style = MaterialTheme.typography.labelLarge,
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.padding(start = 12.dp),
             )
         }
     }
