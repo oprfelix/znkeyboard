@@ -297,6 +297,12 @@ nav .wrap { display: flex; align-items: center; gap: 24px; height: 60px; }
 .platform ul li { margin: 4px 0; }
 .platform .btn { margin-top: auto; width: 100%; font-size: 16px; padding: 12px 18px; }
 .platform .meta { text-align: center; }
+/* iPhone: App Store first, the beta under it, and where each is available */
+.platform .btns { margin-top: auto; display: flex; flex-direction: column; gap: 8px; }
+.platform .btns .btn { margin-top: 0; }
+.platform .notice { display: flex; gap: 8px; margin-top: 4px; padding: 10px 12px; border-radius: 12px; font-size: 13px; line-height: 1.55; color: var(--muted); background: color-mix(in srgb, var(--blue) 7%, transparent); border: 1px solid color-mix(in srgb, var(--blue) 18%, transparent); }
+.platform .notice svg { flex: none; width: 16px; height: 16px; margin-top: 2px; color: var(--blue); }
+#hero-meta a { white-space: nowrap; }
 /* Usage numbers: one centred band, numbers in the headline's gradient */
 .stats { padding: 0 0 24px; }
 .stat-band {
@@ -802,7 +808,7 @@ footer .links a { margin-right: 18px; }
 <section id="download">
   <div class="wrap">
     <h2 data-en="Download">下载</h2>
-    <p class="lead" data-en="Free. Updates install from inside the app (through TestFlight on iPhone), and your settings and API key stay.">免费使用。App 内可一键更新（iPhone 在 TestFlight 里更新），设置和 API Key 都会保留。</p>
+    <p class="lead" data-en="Free. Updates install from inside the app (on iPhone, from the App Store or TestFlight), and your settings and API key stay.">免费使用。App 内可一键更新（iPhone 由 App Store 或 TestFlight 更新），设置和 API Key 都会保留。</p>
     <div class="grid four">
       <article class="card platform" data-platform="android">
         <header><img src="assets/icon-android.png" alt=""><div><h3>Android <span class="tag" data-en="Keyboard">输入法</span></h3><div class="kind" data-en="Pinyin + English keyboard">拼音 + 英文输入法</div></div></header>
@@ -816,15 +822,18 @@ footer .links a { margin-right: 18px; }
         <div class="meta" data-meta="znkeyboard"></div>
       </article>
       <article class="card platform" data-platform="ios">
-        <header><img src="assets/icon-ios.png" alt=""><div><h3>iPhone <span class="tag" data-en="Beta">测试版</span></h3><div class="kind" data-en="Pinyin + English keyboard">拼音 + 英文输入法</div></div></header>
+        <header><img src="assets/icon-ios.png" alt=""><div><h3>iPhone <span class="tag" data-en="App Store">正式版</span></h3><div class="kind" data-en="Pinyin + English keyboard">拼音 + 英文输入法</div></div></header>
         <ul>
           <li data-en="Translate in the toolbar">工具栏里一键翻译</li>
           <li data-en="Copy a message and translate it">复制外文消息，一键翻译</li>
           <li data-en="Whole-sentence pinyin with AI ranking, correction and 9-key">整句拼音（AI 排序）、按键纠错和九宫格</li>
           <li data-en="Requires iOS 16 or later">需要 iOS 16 及以上</li>
         </ul>
-        <a class="btn" id="ios-link" target="_blank" rel="noopener"><svg><use href="#i-download"/></svg><span data-en="Install beta">安装测试版</span></a>
-        <div class="meta" data-en="Install TestFlight first, then open the link in Safari.">先装 TestFlight，再用 Safari 打开链接</div>
+        <div class="btns">
+          <a class="btn" href="https://apps.apple.com/app/id6831530705" target="_blank" rel="noopener"><svg><use href="#i-download"/></svg><span data-en="Download on the App Store">App Store 下载</span></a>
+          <a class="btn ghost" id="ios-link" href="https://testflight.apple.com/join/8YzSZYwx" target="_blank" rel="noopener"><span data-en="Install beta (TestFlight)">安装测试版（TestFlight）</span></a>
+        </div>
+        <div class="notice"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="8" cy="8" r="6.5"/><path d="M8 7.2v4M8 4.6v.1" stroke-linecap="round"/></svg><span data-en="Not yet on the App Store in mainland China while our ICP filing is under review: install the beta there. For the beta, install TestFlight first, then open the link in Safari.">中国大陆 App Store 暂未上架（ICP 备案审批中）。中国大陆 Apple ID 请先安装测试版；已有海外 Apple ID 的用户可以直接在 App Store 下载。测试版需先装 TestFlight，再用 Safari 打开链接。</span></div>
       </article>
       <article class="card platform" data-platform="mac">
         <header><img src="assets/icon-desktop.png" alt=""><div><h3>macOS <span class="tag" data-en="Menu bar">菜单栏</span></h3><div class="kind" data-en="Works in any app">在任何 App 里使用</div></div></header>
@@ -860,7 +869,7 @@ footer .links a { margin-right: 18px; }
     <div class="grid three steps">
       <div class="card step">
         <h3 data-en="Install">安装</h3>
-        <p data-en="Download the version for your device above. On iPhone, install TestFlight first, open the install link in Safari rather than inside WeChat, then add ZnKeyboard in Settings and allow Full Access; the app walks you through it. On Android, also turn on ZnKeyboard in the keyboard settings; the app walks you through it. On Mac, allow ZnKeyboard under Accessibility when asked, so it can read the text you select (screenshot translate also needs Screen Recording). On Windows, run the installer; the first time, install the .NET 10 runtime.">在上方下载对应版本。iPhone 要先安装 TestFlight，并用 Safari 打开安装链接（不要在微信里打开），之后在系统设置里添加键盘并打开完全访问，App 首页会引导你完成。Android 安装后还要在系统里启用 ZnKeyboard 输入法，App 首页会引导你完成；Mac 需要按提示在「辅助功能」里授权，才能读取你选中的文字（截图翻译还需要「屏幕录制」权限）；Windows 双击安装程序即可，第一次需先安装 .NET 10 运行时。</p>
+        <p data-en="Download the version for your device above. On iPhone, download it from the App Store (in mainland China, install the beta: TestFlight first, then the install link in Safari rather than inside WeChat), then add ZnKeyboard in Settings and allow Full Access; the app walks you through it. On Android, also turn on ZnKeyboard in the keyboard settings; the app walks you through it. On Mac, allow ZnKeyboard under Accessibility when asked, so it can read the text you select (screenshot translate also needs Screen Recording). On Windows, run the installer; the first time, install the .NET 10 runtime.">在上方下载对应版本。iPhone 在 App Store 下载（中国大陆请安装测试版：先装 TestFlight，再用 Safari 打开安装链接，不要在微信里打开），之后在系统设置里添加键盘并打开完全访问，App 首页会引导你完成。Android 安装后还要在系统里启用 ZnKeyboard 输入法，App 首页会引导你完成；Mac 需要按提示在「辅助功能」里授权，才能读取你选中的文字（截图翻译还需要「屏幕录制」权限）；Windows 双击安装程序即可，第一次需先安装 .NET 10 运行时。</p>
       </div>
       <div class="card step">
         <h3 data-en="Get an API key">获取 API Key</h3>
@@ -939,15 +948,15 @@ footer .links a { margin-right: 18px; }
         </details>
         <details>
           <summary data-en="iPhone: install and turn on the keyboard">iPhone：安装和启用键盘</summary>
-          <div class="answer" data-en="<ol><li>Install <b>TestFlight</b> from the App Store and open it once.</li><li>Open <a href=&quot;https://testflight.apple.com/join/8YzSZYwx&quot;>the install link</a> in Safari. Inside WeChat the button may do nothing: use “Open in Safari”.</li><li>In TestFlight, tap <b>Accept</b>, then <b>Install</b>.</li><li>In Settings → General → Keyboard → Keyboards → Add New Keyboard, choose ZnKeyboard, tap it and turn on <b>Allow Full Access</b>. Translate needs it; plain typing doesn't.</li><li>In the ZnKeyboard app, choose a provider, paste your API key and test the connection.</li></ol>Updating: update ZnKeyboard in TestFlight. To type on 9 keys, open the app's Keyboard page and choose it under Chinese keyboard.">
+          <div class="answer" data-en="<ol><li>Download ZnKeyboard from the <a href=&quot;https://apps.apple.com/app/id6831530705&quot;>App Store</a>. In mainland China, where it isn't available yet, install the beta instead: install <b>TestFlight</b> from the App Store and open it once.</li><li>Open <a href=&quot;https://testflight.apple.com/join/8YzSZYwx&quot;>the install link</a> in Safari. Inside WeChat the button may do nothing: use “Open in Safari”.</li><li>In TestFlight, tap <b>Accept</b>, then <b>Install</b>.</li><li>In Settings → General → Keyboard → Keyboards → Add New Keyboard, choose ZnKeyboard, tap it and turn on <b>Allow Full Access</b>. Translate needs it; plain typing doesn't.</li><li>In the ZnKeyboard app, choose a provider, paste your API key and test the connection.</li></ol>Updating: from the App Store, or in TestFlight for the beta. To type on 9 keys, open the app's Keyboard page and choose it under Chinese keyboard.">
             <ol>
-              <li>在 App Store 安装 <b>TestFlight</b>，并打开一次。</li>
+              <li>在 <a href="https://apps.apple.com/app/id6831530705">App Store</a> 下载 ZnKeyboard。中国大陆 App Store 暂未上架（ICP 备案审批中），请改装测试版：先在 App Store 安装 <b>TestFlight</b>，并打开一次。</li>
               <li>用 Safari 打开<a href="https://testflight.apple.com/join/8YzSZYwx">安装链接</a>。在微信里打开时按钮可能没有反应，请选「在 Safari 中打开」。</li>
               <li>在 TestFlight 里点 <b>接受</b>，再点 <b>安装</b>。</li>
               <li>打开「设置 → 通用 → 键盘 → 键盘 → 添加新键盘」，选择 ZnKeyboard，再点进去打开 <b>允许完全访问</b>。翻译需要它，只打字不需要。</li>
               <li>打开 ZnKeyboard App，选择服务商，粘贴 API Key 并测试连接。</li>
             </ol>
-            以后更新：在 TestFlight 里更新 ZnKeyboard。想用九宫格：在 App「键盘」页的「中文键盘」里选择。
+            以后更新：App Store 版在 App Store 更新，测试版在 TestFlight 里更新。想用九宫格：在 App「键盘」页的「中文键盘」里选择。
           </div>
         </details>
         <details>
@@ -1008,7 +1017,7 @@ footer .links a { margin-right: 18px; }
         </details>
         <details>
           <summary data-en="Is there an iPhone version?">有 iPhone 版吗？</summary>
-          <div class="answer" data-en="Yes, as a beta through Apple's TestFlight. Install TestFlight from the App Store, then open <a href=&quot;https://testflight.apple.com/join/8YzSZYwx&quot;>the install link</a> in Safari; inside WeChat the button may do nothing. Translate needs your own API key and Full Access; AI sentence ranking works without either. There's no voice input or screenshot translate on iPhone.">有，目前是测试版，通过苹果的 TestFlight 安装。先在 App Store 安装 TestFlight，再用 Safari 打开<a href="https://testflight.apple.com/join/8YzSZYwx">安装链接</a>；在微信里打开时按钮可能没有反应。翻译需要你自己的 API Key，并打开完全访问；AI 整句排序不需要。iPhone 版没有语音输入和截图翻译。</div>
+          <div class="answer" data-en="Yes, on the <a href=&quot;https://apps.apple.com/app/id6831530705&quot;>App Store</a>. It isn't on the App Store in mainland China yet while our ICP filing is under review; there, install the beta through Apple's TestFlight: install TestFlight from the App Store, then open <a href=&quot;https://testflight.apple.com/join/8YzSZYwx&quot;>the install link</a> in Safari; inside WeChat the button may do nothing. Translate needs your own API key and Full Access; AI sentence ranking works without either. There's no voice input or screenshot translate on iPhone.">有，已在 <a href="https://apps.apple.com/app/id6831530705">App Store</a> 上架。中国大陆 App Store 暂未上架（ICP 备案审批中），中国大陆 Apple ID 请先安装测试版，已有海外 Apple ID 的用户可以直接在 App Store 下载。测试版通过苹果的 TestFlight 安装：先在 App Store 安装 TestFlight，再用 Safari 打开<a href="https://testflight.apple.com/join/8YzSZYwx">安装链接</a>；在微信里打开时按钮可能没有反应。翻译需要你自己的 API Key，并打开完全访问；AI 整句排序不需要。iPhone 版没有语音输入和截图翻译。</div>
         </details>
         <details>
           <summary data-en="Is it open source?">是开源的吗？</summary>
@@ -1169,6 +1178,10 @@ footer .links a { margin-right: 18px; }
     windows: { repo: 'Znkeyboard-for-Windows', ext: '.exe', name: 'Windows' }
   };
   var testFlightUrl = 'https://testflight.apple.com/join/8YzSZYwx';
+  var appStoreUrl = 'https://apps.apple.com/app/id6831530705';
+  // Simplified Chinese without another region (zh, zh-CN, zh-Hans): most likely a mainland China
+  // Apple ID, which the App Store doesn't serve yet (ICP filing under review), so the beta comes first.
+  var mainlandGuess = /^zh(-hans)?(-cn)?$/i.test(navigator.language || '');
   var latest = {}; // repo -> { url, version, size }
   var backup = {}; // platform -> the file on GitHub
   var fromCloudflare = !/github\.io$/.test(location.hostname);
@@ -1210,10 +1223,15 @@ footer .links a { margin-right: 18px; }
     var meta = document.getElementById('hero-meta');
     var others = document.getElementById('hero-others');
     var target = repos[platform];
-    if (platform === 'ios') {
+    if (platform === 'ios' && mainlandGuess) {
       btn.href = testFlightUrl;
-      label.textContent = t('用 TestFlight 安装', 'Install with TestFlight');
-      meta.textContent = t('iPhone 测试版，请在 Safari 中打开', 'iPhone beta; open this page in Safari');
+      label.textContent = t('安装测试版', 'Install beta');
+      meta.innerHTML = t('中国大陆 App Store 暂未上架（ICP 备案审批中）· <a href="' + appStoreUrl + '">海外 Apple ID？去 App Store 下载</a>',
+        'Not on the App Store in mainland China yet · <a href="' + appStoreUrl + '">Download on the App Store</a>');
+    } else if (platform === 'ios') {
+      btn.href = appStoreUrl;
+      label.textContent = t('App Store 下载', 'Download on the App Store');
+      meta.innerHTML = '<a href="' + testFlightUrl + '">' + t('或安装测试版（TestFlight）', 'Or install the beta (TestFlight)') + '</a>';
     } else if (target) {
       var info = latest[target.repo];
       btn.href = info ? info.url : directUrl(platform);
