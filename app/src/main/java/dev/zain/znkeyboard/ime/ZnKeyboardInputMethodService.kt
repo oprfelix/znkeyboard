@@ -145,7 +145,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     private var keyboardContainer: FrameLayout? = null
     private var clipboardPanelView: ClipboardPanelView? = null
     /** AI 整句排序 (experimental): set once the model has loaded while the setting is on. */
-    private var sentenceScorer: NeuralSentenceScorer? = null
+    private var sentenceScorer: AsyncSentenceScorer? = null
     private var sentenceScorerLoading = false
 
     /** The leaf menu's keyboard choice, over the keys below the candidate strip while open. */
@@ -1279,9 +1279,31 @@ class ZnKeyboardInputMethodService : InputMethodService(),
             Log.i(TAG, "sentence scorer ${if (loaded == null) "unavailable" else "loaded"} in ${SystemClock.elapsedRealtime() - started} ms")
             mainHandler.post {
                 sentenceScorerLoading = false
-                if (KeyboardSettings.readNeuralRerankEnabled(appContext)) sentenceScorer = loaded else loaded?.close()
+                if (KeyboardSettings.readNeuralRerankEnabled(appContext) && loaded != null) {
+                    sentenceScorer = AsyncSentenceScorer(loaded) { rerankShownCandidates() }
+                } else {
+                    loaded?.close()
+                }
             }
         }.start()
+    }
+
+    private fun fullKeyCandidates(composing: String, dictionary: PinyinDictionary): List<PinyinEngine.Candidate> =
+        PinyinEngine.candidates(composing, dictionary, pinyinTaps, pinyinLearner.context ?: pinyinFieldContext, sentenceScorer).let { found ->
+            englishWords?.merge(composing, found, dictionary) ?: found
+        }
+
+    /**
+     * AI 整句排序 has scored the readings on the bar (off the main thread): the same input is read
+     * again, now in the model's order. Left alone while the bar is being used for something else.
+     */
+    private fun rerankShownCandidates() {
+        val dictionary = pinyinDictionary ?: return
+        val composing = pinyinComposing
+        if (composing.isEmpty() || chineseKeyboard.isNineKey || pinyinFix != null || pinyinEditCaret >= 0) return
+        if (pinyinBar?.isChoosing == true) return
+        pinyinCandidates = fullKeyCandidates(composing, dictionary)
+        renderPinyinBar()
     }
 
     /** Adds the scorer's timings since the last time to the setting's summary. */
@@ -1518,9 +1540,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
             composing.isEmpty() -> emptyList()
             chineseKeyboard == KeyboardSettings.ChineseKeyboard.NineKeyPinyin -> NineKeyEngine.candidates(composing, dictionary)
             chineseKeyboard == KeyboardSettings.ChineseKeyboard.NineKeyStroke -> strokeIndex?.candidates(composing, dictionary).orEmpty()
-            else -> PinyinEngine.candidates(composing, dictionary, pinyinTaps, pinyinLearner.context ?: pinyinFieldContext, sentenceScorer).let { found ->
-                englishWords?.merge(composing, found, dictionary) ?: found
-            }
+            else -> fullKeyCandidates(composing, dictionary)
         }
         pinyinPredictions = emptyList()
         noteOwnEdit()

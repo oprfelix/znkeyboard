@@ -26,6 +26,7 @@ class NeuralSentenceScorer private constructor(
     private var totalMillis = 0.0
 
     /** The calls and milliseconds since the last time, then starts counting again. */
+    @Synchronized
     fun takeStats(): Pair<Int, Double> = (calls to totalMillis).also {
         calls = 0
         totalMillis = 0.0
@@ -51,8 +52,10 @@ class NeuralSentenceScorer private constructor(
                 }
             }
         }.getOrNull()
-        totalMillis += (SystemClock.elapsedRealtimeNanos() - started) / 1e6
-        calls++
+        synchronized(this) {
+            totalMillis += (SystemClock.elapsedRealtimeNanos() - started) / 1e6
+            calls++
+        }
         return result
     }
 
