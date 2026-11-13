@@ -38,15 +38,62 @@ object ClipboardHistoryStore {
     private const val LEGACY_REWRITE_HISTORY_FILE_NAME = "agent_rewrite_history.enc"
     private const val LEGACY_REWRITE_KEYSTORE_ALIAS = "znkeyboard_agent_rewrite_history"
 
-    fun read(context: Context): List<Entry> {
-        return runCatching {
-            val encrypted = readEncryptedFile(context) ?: return emptyList()
-            parseEntries(decrypt(encrypted))
-        }.getOrElse {
-            emptyList()
+    /**
+     * The decrypted history kept in memory once read, so opening the clipboard panel doesn't decrypt
+     * the whole file on the main thread each time; every change here updates it.
+     */
+    @Volatile private var cache: List<Entry>? = null
+
+    /** Writes for each copy run here, off the main thread, one at a time. */
+    private val io = java.util.concurrent.Executors.newSingleThreadExecutor { runnable ->
+        Thread(runnable, "ZnKeyboardClipboardHistory").apply { isDaemon = true }
+    }
+    private val main = android.os.Handler(android.os.Looper.getMainLooper())
+
+    @Synchronized
+    fun read(context: Context): List<Entry> = readOrNull(context) ?: emptyList()
+
+    /** Reads the history into memory in the background, so the first panel opens at once. */
+    fun warm(context: Context) {
+        val app = context.applicationContext
+        io.execute { runCatching { read(app) } }
+    }
+
+    /**
+     * [recordText] off the main thread; never throws (a failing keystore must not take the keyboard
+     * down with it). [then] runs on the main thread afterwards, to refresh what is shown.
+     */
+    fun recordTextAsync(
+        context: Context,
+        text: String,
+        sourcePackageName: String?,
+        sourceAppLabel: String?,
+        then: () -> Unit,
+    ) {
+        val app = context.applicationContext
+        io.execute {
+            runCatching { recordText(app, text, sourcePackageName, sourceAppLabel) }
+                .onFailure { android.util.Log.w("ZnKeyboardClipboard", "couldn't record a clip: ${it.javaClass.simpleName}") }
+            main.post(then)
         }
     }
 
+    /**
+     * The history, empty when there is none yet, or null when it exists but couldn't be read (the
+     * keystore busy or locked, a read error): writing then would replace the whole history.
+     */
+    private fun readOrNull(context: Context): List<Entry>? {
+        cache?.let { return it }
+        return runCatching {
+            val encrypted = readEncryptedFile(context) ?: return emptyList<Entry>().also { cache = it }
+            parseEntries(decrypt(encrypted)).also { cache = it }
+        }.getOrElse { error ->
+            android.util.Log.w("ZnKeyboardClipboard", "clipboard history unreadable: ${error.javaClass.simpleName}")
+            null
+        }
+    }
+
+    @Synchronized
     fun recordText(
         context: Context,
         text: String,
@@ -54,6 +101,8 @@ object ClipboardHistoryStore {
         sourceAppLabel: String? = null,
     ) {
         if (text.isBlank() || text.length > MAX_ENTRY_CHARS) return
+        // Unreadable right now: keep what is there rather than overwrite it with this one clip.
+        val existing = readOrNull(context) ?: return
 
         val now = System.currentTimeMillis()
         val entries = buildList {
@@ -65,19 +114,22 @@ object ClipboardHistoryStore {
                     sourceAppLabel = sourceAppLabel?.takeIf { it.isNotBlank() },
                 ),
             )
-            addAll(read(context).filterNot { it.text == text })
+            addAll(existing.filterNot { it.text == text })
         }.take(MAX_HISTORY)
 
         write(context, normalizeEntries(entries))
     }
 
+    @Synchronized
     fun clear(context: Context) {
         historyFile(context).delete()
+        cache = emptyList()
     }
 
+    @Synchronized
     fun deleteText(context: Context, text: String) {
         if (text.isBlank()) return
-        val entries = read(context).filterNot { it.text == text }
+        val entries = (readOrNull(context) ?: return).filterNot { it.text == text }
         if (entries.isEmpty()) {
             clear(context)
         } else {
@@ -86,6 +138,7 @@ object ClipboardHistoryStore {
     }
 
     /** Replaces the local encrypted history with a validated imported snapshot. */
+    @Synchronized
     fun replace(context: Context, entries: List<Entry>) {
         val normalized = normalizeEntries(entries)
         if (normalized.isEmpty()) {
@@ -181,6 +234,7 @@ object ClipboardHistoryStore {
             tempFile.copyTo(historyFile, overwrite = true)
             tempFile.delete()
         }
+        cache = entries.take(MAX_HISTORY)
     }
 
     private fun parseEntries(plainText: String): List<Entry> {

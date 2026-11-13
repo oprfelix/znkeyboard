@@ -160,7 +160,7 @@ import kotlinx.coroutines.withContext
 class SettingsActivity : ComponentActivity() {
     /** Set by the update notification: open the update dialog. */
     private val showUpdateRequest = mutableStateOf(false)
-    /** Set by the keyboard when polish or translate needs an API key: open the AI page. */
+    /** Set by the keyboard when translate needs an API key: open the AI page. */
     private val openAiRequest = mutableStateOf(false)
 
     override fun onCreate(savedInstanceState: android.os.Bundle?) {

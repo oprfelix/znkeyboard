@@ -1,5 +1,9 @@
 package dev.zain.znkeyboard
 
+import android.Manifest
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -180,11 +184,41 @@ class UpdateInstallReceiver : BroadcastReceiver() {
         when (intent.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE)) {
             PackageInstaller.STATUS_PENDING_USER_ACTION -> {
                 val confirm = intent.getParcelableExtra(Intent.EXTRA_INTENT, Intent::class.java) ?: return
-                runCatching { context.startActivity(confirm.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                confirm.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                // Android blocks this quietly when ZnKeyboard has gone to the background meanwhile;
+                // a notification holds the confirmation too, so the update never stalls unseen.
+                notifyConfirm(context, confirm)
+                runCatching { context.startActivity(confirm) }
             }
-            PackageInstaller.STATUS_SUCCESS -> File(context.cacheDir, "updates").deleteRecursively()
-            PackageInstaller.STATUS_FAILURE_ABORTED -> Unit // The user said no.
+            PackageInstaller.STATUS_SUCCESS -> {
+                context.getSystemService(NotificationManager::class.java)?.cancel(CONFIRM_NOTIFICATION_ID)
+                File(context.cacheDir, "updates").deleteRecursively()
+            }
+            // The user said no.
+            PackageInstaller.STATUS_FAILURE_ABORTED -> context.getSystemService(NotificationManager::class.java)?.cancel(CONFIRM_NOTIFICATION_ID)
             else -> Toast.makeText(context, context.getString(R.string.update_install_failed), Toast.LENGTH_LONG).show()
         }
+    }
+
+    private fun notifyConfirm(context: Context, confirm: Intent) {
+        if (context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return
+        val manager = context.getSystemService(NotificationManager::class.java) ?: return
+        manager.createNotificationChannel(
+            NotificationChannel(CHANNEL_ID, context.getString(R.string.update_channel), NotificationManager.IMPORTANCE_DEFAULT),
+        )
+        val open = PendingIntent.getActivity(context, CONFIRM_NOTIFICATION_ID, confirm, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+        val notification = Notification.Builder(context, CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_download_24)
+            .setContentTitle(context.getString(R.string.update_confirm_title))
+            .setContentText(context.getString(R.string.update_confirm_text))
+            .setContentIntent(open)
+            .setAutoCancel(true)
+            .build()
+        manager.notify(CONFIRM_NOTIFICATION_ID, notification)
+    }
+
+    private companion object {
+        const val CHANNEL_ID = "updates"
+        const val CONFIRM_NOTIFICATION_ID = 4202
     }
 }

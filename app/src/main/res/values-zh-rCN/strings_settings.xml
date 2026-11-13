@@ -251,7 +251,6 @@
     <string name="pinyin_summary_predict">联想</string>
     <string name="nav_tools_title">AI 与语音</string>
     <string name="touch_summary_off">未开启</string>
-    <string name="key_polish">润色</string>
     <string name="key_translate">AI 翻译为</string>
     <string name="ime_back_to_keyboard">返回键盘</string>
     <string name="nav_translate">翻译</string>
@@ -291,6 +290,8 @@
     <string name="ime_clear_search">清除搜索</string>
     <string name="ime_preview_link">预览剪贴板链接</string>
     <string name="update_channel">更新提醒</string>
+    <string name="update_confirm_title">更新已准备好</string>
+    <string name="update_confirm_text">点一下确认安装。</string>
     <string name="update_notification_text">点这里立即更新，设置和 API Key 都会保留。</string>
     <string name="chinese_keyboard_section">键盘布局</string>
     <string name="chinese_keyboard_title">中文键盘</string>

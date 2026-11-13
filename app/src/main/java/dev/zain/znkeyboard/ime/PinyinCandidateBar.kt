@@ -26,7 +26,7 @@ import kotlin.math.roundToInt
  * candidates only (or predictions after a commit); the pinyin itself shows in the text. A hint or
  * a label for a list sits in small type above them. It also hosts the target-language
  * choices opened from the round language key. Hidden when it has nothing to show, so the toolbar
- * is usable and the keyboard never changes height. While it shows predictions it pins 润色 | 翻译
+ * is usable and the keyboard never changes height. While it shows predictions it pins 翻译
  * on the right, since it covers the toolbar keys. Candidate views are pooled so typing does not
  * allocate.
  */
@@ -54,13 +54,12 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
         fun onShareRequested() {}
         fun onToolsSettingsRequested() {}
         fun onToolsMenuClosed() {}
-        fun onAgentPolishOnlyRequested()
         fun onAgentRewriteRequested()
         fun onTranslateLanguageMenuRequested()
     }
 
-    /** The pinned 润色 | 翻译 (code) buttons. */
-    class Tools(val polishLabel: String, val translateLabel: String, val languageLabel: String, val enabled: Boolean)
+    /** The pinned 翻译 (code) button. */
+    class Tools(val translateLabel: String, val languageLabel: String, val enabled: Boolean)
 
     var callback: Callback? = null
 
@@ -187,13 +186,6 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
         addView(pickerTitle, LayoutParams(0, LayoutParams.MATCH_PARENT, 1f))
         addView(pickerClose, LayoutParams(context.dp(34), context.dp(34)))
     }
-    private val polishButton = TextView(context).apply {
-        gravity = Gravity.CENTER
-        textSize = 14f
-        setPadding(context.dp(12), 0, context.dp(14), 0)
-        compoundDrawablePadding = context.dp(ImeDimensions.TOOLBAR_LABEL_ICON_GAP_DP).roundToInt()
-        setOnClickListener { callback?.onAgentPolishOnlyRequested() }
-    }
     private val translateLabel = TextView(context).apply {
         gravity = Gravity.CENTER
         textSize = 14f
@@ -315,13 +307,10 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
         offerClose.setTextColor(ImeColors.TEXT)
         offerClose.background = toolBackground()
         composingLabel.setTextColor(ImeColors.DISABLED_TEXT)
-        polishButton.setTextColor(ImeColors.TEXT)
         translateLabel.setTextColor(TranslateLayers.ink())
         languageBadge.setTextColor(TranslateLayers.ink())
-        // The icons iOS shows on 润色 and 翻译, before the label.
-        polishButton.setCompoundDrawablesRelative(labelIcon(R.drawable.ic_auto_fix_high_24), null, null, null)
+        // The icon iOS shows on 翻译, before the label.
         translateLabel.setCompoundDrawablesRelative(labelIcon(R.drawable.ic_translate_24, TranslateLayers.ink()), null, null, null)
-        polishButton.background = toolBackground()
         translateButton.background = null
         translateButton.invalidate()
         candidateViews.forEachIndexed { index, view -> styleCandidate(view, index == highlightedIndex) }
@@ -331,7 +320,7 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
     val isChoosing: Boolean get() = choosing != null
 
     /**
-     * [tools] pins 润色 | 翻译 on the right; pass it only while showing predictions. [editLabel] shows
+     * [tools] pins 翻译 on the right; pass it only while showing predictions. [editLabel] shows
      * the 改拼音 button in the ▾ button's place. [fixLabel] shows
      * the 改词 button and [expanded], when not null, the ▾ one; [highlighted] is the item in bold, -1 for none
      * while choosing what to fix.
@@ -429,13 +418,10 @@ class PinyinCandidateBar(context: Context) : LinearLayout(context) {
             return
         }
         toolsRow.visibility = View.VISIBLE
-        polishButton.text = tools.polishLabel
         translateLabel.text = tools.translateLabel
         languageBadge.text = "${tools.languageLabel} ▾"
         val alpha = if (tools.enabled) 1f else DISABLED_ALPHA
-        polishButton.isEnabled = tools.enabled
         translateButton.isEnabled = tools.enabled
-        polishButton.alpha = alpha
         translateButton.alpha = alpha
     }
 

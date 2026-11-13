@@ -174,6 +174,8 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     private var activeReview: AgentReview? = null
     private var agentError: String? = null
     private var agentLoading = false
+    /** Set in onDestroy; work finishing on other threads then cleans up after itself. */
+    private var destroyed = false
     /** After a capital typed in pinyin: letters go in as English until a space or a mark. */
     private var englishRun = false
     private var subtypeSynced = false
@@ -208,6 +210,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         }
         pinyinLearningStore = PinyinLearningStore(this)
         ClipboardHistoryStore.deleteLegacyRewriteHistory(this)
+        ClipboardHistoryStore.warm(this)
         KeyboardSettings.deleteLegacySnippetData(this)
         KeyboardSettings.deleteLegacyMacroData(this)
         KeyboardSettings.migrateAgentProviders(this)
@@ -384,8 +387,10 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     }
 
     override fun onDestroy() {
+        destroyed = true
         saveSentenceScorerStats()
         sentenceScorer?.close()
+        sentenceScorer = null
         cancelVoiceInput()
         requestGeneration++
         mainHandler.removeCallbacks(readingOfferExpiry)
@@ -614,12 +619,6 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         startRewriteFromCurrentEditor()
     }
 
-    override fun onAgentPolishOnlyRequested() {
-        if (openAiSettingsIfUnset()) return
-        rewriteTranslates = false
-        commitPinyinWholeTop()
-        startRewriteFromCurrentEditor()
-    }
 
     private fun openAiSettingsIfUnset(): Boolean {
         if (KeyboardSettings.readAgentProviderSettings(this).isConfigured) return false
@@ -1279,7 +1278,8 @@ class ZnKeyboardInputMethodService : InputMethodService(),
             Log.i(TAG, "sentence scorer ${if (loaded == null) "unavailable" else "loaded"} in ${SystemClock.elapsedRealtime() - started} ms")
             mainHandler.post {
                 sentenceScorerLoading = false
-                if (KeyboardSettings.readNeuralRerankEnabled(appContext) && loaded != null) {
+                // The keyboard closed while the model loaded: nothing will close it later.
+                if (!destroyed && KeyboardSettings.readNeuralRerankEnabled(appContext) && loaded != null) {
                     sentenceScorer = AsyncSentenceScorer(loaded) { rerankShownCandidates() }
                 } else {
                     loaded?.close()
@@ -1881,12 +1881,11 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         startReading()
     }
 
-    /** 润色 | 翻译 for the prediction bar when it hides the toolbar's own; predictions only follow pinyin. */
+    /** 翻译 for the prediction bar when it hides the toolbar's own; predictions only follow pinyin. */
     private fun pinyinBarTools(): PinyinCandidateBar.Tools? {
         val keyboard = keyboardView ?: return null
         if (!keyboard.candidateStripHidesRewrite) return null
         return PinyinCandidateBar.Tools(
-            polishLabel = AgentDefaults.POLISH_ONLY_LABEL,
             translateLabel = AgentDefaults.TRANSLATE_REWRITE_LABEL,
             languageLabel = languageLabel(KeyboardSettings.readAgentTranslateTarget(this)),
             enabled = keyboard.rewriteAvailable,
@@ -2331,14 +2330,16 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         lastCapturedClipboardSnapshot = snapshot
         noteReadingOffer(snapshot)
 
-        ClipboardHistoryStore.recordText(
+        // Encrypting the history takes a moment: off the main thread, so copying never stalls typing.
+        ClipboardHistoryStore.recordTextAsync(
             context = this,
             text = snapshot.text,
             sourcePackageName = snapshot.sourcePackageName,
             sourceAppLabel = snapshot.sourceAppLabel,
-        )
-        if (activeSurface == KeyboardSurface.Clipboard || activeSurface == KeyboardSurface.ClipboardSearch) {
-            refreshClipboardHistoryViews()
+        ) {
+            if (activeSurface == KeyboardSurface.Clipboard || activeSurface == KeyboardSurface.ClipboardSearch) {
+                refreshClipboardHistoryViews()
+            }
         }
     }
 
@@ -2618,7 +2619,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         if (!isTargetStillCurrent(review.target)) {
             activeReview = null
             showKeyboardPanel()
-            showAgentError(t("文字已经改动，请重新润色。", "The text changed. Run it again."))
+            showAgentError(t("文字已经改动，请重新翻译。", "The text changed. Run it again."))
             return
         }
 

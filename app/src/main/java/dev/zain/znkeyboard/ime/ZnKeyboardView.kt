@@ -64,7 +64,6 @@ class ZnKeyboardView @JvmOverloads constructor(
         /** Long-press on the 中/英 key: the system's list of keyboards. */
         fun onInputMethodPickerRequested() {}
         fun onTranslateLanguageMenuRequested()
-        fun onAgentPolishOnlyRequested()
         /** Hold-space voice input; false when it can't start (the service shows why). */
         fun onVoiceInputStarted(): Boolean
         fun onVoiceInputFinished(cancelled: Boolean)
@@ -188,7 +187,6 @@ class ZnKeyboardView @JvmOverloads constructor(
     // Reused by onDraw for round and merged keys, which must not allocate.
     private val chipKeyBounds = RectF()
     // 润色 and 翻译 lead with the icons iOS shows on them.
-    private val polishIcon by lazy(LazyThreadSafetyMode.NONE) { context.tintedDrawable(dev.zain.znkeyboard.R.drawable.ic_auto_fix_high_24, Color.WHITE) }
     private val translateIcon by lazy(LazyThreadSafetyMode.NONE) { context.tintedDrawable(dev.zain.znkeyboard.R.drawable.ic_translate_24, Color.WHITE) }
     private val toolbarPillBounds = RectF()
     private val iconLabelBounds = RectF()
@@ -1118,7 +1116,7 @@ class ZnKeyboardView @JvmOverloads constructor(
             layered -> false
             pressed || selected || rewriteLoading || isSpace || key.chip -> true
             // Shortcut rows read as a quiet toolbar: content only, with a pill on press / latch.
-            toolbar -> key.intent == KeyIntent.AgentRewrite || key.intent == KeyIntent.AgentPolishOnly
+            toolbar -> key.intent == KeyIntent.AgentRewrite
             key.role == KeyRole.Function -> functionKeyBackgroundsEnabled
             else -> true
         }
@@ -1206,7 +1204,6 @@ class ZnKeyboardView @JvmOverloads constructor(
                 val role = if (toolbar && key.role == KeyRole.Character && key.label.length > 1) KeyRole.Function else key.role
                 val labelIcon = when {
                     !toolbar -> null
-                    key.intent == KeyIntent.AgentPolishOnly -> polishIcon
                     key.intent == KeyIntent.AgentRewrite -> translateIcon
                     else -> null
                 }
@@ -2277,7 +2274,6 @@ class ZnKeyboardView @JvmOverloads constructor(
             KeyIntent.ToggleCtrl -> ctrl = !ctrl
             KeyIntent.TogglePinyinMode -> callback?.onPinyinModeToggled()
             KeyIntent.ChooseTranslateLanguage -> callback?.onTranslateLanguageMenuRequested()
-            KeyIntent.AgentPolishOnly -> callback?.onAgentPolishOnlyRequested()
             KeyIntent.OpenClipboard -> callback?.onClipboardPanelRequested()
             KeyIntent.OpenPhrases -> callback?.onPhrasesPanelRequested()
             KeyIntent.OpenHelp -> callback?.onHelpPanelRequested()
@@ -2714,7 +2710,6 @@ class ZnKeyboardView @JvmOverloads constructor(
         val fixed = keys.mapTo(mutableListOf()) { key ->
             key.copy(
                 weight = when {
-                    key.intent == KeyIntent.AgentPolishOnly -> ImeDimensions.TOOLBAR_POLISH_KEY_DP
                     key.intent == KeyIntent.AgentRewrite && latin -> ImeDimensions.TOOLBAR_TRANSLATE_LABEL_EN_DP
                     key.intent == KeyIntent.AgentRewrite && shortcutRowState.selection -> ImeDimensions.TOOLBAR_TRANSLATE_SELECTION_LABEL_DP
                     key.intent == KeyIntent.AgentRewrite -> ImeDimensions.TOOLBAR_TRANSLATE_LABEL_DP
@@ -2740,7 +2735,7 @@ class ZnKeyboardView @JvmOverloads constructor(
         val spare = metrics.widthPixels / metrics.density - fixed.sumOf { it.weight.toDouble() }.toFloat()
         if (spare > 0f) {
             val leftEnd = fixed.indexOfLast {
-                it.intent == KeyIntent.OpenTools || it.intent == KeyIntent.AgentPolishOnly ||
+                it.intent == KeyIntent.OpenTools ||
                     it.intent == KeyIntent.AgentRewrite || it.intent == KeyIntent.ChooseTranslateLanguage
             }
             fixed.add(leftEnd + 1, KeySpec("second_space", "", KeyIntent.None, spare, KeyRole.Function, enabled = false))
@@ -3389,7 +3384,6 @@ class ZnKeyboardView @JvmOverloads constructor(
         data object ToggleCtrl : KeyIntent()
         data object TogglePinyinMode : KeyIntent()
         data object ChooseTranslateLanguage : KeyIntent()
-        data object AgentPolishOnly : KeyIntent()
         data object AgentRewrite : KeyIntent()
         data object OpenClipboard : KeyIntent()
         data object OpenPhrases : KeyIntent()

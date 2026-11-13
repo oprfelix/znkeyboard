@@ -42,7 +42,7 @@ object ImeDimensions {
 
     const val DEFAULT_KEY_WEIGHT = 1f
     const val EDGE_UPPER_ROW_KEY_WEIGHT = 1.4f
-    // The row starts 润色 | AI 翻译为 [EN ▾]; the language chip's slot is inside the translate pill.
+    // The row starts AI 翻译为 [EN ▾]; the language chip's slot is inside the translate pill.
     // The toolbar keeps these widths on any screen; what is left stays empty in the middle.
     const val TOOLBAR_ICON_KEY_DP = 44f
     /** Tools, clipboard, phrases and help are drawn this size, as a Material icon. */
@@ -52,7 +52,6 @@ object ImeDimensions {
     const val TOOLBAR_LABEL_TEXT_SIZE_SP = 14f
     const val TOOLBAR_LABEL_ICON_DP = 17f
     const val TOOLBAR_LABEL_ICON_GAP_DP = 4f
-    const val TOOLBAR_POLISH_KEY_DP = 72f
     const val TOOLBAR_TRANSLATE_LABEL_DP = 74f
     /** Wide enough for 翻译选中. */
     const val TOOLBAR_TRANSLATE_SELECTION_LABEL_DP = 104f

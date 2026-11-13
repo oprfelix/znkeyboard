@@ -188,6 +188,7 @@ internal object AgentChatClient {
         val jsonText = rawContent
             .stripReasoningBlocks(includeReasoningText)
             .trim()
+            .stripCodeFences()
         if (jsonText.isBlank()) {
             throw IOException("LLM response did not include structured JSON.")
         }
@@ -198,6 +199,13 @@ internal object AgentChatClient {
             throw IOException("LLM response was not valid structured JSON.", error)
         }
     }
+    /** Some models wrap the JSON in ``` fences despite the schema, as on Mac and Windows. */
+    private fun String.stripCodeFences(): String {
+        if (!startsWith("```")) return this
+        val body = substringAfter('\n', "")
+        return body.removeSuffix("```").trim()
+    }
+
     private fun String.stripReasoningBlocks(includeReasoningText: Boolean): String {
         if (includeReasoningText) return this
 

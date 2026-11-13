@@ -253,7 +253,6 @@
     <string name="pinyin_summary_predict">suggestions</string>
     <string name="nav_tools_title">AI &amp; voice</string>
     <string name="touch_summary_off">Off</string>
-    <string name="key_polish">Polish</string>
     <string name="key_translate">Translate</string>
     <string name="ime_back_to_keyboard">Back to keyboard</string>
     <string name="nav_translate">Translate</string>
@@ -293,6 +292,8 @@
     <string name="ime_clear_search">Clear search</string>
     <string name="ime_preview_link">Preview clipboard link</string>
     <string name="update_channel">Updates</string>
+    <string name="update_confirm_title">Ready to install the update</string>
+    <string name="update_confirm_text">Tap to confirm the installation.</string>
     <string name="update_notification_text">Tap to update now; your settings and API key stay.</string>
     <string name="chinese_keyboard_section">Keyboard layout</string>
     <string name="chinese_keyboard_title">Chinese keyboard</string>

@@ -9,7 +9,7 @@ import java.util.UUID
 
 /**
  * The anonymous daily ping behind the usage numbers on znkeyboard.2amz.com: a random id made on this
- * phone, the platform, the version and how many times text was polished or translated since the last
+ * phone, the platform, the version and how many times text was translated since the last
  * ping. Never any text, key or setting.
  *
  * The keyboard itself never goes online for it: it only notes the day it was used, and how many AI
@@ -40,7 +40,7 @@ object UsageStats {
         prefs(context).edit().putLong(KEY_USED_DAY, day).apply()
     }
 
-    /** One finished polish, translation or AI voice input. */
+    /** One finished translation or AI voice input. */
     fun recordUse(context: Context) {
         if (!KeyboardSettings.readAnonymousStats(context)) return
         val prefs = prefs(context)

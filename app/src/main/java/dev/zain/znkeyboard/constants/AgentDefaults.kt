@@ -69,8 +69,6 @@ object AgentDefaults {
     const val TRANSLATE_REWRITE_LABEL_EN = "Translate"
     const val TRANSLATE_REWRITE_LOADING_LABEL = "处理中…"
     const val TRANSLATE_REWRITE_LOADING_LABEL_EN = "Working…"
-    const val POLISH_ONLY_LABEL = "润色"
-    const val POLISH_ONLY_LABEL_EN = "Polish"
 
     /** Rewrite errors shown in Chinese while typing in pinyin mode; others stay as they are. */
     val CHINESE_ERROR_MESSAGES = mapOf(
