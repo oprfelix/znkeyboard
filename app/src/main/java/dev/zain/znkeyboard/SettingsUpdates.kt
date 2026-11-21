@@ -113,6 +113,8 @@ internal fun AboutUpdateSection(
                 style = MaterialTheme.typography.bodyMedium,
                 color = ZnKeyboardColors.Muted,
             )
+            // The Play build is updated by Google Play: no status, no Check button.
+            if (BuildConfig.SELF_UPDATE) {
             val statusColor = if (availableRelease != null) ZnKeyboardColors.Accent else ZnKeyboardColors.Success
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -148,21 +150,24 @@ internal fun AboutUpdateSection(
                     Text(stringResource(if (checking) R.string.update_checking else R.string.update_check))
                 }
             }
+            }
         }
     }
 
     SettingsGroup(
         label = stringResource(R.string.group_updates),
-        items = listOf(
-            {
-                SwitchItem(
-                    iconResId = R.drawable.ic_restart_24,
-                    title = stringResource(R.string.update_auto),
-                    description = stringResource(R.string.update_auto_desc),
-                    checked = autoCheck,
-                    onCheckedChange = onAutoCheckChange,
-                )
-            },
+        items = listOfNotNull<@Composable () -> Unit>(
+            if (BuildConfig.SELF_UPDATE) {
+                {
+                    SwitchItem(
+                        iconResId = R.drawable.ic_restart_24,
+                        title = stringResource(R.string.update_auto),
+                        description = stringResource(R.string.update_auto_desc),
+                        checked = autoCheck,
+                        onCheckedChange = onAutoCheckChange,
+                    )
+                }
+            } else null,
             {
                 SwitchItem(
                     iconResId = R.drawable.ic_bar_chart_24,

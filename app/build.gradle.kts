@@ -68,8 +68,25 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
+    // site: the APK on the website, which checks for and installs its own updates.
+    // play: the bundle for Google Play, which updates it; no update code runs and no install permission.
+    flavorDimensions += "store"
+    productFlavors {
+        create("site") {
+            dimension = "store"
+            buildConfigField("boolean", "SELF_UPDATE", "true")
+        }
+        create("play") {
+            dimension = "store"
+            buildConfigField("boolean", "SELF_UPDATE", "false")
+            // Play has had 1.10.0; its names stay ahead of that.
+            versionName = "1.11.0"
+        }
+    }
+
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 

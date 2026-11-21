@@ -278,7 +278,8 @@ object KeyboardSettings {
 
     /** Off by default: checking contacts GitHub, so the user opts in. */
     /** On by default, as on Mac and Windows: a daily look at the public release list. */
-    fun readUpdateAutoCheck(context: Context) = readFlag(context, KEY_UPDATE_AUTO_CHECK, true)
+    /** Always off in the Play build, which Google Play updates. */
+    fun readUpdateAutoCheck(context: Context) = BuildConfig.SELF_UPDATE && readFlag(context, KEY_UPDATE_AUTO_CHECK, true)
     fun saveUpdateAutoCheck(context: Context, enabled: Boolean) = saveFlag(context, KEY_UPDATE_AUTO_CHECK, enabled)
 
     /** The anonymous daily usage ping ([UsageStats]). On by default, as on Mac and Windows. */

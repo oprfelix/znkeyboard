@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The website build updates itself; the Play build (no such file) leaves updates to Google Play,
+     which doesn't allow an app to install its own. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Updates: the downloaded APK goes to the system installer, which asks the user to confirm. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- Once ZnKeyboard installed itself, later updates may go through without asking again. -->
+    <uses-permission android:name="android.permission.UPDATE_PACKAGES_WITHOUT_USER_ACTION" />
+    <!-- The daily update check: a notification per new version. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <application>
+        <receiver
+            android:name=".UpdateInstallReceiver"
+            android:exported="false" />
+    </application>
+</manifest>
