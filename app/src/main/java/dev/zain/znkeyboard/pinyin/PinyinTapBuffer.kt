@@ -16,6 +16,14 @@ class PinyinTapBuffer : SentenceDecoder.Taps {
 
     override fun costs(at: Int): FloatArray? = if (at in 0 until minOf(length, MAX_LETTERS) && present[at]) costs[at] else null
 
+    /** A detached decode input. Both the stored rows and rows returned to a decoder are copies. */
+    fun snapshot(): SentenceDecoder.Taps {
+        val copied = Array(minOf(length, MAX_LETTERS)) { at ->
+            if (present[at]) costs[at].copyOf() else null
+        }
+        return SentenceDecoder.Taps { at -> copied.getOrNull(at)?.copyOf() }
+    }
+
     /** What the keyboard passed along with the tap at [at], if it is still lined up. */
     fun token(at: Int): Any? = if (at in 0 until minOf(length, MAX_LETTERS)) tokens[at] else null
 

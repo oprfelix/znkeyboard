@@ -130,7 +130,9 @@ class PinyinLearner(var data: PinyinUserData) {
 
     private fun learnWord(text: String, syllables: List<String>) {
         val word = data.learnWord(text, syllables)
-        dictionary?.learn(word.text, word.syllables, word.uses)
+        val pruned = data.takePrunedWords()
+        if (pruned.isNotEmpty()) pruned.forEach { dictionary?.discardPrunedWord(it.text, it.syllables) }
+        if (data.containsWord(word)) dictionary?.learn(word.text, word.syllables, word.uses)
     }
 
     private fun resetPhrase() {

@@ -6,6 +6,26 @@ package dev.zain.znkeyboard.pinyin
  * persistence. Counts are capped so the table stays small, dropping the least-used entries.
  */
 class PinyinUserData {
+    /** Detached learning state for a future decode owner; no mutable collection escapes. */
+    class Snapshot internal constructor(
+        val version: Long,
+        private val wordValues: List<SnapshotWord>,
+        private val pairValues: List<Triple<String, String, Int>>,
+    ) {
+        fun words(): List<SnapshotWord> = wordValues.toList()
+        fun pairs(): List<Triple<String, String, Int>> = pairValues.toList()
+    }
+
+    class SnapshotWord(val text: String, syllables: List<String>, val uses: Int) {
+        private val spelling = syllables.toList()
+        fun syllables(): List<String> = spelling.toList()
+    }
+
+    fun snapshot(): Snapshot = Snapshot(
+        clock,
+        words.values.map { SnapshotWord(it.text, it.syllables.toList(), it.uses) },
+        pairs(),
+    )
     /** A picked word. [syllables] are raw pinyin, one per character. */
     class Word(val text: String, val syllables: List<String>, var uses: Int, var lastUsed: Long)
 
@@ -14,6 +34,7 @@ class PinyinUserData {
     private val words = LinkedHashMap<String, Word>()
     private val following = HashMap<String, MutableList<Follower>>()
     private var pairCount = 0
+    private var prunedWords: List<Word> = emptyList()
 
     /** Bumped on every change, so callers can tell what is new since a snapshot. */
     var clock = 0L
@@ -25,13 +46,19 @@ class PinyinUserData {
 
     /** Records a pick of [text]; returns the updated word. */
     fun learnWord(text: String, syllables: List<String>): Word {
+        prunedWords = emptyList()
         clock++
-        val word = words.getOrPut(key(text, syllables)) { Word(text, syllables, 0, 0) }
+        val word = words.getOrPut(key(text, syllables)) { Word(text, syllables.toList(), 0, 0) }
         word.uses = (word.uses + 1).coerceAtMost(MAX_USES)
         word.lastUsed = clock
         if (words.size > MAX_WORDS) pruneWords()
         return word
     }
+
+    /** Entries removed by the most recent capacity prune; consumed by the dictionary overlay. */
+    fun takePrunedWords(): List<Word> = prunedWords.also { prunedWords = emptyList() }
+
+    fun containsWord(word: Word): Boolean = words[key(word.text, word.syllables)] === word
 
     /** Forgets every pick of [text] and what followed it or it followed. */
     fun forgetWord(text: String) {
@@ -95,6 +122,7 @@ class PinyinUserData {
         val keep = words.values.sortedWith(compareByDescending<Word> { it.uses }.thenByDescending { it.lastUsed })
             .take(MAX_WORDS * 3 / 4)
             .toHashSet()
+        prunedWords = words.values.filter { it !in keep }
         words.values.retainAll(keep)
     }
 

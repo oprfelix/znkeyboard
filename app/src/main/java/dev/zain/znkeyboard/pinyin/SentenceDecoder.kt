@@ -1,6 +1,7 @@
 package dev.zain.znkeyboard.pinyin
 
 import java.util.PriorityQueue
+import java.lang.ref.WeakReference
 import kotlin.math.exp
 import kotlin.math.ln
 
@@ -20,8 +21,8 @@ import kotlin.math.ln
  *
  * When the keyboard passes how well each tap fitted each key ([Taps]), a typed letter replaced by
  * another costs little if the tap landed near that key's edge and a lot if it hit the typed key
- * squarely, instead of a flat cost for any QWERTY neighbour. Pure Kotlin and main-thread only,
- * like [PinyinDictionary].
+ * squarely, instead of a flat cost for any QWERTY neighbour. Pure Kotlin; each executor owns
+ * its lookup cache, and parallel decoding uses read-only dictionary snapshots.
  */
 object SentenceDecoder {
     /**
@@ -84,6 +85,7 @@ object SentenceDecoder {
     fun decodeAll(input: String, dictionary: PinyinDictionary, taps: Taps?, before: Context?, limit: Int): List<Sentence> {
         val n = input.length
         if (n == 0 || n > MAX_INPUT) return emptyList()
+        val lookupCache = cacheFor(dictionary)
         val model = dictionary.languageModel
         val beam = if (model == null) 1 else BEAM
         val choices = if (model == null) 1 else LM_CHOICES
@@ -114,7 +116,7 @@ object SentenceDecoder {
             fun extend(at: Int, run: MutableList<Piece>, initials: String) {
                 if (run.isNotEmpty()) {
                     val pieceCost = run.sumOf { it.cost.toDouble() }.toFloat()
-                    for ((match, fuzzyCost) in bestMatches(run, dictionary, choices)) {
+                    for ((match, fuzzyCost) in bestMatches(run, dictionary, choices, lookupCache)) {
                         edges += Edge(at, run.toList(), match, pieceCost + fuzzyCost)
                     }
                 }
@@ -136,7 +138,7 @@ object SentenceDecoder {
             extend(start, ArrayList(), "")
             if (start == 0 && wholeInitials) {
                 val letters = input.indices.map { Piece(it + 1, input[it].toString(), isPrefix = true, cost = 0f) }
-                for ((match, _) in bestMatches(letters, dictionary, choices)) edges += Edge(n, letters, match, INITIAL_COST)
+                for ((match, _) in bestMatches(letters, dictionary, choices, lookupCache)) edges += Edge(n, letters, match, INITIAL_COST)
             }
             for (step in here) {
                 for (edge in edges) {
@@ -287,20 +289,29 @@ object SentenceDecoder {
         return modelCost(match, Step(0f, null, null, emptyList(), context, before?.text), dictionary, model, PICKS_SCALE)
     }
 
-    /** Lookups repeat from keystroke to keystroke; kept until the dictionary changes. */
-    private val matchCache = HashMap<String, List<Pair<PinyinDictionary.Match, Float>>>()
-    private var cachedFor: PinyinDictionary? = null
-    private var cachedVersion = -1
+    /** Each decoder executor owns its cache; a paused thread does not retain an old view. */
+    private class MatchCache {
+        val matches = HashMap<String, List<Pair<PinyinDictionary.Match, Float>>>()
+        var dictionary: WeakReference<PinyinDictionary>? = null
+        var version = -1
+    }
+    private val matchCache = ThreadLocal.withInitial { MatchCache() }
 
     /** The best [limit] words for [run], best first, each with what its fuzzy sounds cost. */
-    private fun bestMatches(run: List<Piece>, dictionary: PinyinDictionary, limit: Int): List<Pair<PinyinDictionary.Match, Float>> {
-        if (cachedFor !== dictionary || cachedVersion != dictionary.version || matchCache.size > MAX_CACHE) {
-            matchCache.clear()
-            cachedFor = dictionary
-            cachedVersion = dictionary.version
+    private fun cacheFor(dictionary: PinyinDictionary): MatchCache {
+        val cache = matchCache.get()
+        if (cache.dictionary?.get() !== dictionary || cache.version != dictionary.version) {
+            cache.matches.clear()
+            cache.dictionary = WeakReference(dictionary)
+            cache.version = dictionary.version
         }
+        return cache
+    }
+
+    private fun bestMatches(run: List<Piece>, dictionary: PinyinDictionary, limit: Int, cache: MatchCache): List<Pair<PinyinDictionary.Match, Float>> {
+        if (cache.matches.size > MAX_CACHE) cache.matches.clear()
         val key = run.joinToString(" ") { if (it.isPrefix) "${it.text}*" else it.text } + "/$limit"
-        return matchCache.getOrPut(key) {
+        return cache.matches.getOrPut(key) {
             // Fuzzy sounds let shan find 上 (shang); a word spelled the way it was typed comes first
             // unless the other is much commoner.
             dictionary.scoredMatches(run.map { PinyinDictionary.Piece(it.text, it.isPrefix) }, maxOf(FUZZY_CHOICES, limit))

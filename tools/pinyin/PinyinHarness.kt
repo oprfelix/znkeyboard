@@ -10,6 +10,7 @@ import dev.zain.znkeyboard.pinyin.PinyinLearner
 import dev.zain.znkeyboard.pinyin.PinyinTapBuffer
 import dev.zain.znkeyboard.pinyin.PinyinUserData
 import java.io.File
+import java.io.StringReader
 
 private var failures = 0
 
@@ -193,6 +194,79 @@ fun main(args: Array<String>) {
         taps.follow("w", "wo", tap(7f), sample)
         taps.follow("wo", "o", null)
         check("a tap's token moves with it", taps.token(0) === sample, "${taps.token(0)}")
+        val detached = taps.snapshot()
+        val before = detached.costs(0)?.get(0)
+        detached.costs(0)?.set(0, -100f)
+        taps.follow("o", "ox", tap(9f))
+        taps.follow("ox", "", null)
+        check("tap snapshot isolates source and reader", before == 7f && detached.costs(0)?.get(0) == 7f, "${detached.costs(0)?.get(0)}")
+    }
+    run {
+        val data = PinyinUserData()
+        val inputSpelling = mutableListOf("ni", "hao")
+        data.learnWord("你好", inputSpelling)
+        val first = data.snapshot()
+        inputSpelling[0] = "bad"
+        data.learnWord("你好", listOf("ni", "hao"))
+        val second = data.snapshot()
+        check("learning snapshot keeps old version", first.version < second.version && first.words().single().uses == 1 && second.words().single().uses == 2, "${first.version},${second.version}")
+        check("learning input list is detached", first.words().single().syllables() == listOf("ni", "hao") && data.words().single().syllables == listOf("ni", "hao"), first.words().single().syllables().toString())
+        val escaped = first.words().single().syllables() as MutableList<String>
+        escaped[0] = "bad"
+        check("learning snapshot isolates returned lists", first.words().single().syllables() == listOf("ni", "hao"), first.words().single().syllables().toString())
+    }
+    run {
+        val dictionary = PinyinDictionary.load(StringReader("甲\tjia\t100\n家\tjia\t100\n").buffered(), emptySet())
+        val piece = listOf(PinyinDictionary.Piece("jia", false))
+        val old = dictionary.snapshotView()
+        val baseIndexField = PinyinDictionary::class.java.getDeclaredField("exact").also { it.isAccessible = true }
+        val sharedIndex = baseIndexField.get(dictionary)
+        val baseBucket = (sharedIndex as Map<*, *>)["jia"] as List<*>
+        val baseOrder = baseBucket.toList()
+        dictionary.learn("家", listOf("jia"), 1)
+        dictionary.learnPair("甲", "家", 2)
+        val newer = dictionary.snapshotView()
+        check("old dictionary view retains ranking", old.matches(piece, 1).single().text == "甲" && newer.matches(piece, 1).single().text == "家", "${old.matches(piece, 1).single().text},${newer.matches(piece, 1).single().text}")
+        check("learning leaves shared base index untouched", baseIndexField.get(old) === sharedIndex && baseBucket.size == baseOrder.size && baseBucket.indices.all { baseBucket[it] === baseOrder[it] }, "${baseBucket.size} base entries")
+        check("old dictionary view rejects mutation", runCatching { old.learn("甲", listOf("jia"), 9) }.isFailure, "read-only")
+        check("old dictionary view retains pair state", old.pairUses("甲", "家") == 0 && newer.pairUses("甲", "家") == 2, "${old.pairUses("甲", "家")},${newer.pairUses("甲", "家")}")
+        dictionary.learn("伱", listOf("jia"), 100)
+        val built = dictionary.snapshotView()
+        check("built word enters index before truncation", built.matches(piece, 1).single().text == "伱" && newer.matches(piece, 2).none { it.text == "伱" }, built.matches(piece, 2).map { it.text }.toString())
+        check("built word enters nine-key index", built.nineKeyWords("542", 1).first().match.word.text == "伱" && newer.nineKeyWords("542", 1).first().match.word.text == "家", built.nineKeyWords("542", 1).map { it.match.word.text }.toString())
+        dictionary.learn("伱伱", listOf("jia", "jia"), 2)
+        val phraseView = dictionary.snapshotView()
+        check("built phrase updates initials prefix", !old.hasInitialsPrefix("j j") && phraseView.hasInitialsPrefix("j j"), "${old.hasInitialsPrefix("j j")},${phraseView.hasInitialsPrefix("j j")}")
+        check("base tie order survives learning", old.matches(piece, 2).map { it.text } == listOf("甲", "家"), old.matches(piece, 2).map { it.text }.toString())
+        dictionary.forget("伱")
+        check("forgotten addition leaves old view", built.matches(piece, 1).single().text == "伱" && dictionary.matches(piece, 1).single().text == "家", built.matches(piece, 2).map { it.text }.toString())
+        val parallelOk = java.util.concurrent.atomic.AtomicBoolean(true)
+        val workers = (0 until 4).map { Thread {
+            repeat(100) {
+                if (built.matches(piece, 1).single().text != "伱" || PinyinEngine.candidates("jia", built).isEmpty()) parallelOk.set(false)
+            }
+        }.also { it.start() } }
+        workers.forEach { it.join() }
+        check("read-only view supports parallel queries", parallelOk.get() && workers.all { !it.isAlive }, "${workers.size} workers")
+    }
+    run {
+        val dictionary = PinyinDictionary.load(StringReader("甲\tjia\t100\n").buffered(), emptySet())
+        val learner = PinyinLearner(PinyinUserData()).also { it.dictionary = dictionary }
+        repeat(PinyinUserData.MAX_WORDS + 1) { i ->
+            learner.breakChain()
+            learner.onPick((0x3400 + i).toChar().toString(), listOf("jia"), false)
+            learner.onCompositionDone()
+        }
+        val retained = learner.data.words().size
+        check("learning overlay follows bounded user data", retained == PinyinUserData.MAX_WORDS * 3 / 4 && !dictionary.isLearned(0x3400.toChar().toString()), "$retained words")
+    }
+    run {
+        val dictionary = PinyinDictionary.load(StringReader("张\tzhang\t100\n").buffered(), setOf(PinyinFuzzyRule.ZZh))
+        val old = dictionary.snapshotView()
+        dictionary.learn("伱", listOf("zang"), 2)
+        val view = dictionary.snapshotView()
+        check("nine-key cache sees learned fuzzy spelling", "zang" in view.nineKeySpellings("9264") && view.nineKeyWords("9264", 1).first().match.word.text == "伱", view.nineKeySpellings("9264").toString())
+        check("old view ignores later cache initialization", "zang" !in old.nineKeySpellings("9264") && old.characterInfo("伱") == null && view.characterInfo("伱") != null, "${old.nineKeySpellings("9264")},${view.nineKeySpellings("9264")}")
     }
     run {
         fun subs(typed: String, spelling: String) = PinyinTapBuffer.substitutions(typed, spelling).joinToString(",") { "${it.first}${it.second}" }
