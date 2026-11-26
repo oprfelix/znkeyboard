@@ -1,5 +1,6 @@
 package dev.zain.znkeyboard.pinyin
 
+import java.util.Collections
 import kotlin.math.ln
 
 /**
@@ -150,6 +151,113 @@ object PinyinEngine {
         scorer: SentenceScorer? = null,
     ): List<Candidate> = withOtherSplits(input, rankedCandidates(input, dictionary, taps, before, scorer), dictionary)
 
+    /** A detached first-decode result. It retains no dictionary, taps, or mutable IME state. */
+    class PreparedCandidates internal constructor(
+        val input: String,
+        val readings: List<ReadingSnapshot>,
+        private val words: List<Candidate>,
+        private val initials: List<Candidate>,
+        private val wholePinyin: Boolean,
+        private val hasLanguageModel: Boolean,
+        private val otherSplits: List<Candidate>,
+        val acceptsScores: Boolean,
+    ) {
+        val texts: List<String> = frozen(readings.map { it.text })
+
+        /** Rebuilds only the small candidate ordering, never the dictionary or sentence decoder. */
+        fun candidates(scores: FloatArray? = null): List<Candidate> {
+            val ordered = if (acceptsScores) {
+                (if (scores?.size == readings.size) {
+                    readings.indices.sortedByDescending { at ->
+                        -readings[at].cost + RERANK_MODEL_WEIGHT * scores[at] + RERANK_CHAR_BONUS * readings[at].text.length
+                    }.map(readings::get)
+                } else readings).take(MAX_SENTENCES)
+            } else readings
+            val ranked = if (ordered.isEmpty() ||
+                (!hasLanguageModel && ordered.first().parts.size < 2 && ordered.first().spelling.replace(" ", "") == input.replace(SEPARATOR.toString(), ""))
+            ) words else withSentences(ordered.map { it.candidate }, words, input.length)
+            val withInitials = addInitialWords(input, ranked, initials, wholePinyin, hasLanguageModel)
+            return frozen(addOtherSplits(withInitials, otherSplits))
+        }
+    }
+
+    /** Candidate and score metadata retained for AI ordering; every nested list is frozen. */
+    class ReadingSnapshot internal constructor(
+        val text: String,
+        val cost: Float,
+        val spelling: String,
+        val parts: List<Candidate>,
+        val candidate: Candidate,
+    )
+
+    /** The AI callback's value-only identity; it never retains a mutable dictionary or IME target. */
+    data class AiSnapshotIdentity(
+        val session: Long,
+        val lifecycle: Long,
+        val generation: Long,
+        val composing: String,
+        val dictionaryVersion: Int,
+    ) {
+        fun isCurrent(session: Long, lifecycle: Long, generation: Long, composing: String, dictionaryVersion: Int): Boolean =
+            this.session == session && this.lifecycle == lifecycle && this.generation == generation &&
+                this.composing == composing && this.dictionaryVersion == dictionaryVersion
+    }
+
+    /** Main-thread application gate, expressed as values so races can be tested without an IME. */
+    data class AiApplyState(
+        val session: Long,
+        val lifecycle: Long,
+        val generation: Long,
+        val composing: String,
+        val dictionaryVersion: Int,
+        val baseDelivered: Boolean,
+        val candidatesCurrent: Boolean,
+        val scorerCurrent: Boolean,
+        val qwerty: Boolean,
+        val choosing: Boolean,
+        val fixing: Boolean,
+        val editing: Boolean,
+        val active: Boolean,
+        val destroyed: Boolean,
+    )
+
+    fun mayApplyAi(identity: AiSnapshotIdentity, state: AiApplyState): Boolean =
+        !state.destroyed && state.active && state.baseDelivered && state.candidatesCurrent && state.scorerCurrent &&
+            state.qwerty && !state.choosing && !state.fixing && !state.editing &&
+            identity.isCurrent(state.session, state.lifecycle, state.generation, state.composing, state.dictionaryVersion)
+
+    private fun <T> frozen(items: List<T>): List<T> = Collections.unmodifiableList(ArrayList(items))
+
+    private fun frozenCandidate(candidate: Candidate): Candidate = candidate.copy(
+        syllables = frozen(candidate.syllables),
+        parts = candidate.parts?.let { frozen(it.map(::frozenCandidate)) },
+    )
+
+    /** The bar renders text order and a fix control when the first candidate has multiple parts. */
+    fun visibleOrderChanged(previous: List<Candidate>, next: List<Candidate>): Boolean =
+        previous.size != next.size || previous.firstOrNull()?.parts?.size != next.firstOrNull()?.parts?.size ||
+            previous.indices.any { previous[it].text != next[it].text }
+
+    /** Performs the one full decode and all dictionary lookups before handing data to the AI worker. */
+    fun prepareCandidates(
+        input: String,
+        dictionary: PinyinDictionary,
+        taps: SentenceDecoder.Taps? = null,
+        before: SentenceDecoder.Context? = null,
+        aiEnabled: Boolean = false,
+    ): PreparedCandidates {
+        val words = frozen(wordCandidates(input, dictionary).map(::frozenCandidate))
+        val rerank = aiEnabled && dictionary.languageModel != null
+        val limit = if (dictionary.languageModel == null) 1 else if (rerank) RERANK_READINGS else MAX_SENTENCES
+        val readings = frozen(SentenceDecoder.decodeAll(input, dictionary, taps, before, limit).map { sentence ->
+            val candidate = frozenCandidate(wholeInput(sentence, input.length))
+            ReadingSnapshot(sentence.text, sentence.cost, sentence.spelling, candidate.parts.orEmpty(), candidate)
+        })
+        val initials = frozen(initialCandidates(input, dictionary, before).map(::frozenCandidate))
+        val other = frozen(otherSplitCandidates(input, dictionary).map(::frozenCandidate))
+        return PreparedCandidates(input, readings, words, initials, initials.isNotEmpty() && isWholePinyin(input, dictionary), dictionary.languageModel != null, other, rerank && readings.size > 1)
+    }
+
     private fun rankedCandidates(
         input: String,
         dictionary: PinyinDictionary,
@@ -210,21 +318,30 @@ object PinyinEngine {
         dictionary: PinyinDictionary,
         before: SentenceDecoder.Context?,
     ): List<Candidate> {
-        if (input.length !in 2..MAX_INITIALS_LENGTH || SEPARATOR in input) return words
+        val initials = initialCandidates(input, dictionary, before)
+        if (initials.isEmpty()) return words
+        return addInitialWords(input, words, initials, isWholePinyin(input, dictionary), dictionary.languageModel != null)
+    }
+
+    private fun initialCandidates(input: String, dictionary: PinyinDictionary, before: SentenceDecoder.Context?): List<Candidate> {
+        if (input.length !in 2..MAX_INITIALS_LENGTH || SEPARATOR in input) return emptyList()
         val pieces = input.map { PinyinDictionary.Piece(it.toString(), isPrefix = true) }
         val found = dictionary.scoredMatches(pieces, INITIAL_WORDS_LIMIT)
-            .filter { match -> words.none { it.text == match.word.text } }
             .sortedBy { SentenceDecoder.wordCostAfter(it, before, dictionary) }
             .map { it.word }
-        if (found.isEmpty()) return words
-        val added = found.map { Candidate(it.text, input.length, it.syllables, id = it.id) }
-        if (isWholePinyin(input, dictionary)) {
+        return found.map { Candidate(it.text, input.length, it.syllables, id = it.id) }
+    }
+
+    private fun addInitialWords(input: String, words: List<Candidate>, initialCandidates: List<Candidate>, wholePinyin: Boolean, hasLanguageModel: Boolean): List<Candidate> {
+        val added = initialCandidates.filter { candidate -> words.none { it.text == candidate.text } }
+        if (added.isEmpty()) return words
+        if (wholePinyin) {
             val at = words.indexOfFirst { it.consumed < input.length }.let { if (it < 0) words.size else it }
             return words.subList(0, at) + added + words.subList(at, words.size)
         }
         val lastWord = words.indexOfLast { it.consumed >= input.length && it.text.length > 1 }
         val at = (lastWord + 1).coerceIn(MIN_BEFORE_INITIALS, MAX_BEFORE_INITIALS).coerceAtMost(words.size)
-        if (input.length < MIN_LETTERS_NEAR_TOP || at < 1 || dictionary.languageModel == null) return words.subList(0, at) + added + words.subList(at, words.size)
+        if (input.length < MIN_LETTERS_NEAR_TOP || at < 1 || !hasLanguageModel) return words.subList(0, at) + added + words.subList(at, words.size)
         return words.subList(0, 1) + added.first() + words.subList(1, at) + added.drop(1) + words.subList(at, words.size)
     }
 
@@ -264,7 +381,11 @@ object PinyinEngine {
      * where they are on the first screen without moving what was first.
      */
     private fun withOtherSplits(input: String, ranked: List<Candidate>, dictionary: PinyinDictionary): List<Candidate> {
-        if (input.length !in 3..MAX_SPLIT_LETTERS || !input.all { it in 'a'..'z' }) return ranked
+        return addOtherSplits(ranked, otherSplitCandidates(input, dictionary))
+    }
+
+    private fun otherSplitCandidates(input: String, dictionary: PinyinDictionary): List<Candidate> {
+        if (input.length !in 3..MAX_SPLIT_LETTERS || !input.all { it in 'a'..'z' }) return emptyList()
         val usual = segment(input, dictionary).map { it.text }
         val splits = ArrayList<List<String>>()
         val path = ArrayList<String>()
@@ -284,16 +405,21 @@ object PinyinEngine {
             }
         }
         search(0)
-        if (splits.isEmpty()) return ranked
-        val seen = ranked.mapTo(HashSet()) { it.text }
+        if (splits.isEmpty()) return emptyList()
         val added = ArrayList<Candidate>()
         for (split in splits) {
             for (match in dictionary.scoredMatches(split.map { PinyinDictionary.Piece(it, isPrefix = false) }, WORDS_PER_SPLIT)) {
-                if (match.score >= MIN_SPLIT_WORD_SCORE && seen.add(match.word.text)) {
+                if (match.score >= MIN_SPLIT_WORD_SCORE) {
                     added += Candidate(match.word.text, input.length, match.word.syllables, id = match.word.id)
                 }
             }
         }
+        return added
+    }
+
+    private fun addOtherSplits(ranked: List<Candidate>, others: List<Candidate>): List<Candidate> {
+        val seen = ranked.mapTo(HashSet()) { it.text }
+        val added = others.filter { seen.add(it.text) }
         if (added.isEmpty()) return ranked
         val at = minOf(OTHER_SPLITS_AT, ranked.size)
         return ranked.subList(0, at) + added + ranked.subList(at, ranked.size)

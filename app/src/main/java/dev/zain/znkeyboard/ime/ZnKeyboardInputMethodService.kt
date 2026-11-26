@@ -1310,7 +1310,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
                 sentenceScorerLoading = false
                 // The keyboard closed while the model loaded: nothing will close it later.
                 if (!destroyed && KeyboardSettings.readNeuralRerankEnabled(appContext) && loaded != null) {
-                    sentenceScorer = AsyncSentenceScorer(loaded) { rerankShownCandidates() }
+                    sentenceScorer = AsyncSentenceScorer(loaded)
                 } else {
                     loaded?.close()
                 }
@@ -1318,36 +1318,63 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         }.start()
     }
 
-    private fun fullKeyCandidates(composing: String, dictionary: PinyinDictionary): List<PinyinEngine.Candidate> =
-        PinyinEngine.candidates(composing, dictionary, pinyinTaps, pinyinLearner.context ?: pinyinFieldContext, sentenceScorer).let { found ->
-            englishWords?.merge(composing, found, dictionary) ?: found
-        }
+    private fun applyAiCandidates(
+        identity: PinyinEngine.AiSnapshotIdentity,
+        scorer: AsyncSentenceScorer,
+        found: List<PinyinEngine.Candidate>,
+    ) {
+        val dictionary = pinyinDictionary ?: return
+        val state = PinyinEngine.AiApplyState(
+            pinyinSession, pinyinLifecycle, pinyinGeneration, pinyinComposing, dictionary.version,
+            pinyinDeliveredGeneration == identity.generation, pinyinCandidateGeneration == identity.generation,
+            sentenceScorer === scorer, chineseKeyboard == KeyboardSettings.ChineseKeyboard.Qwerty,
+            pinyinBar?.isChoosing == true || pinyinExpanded, pinyinFix != null || pinyinFixedSentence != null,
+            pinyinEditCaret >= 0, isPinyinActive(), destroyed,
+        )
+        if (!PinyinEngine.mayApplyAi(identity, state)) return
+        val merged = englishWords?.merge(identity.composing, found, dictionary) ?: found
+        val changed = PinyinEngine.visibleOrderChanged(pinyinCandidates, merged)
+        pinyinCandidates = merged
+        if (changed) renderPinyinBar()
+    }
+
+    private fun requestAiCandidates(
+        identity: PinyinEngine.AiSnapshotIdentity,
+        scorer: AsyncSentenceScorer?,
+        snapshot: PinyinEngine.PreparedCandidates,
+    ) {
+        scorer?.request(snapshot) { found -> applyAiCandidates(identity, scorer, found) }
+    }
 
     /** Captures every mutable decode input on the IME thread; only the sealed view reaches the worker. */
-    private fun scheduleFullKeyCandidates(composing: String, dictionary: PinyinDictionary, keepShown: Boolean = false) {
+    private fun scheduleFullKeyCandidates(composing: String, dictionary: PinyinDictionary) {
         val generation = ++pinyinGeneration
         val ticket = BaseDecodeTicket(pinyinSession, pinyinLifecycle, generation)
         val view = dictionary.snapshotView()
+        val aiIdentity = PinyinEngine.AiSnapshotIdentity(ticket.session, ticket.lifecycle, generation, composing, view.version)
         val taps = pinyinTaps.snapshot()
         val before = pinyinLearner.context ?: pinyinFieldContext
         val scorer = sentenceScorer
-        if (keepShown) pinyinCandidateGeneration = generation else {
-            pinyinCandidates = emptyList()
-            pinyinCandidateGeneration = -1L
-        }
+        pinyinCandidates = emptyList()
+        pinyinCandidateGeneration = -1L
         baseDecodeQueue.submit(Runnable {
-            val found = runCatching { PinyinEngine.candidates(composing, view, taps, before, scorer) }
+            val prepared = runCatching { PinyinEngine.prepareCandidates(composing, view, taps, before, scorer != null) }
                 .onFailure { Log.e(TAG, "background pinyin decode failed", it) }.getOrNull()
+            val cached = prepared?.let { scorer?.cachedScores(it.texts) }
+            val found = prepared?.candidates(cached)
             mainHandler.post {
                 if (found != null && !destroyed && ticket.isCurrent(pinyinSession, pinyinLifecycle, pinyinGeneration) &&
                     pinyinDeliveredGeneration != generation &&
-                    pinyinDictionary === dictionary && pinyinComposing == composing && isPinyinActive() &&
+                    pinyinDictionary === dictionary && dictionary.version == view.version && pinyinComposing == composing && isPinyinActive() &&
                     chineseKeyboard == KeyboardSettings.ChineseKeyboard.Qwerty && pinyinFix == null && pinyinEditCaret < 0
                 ) {
-                    pinyinCandidates = englishWords?.merge(composing, found, dictionary) ?: found
+                    val merged = englishWords?.merge(composing, found, dictionary) ?: found
+                    val changed = PinyinEngine.visibleOrderChanged(pinyinCandidates, merged)
+                    pinyinCandidates = merged
                     pinyinCandidateGeneration = generation
                     pinyinDeliveredGeneration = generation
-                    renderPinyinBar()
+                    if (changed) renderPinyinBar()
+                    if (cached == null) requestAiCandidates(aiIdentity, scorer, prepared)
                 }
             }
         })
@@ -1358,21 +1385,15 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         if (pinyinComposing.isEmpty() || chineseKeyboard != KeyboardSettings.ChineseKeyboard.Qwerty ||
             pinyinCandidateGeneration == pinyinGeneration) return
         val dictionary = pinyinDictionary ?: return
-        pinyinCandidates = fullKeyCandidates(pinyinComposing, dictionary)
+        val composing = pinyinComposing
+        val scorer = sentenceScorer
+        val prepared = PinyinEngine.prepareCandidates(composing, dictionary, pinyinTaps, pinyinLearner.context ?: pinyinFieldContext, scorer != null)
+        val cached = scorer?.cachedScores(prepared.texts)
+        val found = prepared.candidates(cached)
+        pinyinCandidates = englishWords?.merge(composing, found, dictionary) ?: found
         pinyinCandidateGeneration = pinyinGeneration
         pinyinDeliveredGeneration = pinyinGeneration
-    }
-
-    /**
-     * AI 整句排序 has scored the readings on the bar (off the main thread): the same input is read
-     * again, now in the model's order. Left alone while the bar is being used for something else.
-     */
-    private fun rerankShownCandidates() {
-        val dictionary = pinyinDictionary ?: return
-        val composing = pinyinComposing
-        if (composing.isEmpty() || chineseKeyboard.isNineKey || pinyinFix != null || pinyinEditCaret >= 0) return
-        if (pinyinBar?.isChoosing == true) return
-        scheduleFullKeyCandidates(composing, dictionary, keepShown = true)
+        if (cached == null) requestAiCandidates(PinyinEngine.AiSnapshotIdentity(pinyinSession, pinyinLifecycle, pinyinGeneration, composing, dictionary.version), scorer, prepared)
     }
 
     /** Adds the scorer's timings since the last time to the setting's summary. */
