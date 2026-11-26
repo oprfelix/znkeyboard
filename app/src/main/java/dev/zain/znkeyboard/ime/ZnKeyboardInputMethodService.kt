@@ -109,6 +109,15 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     private var pinyinGeneration = 0L
     private var pinyinCandidateGeneration = -1L
     private var pinyinDeliveredGeneration = -1L
+    private fun advancePinyinGeneration(): Long {
+        sentenceScorer?.revoke()
+        return ++pinyinGeneration
+    }
+
+    private fun advancePinyinLifecycle() {
+        sentenceScorer?.revoke()
+        pinyinLifecycle++
+    }
     private var englishWords: EnglishWords? = null
 
     /** The field's text before the caret, until the keyboard edits it itself. */
@@ -153,6 +162,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     /** AI 整句排序 (experimental): set once the model has loaded while the setting is on. */
     private var sentenceScorer: AsyncSentenceScorer? = null
     private var sentenceScorerLoading = false
+    private var sentenceScorerClosing = false
 
     /** The leaf menu's keyboard choice, over the keys below the candidate strip while open. */
     private var keyboardPicker: KeyboardPickerView? = null
@@ -335,7 +345,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     override fun onStartInput(attribute: EditorInfo?, restarting: Boolean) {
         super.onStartInput(attribute, restarting)
         pinyinSession++
-        pinyinLifecycle++
+        advancePinyinLifecycle()
         // A new field: whatever was composing belonged to the old one.
         clearPinyinComposition()
         englishRun = false
@@ -347,8 +357,8 @@ class ZnKeyboardInputMethodService : InputMethodService(),
 
     override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {
         super.onStartInputView(info, restarting)
-        pinyinLifecycle++
-        pinyinGeneration++
+        advancePinyinLifecycle()
+        advancePinyinGeneration()
         currentEditorInfo = info
         info?.let { refreshTranslateState(it.initialSelStart, it.initialSelEnd) }
         // Local only, at most one write a day; the daily job sends the anonymous ping.
@@ -386,7 +396,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     }
 
     override fun onFinishInputView(finishingInput: Boolean) {
-        pinyinLifecycle++
+        advancePinyinLifecycle()
         closeReadingCard()
         cancelVoiceInput()
         commitPinyinRaw()
@@ -401,16 +411,16 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     }
 
     override fun onFinishInput() {
-        pinyinLifecycle++
-        pinyinGeneration++
+        advancePinyinLifecycle()
+        advancePinyinGeneration()
         pinyinCandidateGeneration = -1L
         super.onFinishInput()
     }
 
     override fun onDestroy() {
         destroyed = true
-        pinyinLifecycle++
-        pinyinGeneration++
+        advancePinyinLifecycle()
+        advancePinyinGeneration()
         baseDecodeQueue.close()
         saveSentenceScorerStats()
         sentenceScorer?.close()
@@ -1280,7 +1290,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
                     if (saved == null) pinyinLearner.applyTo(loaded, pinyinLearner.data.wordsChangedSince(snapshotClock))
                     pinyinLearner.dictionary = loaded
                     pinyinDictionary = loaded
-                    pinyinGeneration++
+                    advancePinyinGeneration()
                     pinyinCandidateGeneration = -1L
                     if (pinyinComposing.isNotEmpty() && chineseKeyboard == KeyboardSettings.ChineseKeyboard.Qwerty) {
                         scheduleFullKeyCandidates(pinyinComposing, loaded)
@@ -1295,10 +1305,17 @@ class ZnKeyboardInputMethodService : InputMethodService(),
     /** Loads the character model off the main thread while AI 整句排序 is on; drops it once off. */
     private fun syncSentenceScorer() {
         if (!KeyboardSettings.readNeuralRerankEnabled(this)) {
-            sentenceScorer?.close()
+            sentenceScorer?.let { scorer ->
+                sentenceScorerClosing = true
+                scorer.close {
+                    sentenceScorerClosing = false
+                    if (!destroyed) syncSentenceScorer()
+                }
+            }
             sentenceScorer = null
             return
         }
+        if (sentenceScorerClosing) return
         if (sentenceScorer != null || sentenceScorerLoading) return
         sentenceScorerLoading = true
         val appContext = applicationContext
@@ -1343,12 +1360,12 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         scorer: AsyncSentenceScorer?,
         snapshot: PinyinEngine.PreparedCandidates,
     ) {
-        scorer?.request(snapshot) { found -> applyAiCandidates(identity, scorer, found) }
+        scorer?.request(identity, snapshot) { found -> applyAiCandidates(identity, scorer, found) }
     }
 
     /** Captures every mutable decode input on the IME thread; only the sealed view reaches the worker. */
     private fun scheduleFullKeyCandidates(composing: String, dictionary: PinyinDictionary) {
-        val generation = ++pinyinGeneration
+        val generation = advancePinyinGeneration()
         val ticket = BaseDecodeTicket(pinyinSession, pinyinLifecycle, generation)
         val view = dictionary.snapshotView()
         val aiIdentity = PinyinEngine.AiSnapshotIdentity(ticket.session, ticket.lifecycle, generation, composing, view.version)
@@ -1427,7 +1444,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         if (pinyinLearningGeneration == -1 || generation == pinyinLearningGeneration) return
         pinyinLearningGeneration = generation
         pinyinDictionary?.forgetLearned()
-        pinyinGeneration++
+        advancePinyinGeneration()
         pinyinCandidateGeneration = -1L
         englishWords?.restore(KeyboardSettings.readEnglishWordUses(this))
         pinyinLearner.data = PinyinUserData()
@@ -1639,13 +1656,13 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         }
         pinyinComposing = composing
         pinyinCandidates = when {
-            composing.isEmpty() -> { pinyinGeneration++; pinyinCandidateGeneration = -1L; emptyList() }
+            composing.isEmpty() -> { advancePinyinGeneration(); pinyinCandidateGeneration = -1L; emptyList() }
             chineseKeyboard == KeyboardSettings.ChineseKeyboard.NineKeyPinyin -> NineKeyEngine.candidates(composing, dictionary)
             chineseKeyboard == KeyboardSettings.ChineseKeyboard.NineKeyStroke -> strokeIndex?.candidates(composing, dictionary).orEmpty()
             else -> { scheduleFullKeyCandidates(composing, dictionary); emptyList() }
         }
         if (composing.isNotEmpty() && chineseKeyboard.isNineKey) {
-            pinyinGeneration++
+            advancePinyinGeneration()
             pinyinCandidateGeneration = pinyinGeneration
         }
         pinyinPredictions = emptyList()
@@ -1702,7 +1719,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
         if (save) KeyboardSettings.saveChineseKeyboard(this, keyboard)
         val route = CandidateInputTransition.route(chineseKeyboard.id, keyboard.id)
         if (route != null) {
-            pinyinGeneration++
+            advancePinyinGeneration()
             pinyinCandidateGeneration = -1L
             pinyinCandidates = emptyList()
         }
@@ -1750,7 +1767,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
             settleFullKeyCandidates()
         }
         val candidate = pinyinCandidates.getOrNull(index) ?: return
-        pinyinGeneration++
+        advancePinyinGeneration()
         pinyinCandidateGeneration = -1L
         val learnedByHand = byHand || candidate === pinyinFixedSentence
         pinyinFix = null
@@ -2033,7 +2050,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
      */
     private fun commitPinyinRaw() {
         if (pinyinComposing.isEmpty()) return
-        pinyinGeneration++
+        advancePinyinGeneration()
         pinyinCandidateGeneration = -1L
         val dictionary = pinyinDictionary
         val raw = when {
@@ -2055,7 +2072,7 @@ class ZnKeyboardInputMethodService : InputMethodService(),
 
     /** Forgets the composition without touching the editor, which already let it go. */
     private fun clearPinyinComposition() {
-        pinyinGeneration++
+        advancePinyinGeneration()
         pinyinCandidateGeneration = -1L
         pinyinExpanded = false
         pinyinLearner.onCompositionAbandoned()
